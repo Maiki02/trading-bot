@@ -336,7 +336,7 @@ class TelegramService:
         # Formato del payload según el nuevo formato con image_base64
         payload = {
             "first_message": message.title,
-            "image_base64": chart_base64 if chart_base64 else "",
+            #"image_base64": chart_base64 if chart_base64 else "",
             "entries": [
                 {
                     "subscription": self.subscription,
@@ -376,7 +376,6 @@ class TelegramService:
             except Exception as e:
                 logger.error(f"❌ Fallo al guardar imagen del gráfico: {e}")
         
-        return
 
         try:
             chart_status = 'SÍ' if chart_base64 else 'NO'
