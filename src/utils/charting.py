@@ -98,13 +98,20 @@ def generate_chart_base64(
     )
     
     style = mpf.make_mpf_style(
-        base_mpf_style='nightclouds',  # Estilo oscuro predefinido
+        base_mpf_style='yahoo',        # Estilo claro con fondo blanco
         marketcolors=market_colors,     # ← Aplicar colores personalizados
         gridstyle='--',
-        gridcolor='#2A2A2A',
-        facecolor='#0D1117',  # Fondo oscuro GitHub-like
-        edgecolor='#1F1F1F',
-        figcolor='#0D1117',
+        gridcolor='#CCCCCC',           # Grilla gris clara
+        facecolor='#FFFFFF',           # Fondo blanco del área de gráfico
+        edgecolor='#E0E0E0',           # Borde gris muy claro
+        figcolor='#FFFFFF',            # Fondo blanco de la figura completa
+        rc={
+            'axes.labelcolor': '#000000',    # Etiquetas negras
+            'xtick.color': '#000000',        # Números eje X negros
+            'ytick.color': '#000000',        # Números eje Y negros
+            'axes.edgecolor': '#000000',     # Borde del gráfico negro
+            'text.color': '#000000'          # Texto general negro
+        },
         y_on_right=False
     )
     
@@ -122,7 +129,7 @@ def generate_chart_base64(
             df_plot,
             type='candle',
             style=style,
-            title=dict(title=title, color='white', fontsize=14, weight='bold'),
+            title=dict(title=title, color='black', fontsize=14, weight='bold'),
             ylabel='Price',
             ylabel_lower='Volume',
             volume=True,
