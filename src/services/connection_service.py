@@ -18,6 +18,8 @@ import string
 from typing import Dict, Callable, Optional, Any, List
 from dataclasses import dataclass
 from datetime import datetime
+from pathlib import Path
+from pathlib import Path
 
 import websockets
 from websockets.exceptions import ConnectionClosed, WebSocketException
@@ -159,6 +161,11 @@ class ConnectionService:
         self.reconnect_attempts: int = 0
         self.max_reconnect_attempts: int = 10
         
+        # Tracking de snapshot inicial (para guardar en JSON)
+        self.snapshot_received: Dict[str, bool] = {}
+        self.snapshot_completed: Dict[str, bool] = {}  # Track cuando termina el snapshot
+        self.first_connection: bool = True  # Flag para saber si es la primera conexión
+        
         # Message task
         self.message_task: Optional[asyncio.Task] = None
     
@@ -240,8 +247,9 @@ class ConnectionService:
         async with websockets.connect(
             Config.TRADINGVIEW.ws_url,
             extra_headers=headers,
-            ping_interval=None,  # Usamos nuestro propio heartbeat
-            ping_timeout=None
+            ping_interval=20,  # Ping cada 20 segundos para mantener la conexión viva
+            ping_timeout=20,   # Timeout de ping 20 segundos
+            close_timeout=10   # Timeout al cerrar 10 segundos
         ) as websocket:
             self.websocket = websocket
             self.reconnect_attempts = 0  # Reset en conexión exitosa
@@ -282,7 +290,11 @@ class ConnectionService:
     async def _subscribe_instruments(self) -> None:
         """
         Suscribe a los instrumentos configurados (OANDA y FX).
+        Solo solicita snapshot histórico en la primera conexión.
         """
+        # Determinar cuántas velas solicitar
+        snapshot_candles = Config.TRADINGVIEW.snapshot_candles if self.first_connection else 10
+        
         for key, instrument in Config.INSTRUMENTS.items():
             logger.info(f"📊 Subscribing to {instrument.full_symbol} ({key})...")
             
@@ -294,7 +306,10 @@ class ConnectionService:
             create_session_msg = encode_message("chart_create_session", [chart_session_id])
             await self.websocket.send(create_session_msg)
             
-            # Solicitar snapshot de datos históricos (1000 velas)
+            # Solicitar snapshot de datos históricos
+            if self.first_connection:
+                logger.info(f"📥 Requesting {snapshot_candles} candles (first connection)")
+            
             resolve_symbol_msg = encode_message(
                 "resolve_symbol",
                 [
@@ -314,12 +329,16 @@ class ConnectionService:
                     "s1",
                     "symbol_1",
                     instrument.timeframe,
-                    Config.TRADINGVIEW.snapshot_candles
+                    snapshot_candles  # Usar valor dinámico
                 ]
             )
             await self.websocket.send(create_series_msg)
             
             logger.info(f"✅ Subscribed to {instrument.full_symbol}")
+        
+        # Marcar que ya no es la primera conexión
+        if self.first_connection:
+            self.first_connection = False
         
         await asyncio.sleep(1)  # Dar tiempo para que el servidor procese
     
@@ -336,14 +355,7 @@ class ConnectionService:
                 if raw_message.startswith("~h~"):
                     heartbeat_id = raw_message.split("~h~")[1] if "~h~" in raw_message else "1"
                     await self.websocket.send(f"~h~{heartbeat_id}")
-                    logger.debug("💓 Heartbeat response sent")
                     continue
-                
-                # Log de mensajes crudos para debug (truncado para evitar spam de snapshot)
-                if len(raw_message) < 500:  # Solo loguear mensajes cortos
-                    logger.debug(f"📨 Raw message received: {raw_message[:200]}...")
-                else:
-                    logger.debug(f"📨 Large message received ({len(raw_message)} bytes) - snapshot data")
                 
                 await self._process_message(raw_message)
         except ConnectionClosed as e:
@@ -369,12 +381,9 @@ class ConnectionService:
             method = msg.get("m")
             params = msg.get("p", [])
             
-            # Log de métodos (truncar params largos)
-            params_str = str(params)
-            if len(params_str) > 100:
-                logger.debug(f"📥 Method: {method}, Params: <{len(params_str)} bytes>")
-            else:
-                logger.debug(f"📥 Method: {method}, Params: {params}")
+            # Log de TODOS los métodos recibidos para debug
+            if method:
+                logger.info(f"🔔 MESSAGE RECEIVED | Method: {method}")
             
             # Detectar fallo de autenticación o error de protocolo
             if method == "critical_error" or method == "error" or method == "protocol_error":
@@ -394,29 +403,58 @@ class ConnectionService:
                         self.on_auth_failure_callback()
                     self.is_running = False
             
-            # Procesar datos de velas
+            # Procesar datos de velas (snapshot inicial)
             elif method == "timescale_update":
+                # Si es el primer timescale_update para esta sesión, guardar snapshot
+                if params and len(params) >= 2:
+                    chart_session_id = params[0]
+                    if chart_session_id not in self.snapshot_received:
+                        await self._save_snapshot_to_file(chart_session_id, params)
+                        self.snapshot_received[chart_session_id] = True
+                
                 await self._parse_candle_data(params)
             
+            # Procesar actualizaciones en tiempo real (método 'du' = data update)
+            elif method == "du":
+                logger.info(f"🔄 DU MESSAGE | Params: {params[:2] if len(params) > 2 else params}")
+                await self._parse_candle_data(params, is_realtime=True)
+            
             # Confirmaciones de protocolo
-            elif method in ["protocol_switched", "quote_completed", "series_completed"]:
-                logger.debug(f"Protocol confirmation: {method}")
+            elif method in ["protocol_switched", "quote_completed"]:
+                pass  # No loguear confirmaciones
+            
+            elif method == "series_completed":
+                # Marcar snapshot como completado
+                if params and len(params) >= 1:
+                    chart_session_id = params[0]
+                    self.snapshot_completed[chart_session_id] = True
+                    logger.info(f"✅ Snapshot completed for {chart_session_id}. Real-time processing ACTIVE.")
     
-    async def _parse_candle_data(self, params: List[Any]) -> None:
+    async def _parse_candle_data(self, params: List[Any], is_realtime: bool = False) -> None:
         """
         Parsea datos de velas desde los parámetros del mensaje.
         
         Args:
-            params: Parámetros del mensaje timescale_update
+            params: Parámetros del mensaje timescale_update o du
+            is_realtime: True si es un mensaje en tiempo real (post-snapshot)
         """
+        logger.info(f"🔍 PARSING CANDLE DATA | Params length: {len(params)} | Realtime: {is_realtime}")
+        
         if len(params) < 2:
+            logger.warning(f"⚠️  PARSE FAILED | Not enough params: {len(params)}")
             return
         
         chart_session_id = params[0]
         data_payload = params[1]
         
+        # Verificar si el snapshot ya se completó para esta sesión
+        snapshot_done = self.snapshot_completed.get(chart_session_id, False)
+        
+        logger.info(f"🔍 Chart Session: {chart_session_id} | Payload type: {type(data_payload).__name__} | Snapshot done: {snapshot_done}")
+        
         # Identificar la fuente (OANDA o FX)
         source = None
+        symbol = None
         for key, session_id in self.chart_sessions.items():
             if session_id == chart_session_id:
                 source = Config.INSTRUMENTS[key].exchange
@@ -424,35 +462,117 @@ class ConnectionService:
                 break
         
         if not source:
+            logger.warning(f"⚠️  PARSE FAILED | Unknown chart session: {chart_session_id}")
+            logger.warning(f"    Known sessions: {list(self.chart_sessions.values())}")
             return
         
+        logger.info(f"🔍 Source identified: {source}:{symbol}")
+        
         # Extraer datos de velas del payload
-        if isinstance(data_payload, dict) and "s" in data_payload:
-            for series in data_payload["s"]:
-                if "v" in series:  # v = values (OHLCV)
-                    candle_values = series["v"]
-                    
-                    # Formato típico: [timestamp, open, high, low, close, volume]
-                    if len(candle_values) >= 6:
-                        candle = CandleData(
-                            timestamp=int(candle_values[0]),
-                            open=float(candle_values[1]),
-                            high=float(candle_values[2]),
-                            low=float(candle_values[3]),
-                            close=float(candle_values[4]),
-                            volume=float(candle_values[5]),
-                            source=source,
-                            symbol=symbol
-                        )
+        if isinstance(data_payload, dict):
+            logger.info(f"🔍 Payload keys: {list(data_payload.keys())}")
+            
+            # El método 'du' puede tener estructura anidada diferente
+            # Buscar en diferentes ubicaciones posibles
+            series_data = None
+            
+            if "s1" in data_payload:
+                # Formato: params[1]["s1"]["s"][0]["v"]
+                logger.info(f"🔍 Found 's1' key (du format)")
+                s1_data = data_payload["s1"]
+                if isinstance(s1_data, dict) and "s" in s1_data:
+                    series_data = s1_data["s"]
+            elif "s" in data_payload:
+                # Formato: params[1]["s"][0]["v"]
+                logger.info(f"🔍 Found 's' key (timescale_update format)")
+                series_data = data_payload["s"]
+            
+            if series_data:
+                logger.info(f"🔍 Processing {len(series_data)} series...")
+                for series in series_data:
+                    if "v" in series:  # v = values (OHLCV)
+                        candle_values = series["v"]
+                        logger.info(f"🔍 Candle values found: {candle_values}")
                         
-                        logger.debug(
-                            f"📊 Candle received from {source}: "
-                            f"C={candle.close:.5f} @ {candle.timestamp}"
-                        )
-                        
-                        # Invocar callback
-                        if self.on_candle_callback:
-                            self.on_candle_callback(candle)
+                        # Formato típico: [timestamp, open, high, low, close, volume]
+                        if len(candle_values) >= 6:
+                            candle = CandleData(
+                                timestamp=int(candle_values[0]),
+                                open=float(candle_values[1]),
+                                high=float(candle_values[2]),
+                                low=float(candle_values[3]),
+                                close=float(candle_values[4]),
+                                volume=float(candle_values[5]),
+                                source=source,
+                                symbol=symbol
+                            )
+                            
+                            # Log de vela recibida
+                            logger.info(
+                                f"🔵 CANDLE TICK | {source}:{symbol} | "
+                                f"T={candle.timestamp} | C={candle.close:.5f} | V={candle.volume:.0f}"
+                            )
+                            
+                            # Solo invocar callback si:
+                            # 1. Es un mensaje en tiempo real (du), O
+                            # 2. El snapshot ya se completó (series_completed recibido)
+                            if is_realtime or snapshot_done:
+                                if self.on_candle_callback:
+                                    self.on_candle_callback(candle)
+                            else:
+                                logger.debug(
+                                    f"📥 Historical candle buffered (no callback) | "
+                                    f"T={candle.timestamp} | Snapshot in progress"
+                                )
+                        else:
+                            logger.warning(f"⚠️  Candle values too short: {len(candle_values)}")
+                    else:
+                        logger.warning(f"⚠️  No 'v' key in series: {list(series.keys())}")
+            else:
+                logger.warning(f"⚠️  No series data found in payload")
+        else:
+            logger.warning(f"⚠️  Payload is not a dict: {type(data_payload).__name__}")
+    
+    async def _save_snapshot_to_file(self, chart_session_id: str, params: List[Any]) -> None:
+        """
+        Guarda el snapshot inicial de 1000 velas en un archivo JSON.
+        
+        Args:
+            chart_session_id: ID de la sesión del gráfico
+            params: Parámetros completos del mensaje timescale_update
+        """
+        try:
+            # Crear directorio logs si no existe
+            logs_dir = Path("logs")
+            logs_dir.mkdir(exist_ok=True)
+            
+            # Identificar la fuente
+            source = "unknown"
+            for key, session_id in self.chart_sessions.items():
+                if session_id == chart_session_id:
+                    source = Config.INSTRUMENTS[key].exchange
+                    break
+            
+            # Nombre del archivo con timestamp
+            timestamp_str = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = logs_dir / f"snapshot_{source}_{timestamp_str}.json"
+            
+            # Preparar datos para guardar
+            snapshot_data = {
+                "chart_session_id": chart_session_id,
+                "source": source,
+                "timestamp": timestamp_str,
+                "raw_params": params
+            }
+            
+            # Guardar en archivo
+            with open(filename, 'w', encoding='utf-8') as f:
+                json.dump(snapshot_data, f, indent=2, ensure_ascii=False)
+            
+            logger.info(f"💾 Snapshot saved: {filename} ({source})")
+            
+        except Exception as e:
+            log_exception(logger, f"Failed to save snapshot for {chart_session_id}", e)
     
     async def _handle_reconnection(self) -> None:
         """
@@ -467,8 +587,8 @@ class ConnectionService:
         )
         
         logger.warning(
-            f"🔄 Reconnection attempt {self.reconnect_attempts}/{self.max_reconnect_attempts} "
-            f"in {delay}s..."
+            f"🔄 RECONNECTION #{self.reconnect_attempts}/{self.max_reconnect_attempts} | "
+            f"Waiting {delay}s before retry | Reason: Connection lost"
         )
         
         await asyncio.sleep(delay)

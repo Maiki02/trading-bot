@@ -241,19 +241,31 @@ class TelegramService:
         """
         timestamp_str = datetime.fromtimestamp(signal.timestamp).strftime("%Y-%m-%d %H:%M:%S")
         
-        title = f"⚠️ POSIBLE OPORTUNIDAD | {signal.symbol}"
-        
-        body = (
-            f"📊 **Fuente:** {signal.source}\n"
-            f"📈 **Patrón:** {signal.pattern}\n"
-            f"🕒 **Timestamp:** {timestamp_str}\n"
-            f"💰 **OHLC:** O={signal.candle.open:.5f} H={signal.candle.high:.5f} "
-            f"L={signal.candle.low:.5f} C={signal.candle.close:.5f}\n"
-            f"📉 **EMA 200:** {signal.ema_200:.5f}\n"
-            f"🎯 **Tendencia:** {signal.trend}\n"
-            f"✨ **Confianza:** {signal.confidence:.0%}\n\n"
-            f"⚡ *Verificar gráfico manualmente antes de operar.*"
-        )
+        # Diferenciar entre patrón detectado y cierre de vela regular
+        if signal.pattern == "CANDLE_CLOSE":
+            title = f"📊 CIERRE DE VELA | {signal.symbol}"
+            body = (
+                f"📊 **Fuente:** {signal.source}\n"
+                f"🕒 **Timestamp:** {timestamp_str}\n"
+                f"💰 **OHLC:** O={signal.candle.open:.5f} H={signal.candle.high:.5f} "
+                f"L={signal.candle.low:.5f} C={signal.candle.close:.5f}\n"
+                f"📉 **EMA 200:** {signal.ema_200:.5f}\n"
+                f"🎯 **Tendencia:** {signal.trend}\n\n"
+                f"ℹ️ *Vela cerrada - Monitoreo automático activo*"
+            )
+        else:
+            title = f"⚠️ POSIBLE OPORTUNIDAD | {signal.symbol}"
+            body = (
+                f"📊 **Fuente:** {signal.source}\n"
+                f"📈 **Patrón:** {signal.pattern}\n"
+                f"🕒 **Timestamp:** {timestamp_str}\n"
+                f"💰 **OHLC:** O={signal.candle.open:.5f} H={signal.candle.high:.5f} "
+                f"L={signal.candle.low:.5f} C={signal.candle.close:.5f}\n"
+                f"📉 **EMA 200:** {signal.ema_200:.5f}\n"
+                f"🎯 **Tendencia:** {signal.trend}\n"
+                f"✨ **Confianza:** {signal.confidence:.0%}\n\n"
+                f"⚡ *Verificar gráfico manualmente antes de operar.*"
+            )
         
         return AlertMessage(
             title=title,
@@ -337,13 +349,43 @@ class TelegramService:
             "x-api-key": self.api_key,
             "Content-Type": "application/json"
         }
+
+        logger.info("🔔 MESSAGE READY TO SEND | Preparing to send alert to Telegram")
+
+        # Guardar imagen Base64 en logs/ antes de enviar
+        if chart_base64:
+            try:
+                import base64
+                from pathlib import Path
+                
+                # Crear directorio logs si no existe
+                logs_dir = Path("logs")
+                logs_dir.mkdir(exist_ok=True)
+                
+                # Generar nombre de archivo con timestamp
+                timestamp_str = datetime.now().strftime("%Y%m%d_%H%M%S")
+                filename = f"chart_{message.alert_type}_{timestamp_str}.png"
+                filepath = logs_dir / filename
+                
+                # Decodificar Base64 y guardar imagen
+                image_data = base64.b64decode(chart_base64)
+                filepath.write_bytes(image_data)
+                
+                logger.info(f"💾 Chart saved to {filepath} | Size: {len(image_data)} bytes")
+            
+            except Exception as e:
+                logger.error(f"❌ Failed to save chart image: {e}")
+
+        return
         
         try:
-            logger.info(f"📤 Sending {message.alert_type} alert to Telegram broadcast...")
-            if chart_base64:
-                logger.debug(f"📊 Including chart image ({len(chart_base64)} bytes Base64)")
-            else:
-                logger.debug("📊 No chart image included")
+            chart_status = 'YES' if chart_base64 else 'NO'
+            chart_size = len(chart_base64) if chart_base64 else 0
+            logger.info(
+                f"📤 SENDING TO TELEGRAM | Type: {message.alert_type} | "
+                f"Title: {message.title} | Chart: {chart_status} | "
+                f"Chart Size: {chart_size} bytes"
+            )
             
             async with self.session.post(
                 self.api_url,
@@ -352,7 +394,10 @@ class TelegramService:
                 timeout=aiohttp.ClientTimeout(total=10)
             ) as response:
                 if response.status == 200:
-                    logger.info(f"✅ Alert sent successfully ({message.alert_type})")
+                    logger.info(
+                        f"✅ TELEGRAM SENT SUCCESSFULLY | Type: {message.alert_type} | "
+                        f"Status: {response.status}"
+                    )
                 else:
                     error_text = await response.text()
                     logger.error(

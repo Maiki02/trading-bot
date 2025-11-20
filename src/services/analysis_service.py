@@ -193,6 +193,8 @@ class AnalysisService:
         is_new_candle = self._is_new_candle(source_key, candle.timestamp)
         
         if is_new_candle:
+            logger.info(f"🕒 NEW CANDLE | {source_key} | T={candle.timestamp} | Close={candle.close:.5f}")
+            
             # Agregar la vela anterior al buffer antes de procesar la nueva
             self._add_candle_to_buffer(source_key, candle)
             
@@ -215,8 +217,9 @@ class AnalysisService:
                     )
                     return
             
+            # SIEMPRE enviar notificación en cada cierre de vela (con o sin patrón)
             # Analizar patrón en la vela cerrada (última completa)
-            asyncio.create_task(self._analyze_last_closed_candle(source_key, candle))
+            asyncio.create_task(self._analyze_last_closed_candle(source_key, candle, force_notification=True))
         
         else:
             # Actualizar la vela actual (tick intra-candle)
@@ -315,13 +318,15 @@ class AnalysisService:
         # Calcular EMA 200 sobre precios de cierre
         df["ema_200"] = calculate_ema(df["close"], self.ema_period)
     
-    async def _analyze_last_closed_candle(self, source_key: str, current_candle: CandleData) -> None:
+    async def _analyze_last_closed_candle(self, source_key: str, current_candle: CandleData, force_notification: bool = False) -> None:
         """
         Analiza la última vela cerrada en busca de patrones y genera gráfico.
+        Si force_notification=True, envía notificación siempre (sin importar patrón).
         
         Args:
             source_key: Clave de la fuente
             current_candle: Vela actual (la siguiente a la cerrada)
+            force_notification: Si True, envía notificación en cada cierre de vela
         """
         df = self.dataframes[source_key]
         
@@ -346,8 +351,12 @@ class AnalysisService:
             last_closed["close"]
         )
         
-        # Filtro: Solo señales en tendencia bajista
-        if is_pattern and trend == "BEARISH":
+        # Determinar si se debe enviar notificación
+        # 1. Si hay patrón válido en tendencia bajista (lógica original)
+        # 2. Si force_notification=True (nueva lógica: siempre enviar)
+        should_notify = (is_pattern and trend == "BEARISH") or force_notification
+        
+        if should_notify:
             # Generar gráfico en Base64 (operación bloqueante en hilo separado)
             chart_base64 = None
             try:
@@ -355,10 +364,15 @@ class AnalysisService:
                 is_valid, error_msg = validate_dataframe_for_chart(df, self.chart_lookback)
                 
                 if is_valid:
-                    logger.debug(f"📊 Generating chart for {source_key}...")
+                    pattern_label = "SHOOTING_STAR" if (is_pattern and trend == "BEARISH") else "CANDLE_CLOSE"
+                    chart_title = f"{current_candle.source}:{current_candle.symbol} - {pattern_label}"
+                    
+                    logger.info(
+                        f"📋 GENERATING CHART | {source_key} | "
+                        f"Last {self.chart_lookback} candles | Pattern: {pattern_label}"
+                    )
                     
                     # CRITICAL: Ejecutar en hilo separado para no bloquear el Event Loop
-                    chart_title = f"{current_candle.source}:{current_candle.symbol} - {current_candle.pattern if hasattr(current_candle, 'pattern') else 'SHOOTING_STAR'}"
                     chart_base64 = await asyncio.to_thread(
                         generate_chart_base64,
                         df,
@@ -366,7 +380,10 @@ class AnalysisService:
                         chart_title
                     )
                     
-                    logger.info(f"✅ Chart generated successfully ({len(chart_base64)} bytes Base64)")
+                    logger.info(
+                        f"✅ CHART GENERATED | {source_key} | "
+                        f"Size: {len(chart_base64)} bytes Base64 | Pattern: {pattern_label}"
+                    )
                 else:
                     logger.warning(f"⚠️  Cannot generate chart: {error_msg}")
             
@@ -375,10 +392,13 @@ class AnalysisService:
                 # Continuar sin gráfico si hay error
                 chart_base64 = None
             
+            # Determinar el patrón para la señal
+            pattern_name = "SHOOTING_STAR" if (is_pattern and trend == "BEARISH") else "CANDLE_CLOSE"
+            
             signal = PatternSignal(
                 symbol=current_candle.symbol,
                 source=current_candle.source,
-                pattern="SHOOTING_STAR",
+                pattern=pattern_name,
                 timestamp=int(last_closed["timestamp"]),
                 candle=CandleData(
                     timestamp=int(last_closed["timestamp"]),
@@ -392,15 +412,23 @@ class AnalysisService:
                 ),
                 ema_200=last_closed["ema_200"],
                 trend=trend,
-                confidence=confidence,
+                confidence=confidence if (is_pattern and trend == "BEARISH") else 0.0,
                 chart_base64=chart_base64
             )
             
-            logger.info(
-                f"🎯 PATTERN DETECTED | {signal.source} | {signal.pattern} | "
-                f"Close={signal.candle.close:.5f} < EMA200={signal.ema_200:.5f} | "
-                f"Confidence={signal.confidence:.2f} | Chart={'✓' if chart_base64 else '✗'}"
-            )
+            if is_pattern and trend == "BEARISH":
+                logger.info(
+                    f"🎯 PATTERN DETECTED | {signal.source} | {signal.pattern} | "
+                    f"Close={signal.candle.close:.5f} < EMA200={signal.ema_200:.5f} | "
+                    f"Confidence={signal.confidence:.2f} | Chart={'✓' if chart_base64 else '✗'}"
+                )
+            else:
+                logger.info(
+                    f"📊 CANDLE CLOSED | {signal.source} | "
+                    f"OHLC: O={signal.candle.open:.5f} H={signal.candle.high:.5f} "
+                    f"L={signal.candle.low:.5f} C={signal.candle.close:.5f} | "
+                    f"EMA200={signal.ema_200:.5f} | Chart={'✓' if chart_base64 else '✗'}"
+                )
             
             # Emitir señal
             if self.on_pattern_detected:
