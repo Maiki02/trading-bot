@@ -61,11 +61,13 @@ class TradingViewConfig:
     
     def validate(self) -> None:
         """Valida que los parámetros críticos estén configurados."""
-        if not self.session_id or self.session_id == "your_session_id_here":
-            raise ValueError(
-                "CRITICAL: TV_SESSION_ID not configured. "
-                "Extract sessionid cookie from TradingView (F12 > Application > Cookies)"
-            )
+        # SessionID ya no es obligatorio - modo público funciona sin autenticación
+        # if not self.session_id or self.session_id == "your_session_id_here":
+        #     raise ValueError(
+        #         "CRITICAL: TV_SESSION_ID not configured. "
+        #         "Extract sessionid cookie from TradingView (F12 > Application > Cookies)"
+        #     )
+        pass  # Validación deshabilitada - modo público no requiere auth
 
 
 # =============================================================================
@@ -135,12 +137,12 @@ class Config:
     
     # Instruments Configuration (MVP: EUR/USD only)
     INSTRUMENTS: Dict[str, InstrumentConfig] = {
-        "primary": InstrumentConfig(
-            symbol="EURUSD",
-            exchange="OANDA",
-            timeframe="1",
-            full_symbol="OANDA:EURUSD"
-        ),
+        # "primary": InstrumentConfig(
+        #     symbol="EURUSD",
+        #     exchange="OANDA",
+        #     timeframe="1",
+        #     full_symbol="OANDA:EURUSD"
+        # ),
         "secondary": InstrumentConfig(
             symbol="EURUSD",
             exchange="FX",

@@ -204,7 +204,7 @@ def log_startup_banner(logger: logging.Logger, version: str = "0.0.1") -> None:
     ╔══════════════════════════════════════════════════════════════╗
     ║  TradingView Pattern Monitor - MVP v{version}                   ║
     ║  Shooting Star Detection System                              ║
-    ║  Dual-Source Validation: OANDA + FX:EURUSD                   ║
+    ║  Real-Time Data Feed (No Login Required)                     ║
     ╚══════════════════════════════════════════════════════════════╝
     """
     for line in banner.strip().split('\n'):

@@ -159,9 +159,8 @@ class ConnectionService:
         self.reconnect_attempts: int = 0
         self.max_reconnect_attempts: int = 10
         
-        # Heartbeat
-        self.heartbeat_task: Optional[asyncio.Task] = None
-        self.last_heartbeat: Optional[datetime] = None
+        # Message task
+        self.message_task: Optional[asyncio.Task] = None
     
     async def start(self) -> None:
         """
@@ -194,13 +193,13 @@ class ConnectionService:
         logger.info("🛑 Stopping Connection Service...")
         self.is_running = False
         
-        # Cancelar heartbeat
-        if self.heartbeat_task and not self.heartbeat_task.done():
-            self.heartbeat_task.cancel()
+        # Cancelar message task si existe
+        if self.message_task and not self.message_task.done():
+            self.message_task.cancel()
             try:
-                await self.heartbeat_task
+                await self.message_task
             except asyncio.CancelledError:
-                pass
+                logger.debug("Message task cancelled")
         
         # Cerrar chart sessions y quote session de forma limpia
         if self.websocket and not self.websocket.closed:
@@ -255,42 +254,30 @@ class ConnectionService:
             # Suscripciones a instrumentos
             await self._subscribe_instruments()
             
-            # Iniciar heartbeat
-            self.heartbeat_task = asyncio.create_task(self._heartbeat_loop())
-            
-            # Loop de recepción de mensajes
+            # Loop de recepción de mensajes (no se necesita heartbeat proactivo)
             await self._message_loop()
     
     async def _authenticate(self) -> None:
         """
-        Realiza la autenticación con TradingView usando el SessionID.
+        Inicializa sesiones de TradingView sin autenticación (modo público).
+        Los datos en tiempo real están disponibles sin login.
         """
-        logger.info("🔐 Authenticating with TradingView...")
-        
-        # Enviar token de autenticación
-        auth_message = encode_message("set_auth_token", [Config.TRADINGVIEW.session_id])
-        await self.websocket.send(auth_message)
+        logger.info("🔐 Initializing TradingView session...")
         
         # Crear quote session
+        self.quote_session_id = generate_session_id("qs")
         quote_session_message = encode_message("quote_create_session", [self.quote_session_id])
         await self.websocket.send(quote_session_message)
+        logger.debug(f"📤 Created quote session: {self.quote_session_id}")
         
-        # Establecer data quality (verificar que no sea "delayed")
-        quality_message = encode_message(
-            "quote_set_fields",
-            [
-                self.quote_session_id,
-                "ch", "chp", "current_session", "description", "local_description",
-                "language", "exchange", "fractional", "is_tradable", "lp", "lp_time",
-                "minmov", "minmove2", "original_name", "pricescale", "pro_name",
-                "short_name", "type", "update_mode", "volume", "currency_code",
-                "rchp", "rtc", "status", "fundamentals", "rch", "rtc_time", "logoid"
-            ]
-        )
-        await self.websocket.send(quality_message)
+        # NO enviar auth token - usar modo público
+        # Los datos en tiempo real están disponibles sin autenticación
+        
+        # Pequeña pausa para que el servidor procese
+        await asyncio.sleep(0.3)
         
         self.is_authenticated = True
-        logger.info("✅ Authentication successful")
+        logger.info("✅ Session initialized (public mode)")
     
     async def _subscribe_instruments(self) -> None:
         """
@@ -336,24 +323,6 @@ class ConnectionService:
         
         await asyncio.sleep(1)  # Dar tiempo para que el servidor procese
     
-    async def _heartbeat_loop(self) -> None:
-        """
-        Envía heartbeats periódicos para mantener la conexión viva.
-        """
-        try:
-            while self.is_running:
-                if self.websocket and not self.websocket.closed:
-                    heartbeat_msg = encode_message("quote_heartbeat", [self.quote_session_id])
-                    await self.websocket.send(heartbeat_msg)
-                    self.last_heartbeat = datetime.now()
-                    logger.debug("💓 Heartbeat sent")
-                
-                await asyncio.sleep(30)  # Cada 30 segundos
-        except asyncio.CancelledError:
-            logger.debug("Heartbeat task cancelled")
-        except Exception as e:
-            log_exception(logger, "Error in heartbeat loop", e)
-    
     async def _message_loop(self) -> None:
         """
         Loop principal de recepción y procesamiento de mensajes.
@@ -362,6 +331,19 @@ class ConnectionService:
             async for raw_message in self.websocket:
                 if not self.is_running:
                     break
+                
+                # Responder a heartbeat del servidor primero (antes de procesar)
+                if raw_message.startswith("~h~"):
+                    heartbeat_id = raw_message.split("~h~")[1] if "~h~" in raw_message else "1"
+                    await self.websocket.send(f"~h~{heartbeat_id}")
+                    logger.debug("💓 Heartbeat response sent")
+                    continue
+                
+                # Log de mensajes crudos para debug (truncado para evitar spam de snapshot)
+                if len(raw_message) < 500:  # Solo loguear mensajes cortos
+                    logger.debug(f"📨 Raw message received: {raw_message[:200]}...")
+                else:
+                    logger.debug(f"📨 Large message received ({len(raw_message)} bytes) - snapshot data")
                 
                 await self._process_message(raw_message)
         except ConnectionClosed as e:
@@ -387,10 +369,24 @@ class ConnectionService:
             method = msg.get("m")
             params = msg.get("p", [])
             
-            # Detectar fallo de autenticación
-            if method == "critical_error" or method == "error":
+            # Log de métodos (truncar params largos)
+            params_str = str(params)
+            if len(params_str) > 100:
+                logger.debug(f"📥 Method: {method}, Params: <{len(params_str)} bytes>")
+            else:
+                logger.debug(f"📥 Method: {method}, Params: {params}")
+            
+            # Detectar fallo de autenticación o error de protocolo
+            if method == "critical_error" or method == "error" or method == "protocol_error":
                 error_msg = params[0] if params else "Unknown error"
                 logger.error(f"❌ TradingView Error: {error_msg}")
+                
+                if "auth" in error_msg.lower() or "token" in error_msg.lower():
+                    log_critical_auth_failure(logger)
+                    if self.on_auth_failure_callback:
+                        self.on_auth_failure_callback()
+                    self.is_running = False
+                    return
                 
                 if "authorization" in error_msg.lower() or "session" in error_msg.lower():
                     log_critical_auth_failure(logger)
