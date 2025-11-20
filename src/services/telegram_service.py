@@ -81,19 +81,19 @@ class TelegramService:
         self.cleanup_task: Optional[asyncio.Task] = None
         
         logger.info(
-            f"📱 Telegram Service initialized "
-            f"(Subscription: {self.subscription}, Window: {self.confirmation_window}s)"
+            f"📱 Telegram Service inicializado "
+            f"(Suscripción: {self.subscription}, Ventana: {self.confirmation_window}s)"
         )
     
     async def start(self) -> None:
         """Inicia el servicio de notificaciones."""
         self.session = aiohttp.ClientSession()
         self.cleanup_task = asyncio.create_task(self._cleanup_expired_alerts())
-        logger.info("✅ Telegram Service started")
+        logger.info("✅ Telegram Service iniciado")
     
     async def stop(self) -> None:
         """Detiene el servicio de notificaciones."""
-        logger.info("🛑 Stopping Telegram Service...")
+        logger.info("🛑 Deteniendo Telegram Service...")
         
         # Cancelar tarea de limpieza
         if self.cleanup_task and not self.cleanup_task.done():
@@ -107,7 +107,7 @@ class TelegramService:
         if self.session and not self.session.closed:
             await self.session.close()
         
-        logger.info("✅ Telegram Service stopped")
+        logger.info("✅ Telegram Service detenido")
     
     async def handle_pattern_signal(self, signal: PatternSignal) -> None:
         """
@@ -124,7 +124,7 @@ class TelegramService:
         alert_key = f"{signal.symbol}_{signal.timestamp}"
         
         logger.debug(
-            f"📩 Signal received from {signal.source} | "
+            f"📩 Señal recibida de {signal.source} | "
             f"{signal.pattern} @ {signal.timestamp}"
         )
         
@@ -134,7 +134,7 @@ class TelegramService:
             
             # Verificar que no sea de la misma fuente (duplicado)
             if signal.source in pending.sources:
-                logger.debug(f"⚠️  Duplicate signal from {signal.source}. Ignoring.")
+                logger.debug(f"⚠️  Señal duplicada de {signal.source}. Ignorando.")
                 return
             
             # Verificar si aún está dentro de la ventana de confirmación
@@ -143,9 +143,9 @@ class TelegramService:
                 pending.sources.append(signal.source)
                 
                 logger.info(
-                    f"🔥 DUAL-SOURCE CONFIRMATION | {signal.symbol} | "
-                    f"Sources: {', '.join(pending.sources)} | "
-                    f"Window: {self.confirmation_window}s"
+                    f"🔥 CONFIRMACIÓN DUAL-SOURCE | {signal.symbol} | "
+                    f"Fuentes: {', '.join(pending.sources)} | "
+                    f"Ventana: {self.confirmation_window}s"
                 )
                 
                 # Enviar alerta FUERTE
@@ -157,8 +157,8 @@ class TelegramService:
             else:
                 # La ventana expiró, enviar alerta estándar de la pendiente
                 logger.debug(
-                    f"⏱️  Confirmation window expired for {alert_key}. "
-                    "Sending standard alert for previous signal."
+                    f"⏱️  Ventana de confirmación expirada para {alert_key}. "
+                    "Enviando alerta estándar de la señal anterior."
                 )
                 await self._send_standard_alert(pending.signal)
                 del self.pending_alerts[alert_key]
@@ -171,8 +171,8 @@ class TelegramService:
         )
         
         logger.debug(
-            f"⏳ Alert pending confirmation | {signal.source} | "
-            f"Waiting {self.confirmation_window}s for second source..."
+            f"⏳ Alerta pendiente de confirmación | {signal.source} | "
+            f"Esperando {self.confirmation_window}s por segunda fuente..."
         )
         
         # Programar envío de alerta estándar si no hay confirmación
@@ -195,8 +195,8 @@ class TelegramService:
             pending = self.pending_alerts[alert_key]
             
             logger.info(
-                f"📤 No confirmation received within {delay}s. "
-                f"Sending STANDARD alert for {alert_key}."
+                f"📤 No se recibió confirmación en {delay}s. "
+                f"Enviando alerta ESTÁNDAR para {alert_key}."
             )
             
             await self._send_standard_alert(pending.signal)
@@ -330,7 +330,7 @@ class TelegramService:
             chart_base64: Imagen del gráfico codificada en Base64 (opcional)
         """
         if not self.session:
-            logger.error("❌ Cannot send message: HTTP session not initialized")
+            logger.error("❌ No se puede enviar mensaje: Sesión HTTP no inicializada")
             return
         
         # Formato del payload según el nuevo formato con image_base64
@@ -350,7 +350,7 @@ class TelegramService:
             "Content-Type": "application/json"
         }
 
-        logger.info("🔔 MESSAGE READY TO SEND | Preparing to send alert to Telegram")
+        logger.info("🔔 MENSAJE LISTO PARA ENVIAR | Preparando envío de alerta a Telegram")
 
         # Guardar imagen Base64 en logs/ antes de enviar
         if chart_base64:
@@ -371,20 +371,20 @@ class TelegramService:
                 image_data = base64.b64decode(chart_base64)
                 filepath.write_bytes(image_data)
                 
-                logger.info(f"💾 Chart saved to {filepath} | Size: {len(image_data)} bytes")
+                logger.info(f"💾 Gráfico guardado en {filepath} | Tamaño: {len(image_data)} bytes")
             
             except Exception as e:
-                logger.error(f"❌ Failed to save chart image: {e}")
-
-        return
+                logger.error(f"❌ Fallo al guardar imagen del gráfico: {e}")
         
+        return
+
         try:
-            chart_status = 'YES' if chart_base64 else 'NO'
+            chart_status = 'SÍ' if chart_base64 else 'NO'
             chart_size = len(chart_base64) if chart_base64 else 0
             logger.info(
-                f"📤 SENDING TO TELEGRAM | Type: {message.alert_type} | "
-                f"Title: {message.title} | Chart: {chart_status} | "
-                f"Chart Size: {chart_size} bytes"
+                f"📤 ENVIANDO A TELEGRAM | Tipo: {message.alert_type} | "
+                f"Título: {message.title} | Gráfico: {chart_status} | "
+                f"Tamaño Gráfico: {chart_size} bytes"
             )
             
             async with self.session.post(
@@ -395,18 +395,18 @@ class TelegramService:
             ) as response:
                 if response.status == 200:
                     logger.info(
-                        f"✅ TELEGRAM SENT SUCCESSFULLY | Type: {message.alert_type} | "
-                        f"Status: {response.status}"
+                        f"✅ TELEGRAM ENVIADO EXITOSAMENTE | Tipo: {message.alert_type} | "
+                        f"Estado: {response.status}"
                     )
                 else:
                     error_text = await response.text()
                     logger.error(
-                        f"❌ Failed to send alert. Status: {response.status}, "
-                        f"Response: {error_text}"
+                        f"❌ Fallo al enviar alerta. Estado: {response.status}, "
+                        f"Respuesta: {error_text}"
                     )
         
         except asyncio.TimeoutError:
-            logger.error("❌ Telegram API request timeout")
+            logger.error("❌ Timeout en solicitud a Telegram API")
         except aiohttp.ClientError as e:
             log_exception(logger, "Telegram API request failed", e)
         except Exception as e:
@@ -428,12 +428,12 @@ class TelegramService:
                 
                 if expired_keys:
                     logger.debug(
-                        f"🧹 Cleaning up {len(expired_keys)} expired alert(s) from buffer"
+                        f"🧹 Limpiando {len(expired_keys)} alerta(s) expirada(s) del buffer"
                     )
                     for key in expired_keys:
                         del self.pending_alerts[key]
         
         except asyncio.CancelledError:
-            logger.debug("Cleanup task cancelled")
+            logger.debug("Tarea de limpieza cancelada")
         except Exception as e:
             log_exception(logger, "Error in cleanup task", e)

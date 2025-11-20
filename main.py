@@ -63,9 +63,9 @@ class TradingBot:
             on_pattern_detected=self.telegram_service.handle_pattern_signal
         )
         
-        # 3. Connection Service (depende de Analysis para procesar velas)
+        # 3. Connection Service (recibe AnalysisService completo, NO callback)
         self.connection_service = ConnectionService(
-            on_candle_callback=self.analysis_service.process_candle,
+            analysis_service=self.analysis_service,
             on_auth_failure_callback=self._handle_auth_failure
         )
         

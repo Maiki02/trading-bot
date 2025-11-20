@@ -25,12 +25,31 @@
           │   - Authentication           │
           │   - Heartbeat                │
           │   - Protocol Decoding        │
+          │                              │
+          │   TWO SEPARATE METHODS:      │
+          │   📥 _load_historical_       │
+          │       snapshot()             │
+          │       (timescale_update)     │
+          │                              │
+          │   🕒 _process_realtime_      │
+          │       update()               │
+          │       (du)                   │
           └──────────────┬───────────────┘
                          │
-                         │ CandleData Objects
+                         │ List[CandleData] or CandleData
                          ▼
           ┌──────────────────────────────┐
           │   Analysis Service           │
+          │                              │
+          │   TWO SEPARATE METHODS:      │
+          │   📥 load_historical_        │
+          │       candles()              │
+          │       (NO charts, NO alerts) │
+          │                              │
+          │   🕒 process_realtime_       │
+          │       candle()               │
+          │       (YES charts, alerts)   │
+          │                              │
           │   - pandas DataFrame Buffer  │
           │   - EMA 200 Calculation      │
           │   - Pattern Detection        │
@@ -44,6 +63,8 @@
           │   - Dual-Source Logic        │
           │   - Temporal Window (2s)     │
           │   - Alert Formatting         │
+          │   - Chart Generation         │
+          │   - Base64 Image Saving      │
           │   - HTTP API Client          │
           └──────────────┬───────────────┘
                          │
@@ -53,6 +74,80 @@
           │   Telegram API               │
           │   (External Service)         │
           └──────────────────────────────┘
+```
+
+### Arquitectura de Procesamiento de Velas
+
+**PROBLEMA RESUELTO:** Antes se usaba un solo método con flags (`is_realtime`) para procesar tanto el snapshot inicial (1000 velas) como las velas en tiempo real (WebSocket). Esto causaba:
+- 330+ logs de "GENERATING CHART" durante el inicio
+- DataFrame no se cargaba correctamente (mostraba 18/600 velas)
+- Lógica confusa con múltiples flags
+
+**SOLUCIÓN:** Separación completa de responsabilidades
+
+#### 1. Snapshot Inicial (1000 velas históricas)
+
+**TradingView Message:** `timescale_update`
+```json
+{
+  "m": "timescale_update",
+  "p": [
+    "cs_abc123",
+    {
+      "s": [
+        {"v": [timestamp1, open1, high1, low1, close1, volume1]},
+        {"v": [timestamp2, open2, high2, low2, close2, volume2]},
+        ...  // 1000 candles total
+      ]
+    }
+  ]
+}
+```
+
+**Flow:**
+```
+ConnectionService._load_historical_snapshot()
+  └─> Extrae array completo de 1000 velas
+  └─> Crea List[CandleData]
+  └─> AnalysisService.load_historical_candles(candle_list)
+      └─> Carga en bloque al DataFrame
+      └─> NO genera gráficos
+      └─> NO envía alertas a Telegram
+      └─> Log: "✅ FX_EURUSD initialized with 1000 candles"
+```
+
+#### 2. Actualización en Tiempo Real (1 vela nueva)
+
+**TradingView Message:** `du` (data update)
+```json
+{
+  "m": "du",
+  "p": [
+    "cs_abc123",
+    {
+      "s1": {
+        "s": [
+          {"v": [timestamp, open, high, low, close, volume]}
+        ]
+      }
+    }
+  ]
+}
+```
+
+**Flow:**
+```
+ConnectionService._process_realtime_update()
+  └─> Extrae UNA sola vela
+  └─> Crea CandleData
+  └─> AnalysisService.process_realtime_candle(candle)
+      └─> Detecta si es nueva vela (timestamp diferente)
+      └─> Agrega al DataFrame
+      └─> Calcula EMA 200
+      └─> Detecta patrones (Shooting Star, Doji, etc.)
+      └─> GENERA gráfico con mplfinance
+      └─> ENVÍA alerta a Telegram
+      └─> Guarda chart en logs/chart_*.png
 ```
 
 ---

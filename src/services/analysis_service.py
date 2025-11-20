@@ -13,7 +13,7 @@ Author: TradingView Pattern Monitor Team
 """
 
 import asyncio
-from typing import Dict, Optional, Callable
+from typing import Dict, Optional, Callable, List
 from dataclasses import dataclass
 from datetime import datetime
 from collections import defaultdict
@@ -174,14 +174,61 @@ class AnalysisService:
         self.min_candles_required = Config.EMA_PERIOD * 3
         self.chart_lookback = Config.CHART_LOOKBACK
         
-        logger.info(f"📊 Analysis Service initialized (EMA Period: {self.ema_period})")
+        logger.info(f"📊 Analysis Service inicializado (Período EMA: {self.ema_period})")
     
-    def process_candle(self, candle: CandleData) -> None:
+    def load_historical_candles(self, candles: List[CandleData]) -> None:
         """
-        Procesa una vela entrante del WebSocket.
+        Carga velas históricas (snapshot inicial) en el DataFrame.
+        NO genera gráficos ni envía notificaciones.
         
         Args:
-            candle: Datos de la vela recibida
+            candles: Lista de velas históricas (del snapshot de 1000 velas)
+        """
+        if not candles:
+            return
+        
+        # Todas las velas deben ser de la misma fuente
+        first_candle = candles[0]
+        source_key = f"{first_candle.source}_{first_candle.symbol}"
+        
+        # Inicializar DataFrame si no existe
+        if source_key not in self.dataframes:
+            self._initialize_dataframe(source_key)
+        
+        logger.info(f"📥 Cargando {len(candles)} velas históricas para {source_key}...")
+        
+        # Agregar todas las velas al DataFrame en batch
+        for candle in candles:
+            self._add_new_candle(source_key, candle)
+        
+        # Calcular indicadores una sola vez al final
+        self._update_indicators(source_key)
+        
+        # Marcar como inicializado si tiene suficientes velas
+        candle_count = len(self.dataframes[source_key])
+        if candle_count >= self.min_candles_required:
+            self.is_initialized[source_key] = True
+            logger.info(
+                f"✅ {source_key} initialized with {candle_count} historical candles. "
+                "Pattern detection ACTIVE."
+            )
+        else:
+            logger.warning(
+                f"⚠️  {source_key}: Only {candle_count}/{self.min_candles_required} "
+                "candles loaded. Need more data."
+            )
+        
+        # Actualizar último timestamp
+        if candles:
+            self.last_timestamps[source_key] = candles[-1].timestamp
+    
+    def process_realtime_candle(self, candle: CandleData) -> None:
+        """
+        Procesa una vela en tiempo real del WebSocket.
+        Genera gráficos y envía notificaciones a Telegram.
+        
+        Args:
+            candle: Datos de la vela recibida del WebSocket
         """
         source_key = f"{candle.source}_{candle.symbol}"
         
@@ -193,10 +240,10 @@ class AnalysisService:
         is_new_candle = self._is_new_candle(source_key, candle.timestamp)
         
         if is_new_candle:
-            logger.info(f"🕒 NEW CANDLE | {source_key} | T={candle.timestamp} | Close={candle.close:.5f}")
+            logger.info(f"🕒 NUEVA VELA | {source_key} | T={candle.timestamp} | Close={candle.close:.5f}")
             
             # Agregar la vela anterior al buffer antes de procesar la nueva
-            self._add_candle_to_buffer(source_key, candle)
+            self._add_new_candle(source_key, candle)
             
             # Calcular indicadores
             self._update_indicators(source_key)
@@ -238,7 +285,7 @@ class AnalysisService:
         self.dataframes[source_key] = pd.DataFrame(columns=[
             "timestamp", "open", "high", "low", "close", "volume", "ema_200"
         ])
-        logger.debug(f"📋 DataFrame initialized for {source_key}")
+        logger.debug(f"📋 DataFrame inicializado para {source_key}")
     
     def _is_new_candle(self, source_key: str, timestamp: int) -> bool:
         """
@@ -256,7 +303,7 @@ class AnalysisService:
         
         return timestamp != self.last_timestamps[source_key]
     
-    def _add_candle_to_buffer(self, source_key: str, candle: CandleData) -> None:
+    def _add_new_candle(self, source_key: str, candle: CandleData) -> None:
         """
         Agrega una vela cerrada al buffer de pandas.
         
@@ -368,8 +415,8 @@ class AnalysisService:
                     chart_title = f"{current_candle.source}:{current_candle.symbol} - {pattern_label}"
                     
                     logger.info(
-                        f"📋 GENERATING CHART | {source_key} | "
-                        f"Last {self.chart_lookback} candles | Pattern: {pattern_label}"
+                        f"📋 GENERANDO GRÁFICO | {source_key} | "
+                        f"Últimas {self.chart_lookback} velas | Patrón: {pattern_label}"
                     )
                     
                     # CRITICAL: Ejecutar en hilo separado para no bloquear el Event Loop
@@ -381,11 +428,11 @@ class AnalysisService:
                     )
                     
                     logger.info(
-                        f"✅ CHART GENERATED | {source_key} | "
-                        f"Size: {len(chart_base64)} bytes Base64 | Pattern: {pattern_label}"
+                        f"✅ GRÁFICO GENERADO | {source_key} | "
+                        f"Tamaño: {len(chart_base64)} bytes Base64 | Patrón: {pattern_label}"
                     )
                 else:
-                    logger.warning(f"⚠️  Cannot generate chart: {error_msg}")
+                    logger.warning(f"⚠️  No se pudo generar gráfico: {error_msg}")
             
             except Exception as e:
                 log_exception(logger, "Failed to generate chart", e)

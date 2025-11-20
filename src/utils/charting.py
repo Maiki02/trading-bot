@@ -87,8 +87,19 @@ def generate_chart_base64(
         additional_plots.append(ema_plot)
     
     # Configurar estilo del gráfico
+    # Colores: Velas alcistas (verdes), velas bajistas (rojas)
+    market_colors = mpf.make_marketcolors(
+        up='#00FF00',      # Verde para velas alcistas (cierre > apertura)
+        down='#FF0000',    # Rojo para velas bajistas (cierre < apertura)
+        edge='inherit',    # Borde del mismo color que el cuerpo
+        wick='inherit',    # Mechas del mismo color que el cuerpo
+        volume='in',       # Volumen: verde si sube, rojo si baja
+        alpha=0.9
+    )
+    
     style = mpf.make_mpf_style(
         base_mpf_style='nightclouds',  # Estilo oscuro predefinido
+        marketcolors=market_colors,     # ← Aplicar colores personalizados
         gridstyle='--',
         gridcolor='#2A2A2A',
         facecolor='#0D1117',  # Fondo oscuro GitHub-like
