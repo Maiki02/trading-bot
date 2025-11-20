@@ -22,6 +22,31 @@ load_dotenv()
 # =============================================================================
 
 @dataclass(frozen=True)
+class CandleConfig:
+    """
+    Configuración de umbrales para detección de patrones de velas japonesas.
+    
+    Estos valores son constantes matemáticas optimizadas para la identificación
+    de patrones en temporalidad de 1 minuto.
+    """
+    # Umbrales generales
+    BODY_RATIO_MIN: float = 0.30  # Cuerpo mínimo como % del rango total
+    SMALL_BODY_RATIO: float = 0.30  # Cuerpo pequeño como % del rango (para martillos)
+    
+    # Umbrales de mechas
+    UPPER_WICK_RATIO_MIN: float = 0.60  # Mecha superior mínima (Shooting Star)
+    LOWER_WICK_RATIO_MIN: float = 0.60  # Mecha inferior mínima (Hammer)
+    WICK_TO_BODY_RATIO: float = 2.0  # Mecha debe ser >= 2x el cuerpo
+    
+    # Umbrales de mechas opuestas (deben ser pequeñas)
+    OPPOSITE_WICK_MAX: float = 0.15  # Mecha opuesta máxima permitida
+    
+    # Confianza base para patrones válidos
+    BASE_CONFIDENCE: float = 0.70  # Confianza inicial (70%)
+    BONUS_CONFIDENCE_PER_CONDITION: float = 0.10  # +10% por cada condición adicional cumplida
+
+
+@dataclass(frozen=True)
 class InstrumentConfig:
     """Configuración de un instrumento de trading."""
     symbol: str  # Ej: "EURUSD"
@@ -110,6 +135,9 @@ def get_random_user_agent() -> str:
 class Config:
     """Clase Singleton para acceso global a la configuración."""
     
+    # Configuración de patrones de velas
+    CANDLE = CandleConfig()
+    
     # TradingView Authentication & WebSocket
     TRADINGVIEW = TradingViewConfig(
         session_id=os.getenv("TV_SESSION_ID", ""),
@@ -130,6 +158,7 @@ class Config:
     EMA_PERIOD: int = int(os.getenv("EMA_PERIOD", "200"))
     DUAL_SOURCE_WINDOW: float = float(os.getenv("DUAL_SOURCE_WINDOW", "2.0"))
     CHART_LOOKBACK: int = int(os.getenv("CHART_LOOKBACK", "30"))
+    USE_TREND_FILTER: bool = os.getenv("USE_TREND_FILTER", "true").lower() == "true"
     
     # Reconnection Strategy
     RECONNECT_INITIAL_TIMEOUT: int = int(os.getenv("RECONNECT_INITIAL_TIMEOUT", "5"))
@@ -141,18 +170,18 @@ class Config:
     
     # Instruments Configuration (MVP: EUR/USD only)
     INSTRUMENTS: Dict[str, InstrumentConfig] = {
-        # "primary": InstrumentConfig(
-        #     symbol="EURUSD",
-        #     exchange="OANDA",
-        #     timeframe="1",
-        #     full_symbol="OANDA:EURUSD"
-        # ),
-        "secondary": InstrumentConfig(
+        "primary": InstrumentConfig(
             symbol="EURUSD",
-            exchange="FX",
+            exchange="OANDA",
             timeframe="1",
-            full_symbol="FX:EURUSD"
-        )
+            full_symbol="OANDA:EURUSD"
+        ),
+        # "secondary": InstrumentConfig(
+        #     symbol="EURUSD",
+        #     exchange="FX",
+        #     timeframe="1",
+        #     full_symbol="FX:EURUSD"
+        # )
     }
     
     @classmethod

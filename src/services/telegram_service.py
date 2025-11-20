@@ -16,7 +16,7 @@ from datetime import datetime, timedelta
 import aiohttp
 
 from config import Config
-from src.services.analysis_service import PatternSignal
+from src.logic.analysis_service import PatternSignal
 from src.utils.logger import get_logger, log_exception
 
 
@@ -248,31 +248,28 @@ class TelegramService:
         """
         timestamp_str = datetime.fromtimestamp(signal.timestamp).strftime("%Y-%m-%d %H:%M:%S")
         
-        # Diferenciar entre patrón detectado y cierre de vela regular
-        if signal.pattern == "CANDLE_CLOSE":
-            title = f"📊 CIERRE DE VELA | {signal.symbol}"
-            body = (
-                f"📊 **Fuente:** {signal.source}\n"
-                f"🕒 **Timestamp:** {timestamp_str}\n"
-                f"💰 **OHLC:** O={signal.candle.open:.5f} H={signal.candle.high:.5f} "
-                f"L={signal.candle.low:.5f} C={signal.candle.close:.5f}\n"
-                f"📉 **EMA 200:** {signal.ema_200:.5f}\n"
-                f"🎯 **Tendencia:** {signal.trend}\n\n"
-                f"ℹ️ *Vela cerrada - Monitoreo automático activo*"
-            )
+        # Título dinámico según si se usó filtro de tendencia
+        if signal.trend_filtered:
+            # Modo CON filtro: Indicar oportunidad alineada con tendencia
+            title = f"⚠️ OPORTUNIDAD ALINEADA | {signal.symbol}"
         else:
-            title = f"⚠️ POSIBLE OPORTUNIDAD | {signal.symbol}"
-            body = (
-                f"📊 **Fuente:** {signal.source}\n"
-                f"📈 **Patrón:** {signal.pattern}\n"
-                f"🕒 **Timestamp:** {timestamp_str}\n"
-                f"💰 **OHLC:** O={signal.candle.open:.5f} H={signal.candle.high:.5f} "
-                f"L={signal.candle.low:.5f} C={signal.candle.close:.5f}\n"
-                f"📉 **EMA 200:** {signal.ema_200:.5f}\n"
-                f"🎯 **Tendencia:** {signal.trend}\n"
-                f"✨ **Confianza:** {signal.confidence:.0%}\n\n"
-                f"⚡ *Verificar gráfico manualmente antes de operar.*"
-            )
+            # Modo SIN filtro: Solo indicar patrón detectado
+            title = f"📈 PATRÓN DETECTADO | {signal.symbol}"
+        
+        # Cuerpo del mensaje (SIEMPRE el mismo formato)
+        body = (
+            f"📊 *Fuente:* {signal.source}\n"
+            f"📈 *Patrón:* {signal.pattern}\n"
+            f"🕒 *Timestamp:* {timestamp_str}\n"
+            f"💰 *Apertura:* {signal.candle.open:.5f}\n"
+            f"💰 *Máximo:* {signal.candle.high:.5f}\n"
+            f"💰 *Mínimo:* {signal.candle.low:.5f}\n"
+            f"💰 *Cierre:* {signal.candle.close:.5f}\n"
+            f"📉 *EMA 200:* {signal.ema_200:.5f}\n"
+            f"🎯 *Tendencia:* {signal.trend}\n"
+            f"✨ *Confianza:* {signal.confidence:.0%}\n\n"
+            f"⚡ *Verificar gráfico manualmente antes de operar.*"
+        )
         
         return AlertMessage(
             title=title,
@@ -287,7 +284,7 @@ class TelegramService:
         signal2: PatternSignal
     ) -> AlertMessage:
         """
-        Formatea un mensaje de alerta fuerte (confirmación dual).
+        Formatea un mensaje de alerta fuerte (confirmada por ambas fuentes).
         
         Args:
             signal1: Primera señal
@@ -302,22 +299,26 @@ class TelegramService:
         title = f"🔥 ALERTA CONFIRMADA | {signal1.symbol}"
         
         body = (
-            f"🎯 **CONFIRMACIÓN DUAL-SOURCE**\n"
-            f"📊 **Fuentes:** {signal1.source} + {signal2.source}\n"
-            f"📈 **Patrón:** {signal1.pattern}\n"
-            f"🕒 **Timestamp:** {timestamp_str}\n\n"
-            f"**{signal1.source}:**\n"
-            f"  • OHLC: O={signal1.candle.open:.5f} H={signal1.candle.high:.5f} "
-            f"L={signal1.candle.low:.5f} C={signal1.candle.close:.5f}\n"
-            f"  • EMA 200: {signal1.ema_200:.5f}\n"
-            f"  • Confianza: {signal1.confidence:.0%}\n\n"
-            f"**{signal2.source}:**\n"
-            f"  • OHLC: O={signal2.candle.open:.5f} H={signal2.candle.high:.5f} "
-            f"L={signal2.candle.low:.5f} C={signal2.candle.close:.5f}\n"
-            f"  • EMA 200: {signal2.ema_200:.5f}\n"
-            f"  • Confianza: {signal2.confidence:.0%}\n\n"
-            f"📉 **Tendencia:** {signal1.trend}\n"
-            f"✨ **Confianza Promedio:** {avg_confidence:.0%}\n\n"
+            f"🎯 *CONFIRMACIÓN DUAL-SOURCE*\n"
+            f"📊 *Fuentes:* {signal1.source} + {signal2.source}\n"
+            f"📈 *Patrón:* {signal1.pattern}\n"
+            f"🕒 *Timestamp:* {timestamp_str}\n\n"
+            f"*{signal1.source}:*\n"
+            f"  • *Apertura:* {signal1.candle.open:.5f}\n"
+            f"  • *Máximo:* {signal1.candle.high:.5f}\n"
+            f"  • *Mínimo:* {signal1.candle.low:.5f}\n"
+            f"  • *Cierre:* {signal1.candle.close:.5f}\n"
+            f"  • *EMA 200:* {signal1.ema_200:.5f}\n"
+            f"  • *Confianza:* {signal1.confidence:.0%}\n\n"
+            f"*{signal2.source}:*\n"
+            f"  • *Apertura:* {signal2.candle.open:.5f}\n"
+            f"  • *Máximo:* {signal2.candle.high:.5f}\n"
+            f"  • *Mínimo:* {signal2.candle.low:.5f}\n"
+            f"  • *Cierre:* {signal2.candle.close:.5f}\n"
+            f"  • *EMA 200:* {signal2.ema_200:.5f}\n"
+            f"  • *Confianza:* {signal2.confidence:.0%}\n\n"
+            f"📉 *Tendencia:* {signal1.trend}\n"
+            f"✨ *Confianza Promedio:* {avg_confidence:.0%}\n\n"
             f"🚀 *Alta probabilidad. Revisar retroceso del 50% en primeros 30s de la siguiente vela.*"
         )
         

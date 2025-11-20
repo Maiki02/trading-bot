@@ -23,6 +23,7 @@ import numpy as np
 
 from config import Config
 from src.services.connection_service import CandleData
+from src.logic.candle import is_shooting_star, is_hanging_man, is_inverted_hammer, is_hammer
 from src.utils.logger import get_logger, log_exception
 from src.utils.charting import generate_chart_base64, validate_dataframe_for_chart
 
@@ -39,12 +40,13 @@ class PatternSignal:
     """Señal de patrón detectado."""
     symbol: str
     source: str  # "OANDA" o "FX"
-    pattern: str  # "SHOOTING_STAR"
+    pattern: str  # "SHOOTING_STAR", "HANGING_MAN", "INVERTED_HAMMER", "HAMMER"
     timestamp: int
     candle: CandleData
     ema_200: float
     trend: str  # "BEARISH", "BULLISH", "NEUTRAL"
     confidence: float  # 0.0 - 1.0
+    trend_filtered: bool  # True si se aplicó filtro de tendencia
     chart_base64: Optional[str] = None  # Gráfico codificado en Base64
 
 
@@ -64,71 +66,6 @@ def calculate_ema(series: pd.Series, period: int) -> pd.Series:
         pd.Series: Serie con valores de EMA
     """
     return series.ewm(span=period, adjust=False).mean()
-
-
-def is_shooting_star(
-    open_price: float,
-    high: float,
-    low: float,
-    close: float
-) -> tuple[bool, float]:
-    """
-    Detecta si una vela es una Estrella Fugaz (Shooting Star).
-    
-    Criterios:
-    - Cuerpo pequeño en la parte inferior de la vela
-    - Mecha superior larga (al menos 2x el tamaño del cuerpo)
-    - Mecha inferior mínima o inexistente
-    - Preferiblemente vela bajista (close < open)
-    
-    Args:
-        open_price: Precio de apertura
-        high: Precio máximo
-        low: Precio mínimo
-        close: Precio de cierre
-        
-    Returns:
-        tuple[bool, float]: (Es Shooting Star, Confianza 0-1)
-    """
-    body = abs(close - open_price)
-    upper_wick = high - max(open_price, close)
-    lower_wick = min(open_price, close) - low
-    total_range = high - low
-    
-    # Evitar división por cero
-    if total_range == 0 or body == 0:
-        return False, 0.0
-    
-    # Ratios
-    upper_wick_ratio = upper_wick / total_range
-    body_ratio = body / total_range
-    lower_wick_ratio = lower_wick / total_range
-    
-    # Condiciones estrictas
-    is_pattern = (
-        upper_wick_ratio > 0.6 and  # Mecha superior > 60% del rango total
-        body_ratio < 0.3 and         # Cuerpo < 30% del rango total
-        lower_wick_ratio < 0.15 and  # Mecha inferior < 15%
-        upper_wick >= body * 2       # Mecha superior >= 2x cuerpo
-    )
-    
-    # Calcular confianza basada en proporciones
-    confidence = 0.0
-    if is_pattern:
-        # Mejor confianza si es vela bajista
-        is_bearish = close < open_price
-        bearish_bonus = 0.2 if is_bearish else 0.0
-        
-        # Confianza basada en ratios
-        confidence = min(
-            1.0,
-            (upper_wick_ratio * 1.2) + 
-            (1.0 - body_ratio) * 0.5 +
-            (1.0 - lower_wick_ratio) * 0.3 +
-            bearish_bonus
-        )
-    
-    return is_pattern, confidence
 
 
 # =============================================================================
@@ -264,9 +201,9 @@ class AnalysisService:
                     )
                     return
             
-            # SIEMPRE enviar notificación en cada cierre de vela (con o sin patrón)
             # Analizar patrón en la vela cerrada (última completa)
-            asyncio.create_task(self._analyze_last_closed_candle(source_key, candle, force_notification=True))
+            # Solo envía notificación si detecta uno de los 4 patrones
+            asyncio.create_task(self._analyze_last_closed_candle(source_key, candle, force_notification=False))
         
         else:
             # Actualizar la vela actual (tick intra-candle)
@@ -368,12 +305,12 @@ class AnalysisService:
     async def _analyze_last_closed_candle(self, source_key: str, current_candle: CandleData, force_notification: bool = False) -> None:
         """
         Analiza la última vela cerrada en busca de patrones y genera gráfico.
-        Si force_notification=True, envía notificación siempre (sin importar patrón).
+        Solo envía notificación si detecta uno de los 4 patrones con tendencia apropiada.
         
         Args:
             source_key: Clave de la fuente
             current_candle: Vela actual (la siguiente a la cerrada)
-            force_notification: Si True, envía notificación en cada cierre de vela
+            force_notification: Si True, envía notificación incluso sin patrón (uso interno)
         """
         df = self.dataframes[source_key]
         
@@ -390,18 +327,78 @@ class AnalysisService:
         # Determinar tendencia
         trend = self._determine_trend(last_closed["close"], last_closed["ema_200"])
         
-        # Detectar patrón Shooting Star
-        is_pattern, confidence = is_shooting_star(
+        # Detectar los 4 patrones de velas japonesas
+        shooting_star_detected, shooting_star_conf = is_shooting_star(
             last_closed["open"],
             last_closed["high"],
             last_closed["low"],
             last_closed["close"]
         )
         
+        hanging_man_detected, hanging_man_conf = is_hanging_man(
+            last_closed["open"],
+            last_closed["high"],
+            last_closed["low"],
+            last_closed["close"]
+        )
+        
+        inverted_hammer_detected, inverted_hammer_conf = is_inverted_hammer(
+            last_closed["open"],
+            last_closed["high"],
+            last_closed["low"],
+            last_closed["close"]
+        )
+        
+        hammer_detected, hammer_conf = is_hammer(
+            last_closed["open"],
+            last_closed["high"],
+            last_closed["low"],
+            last_closed["close"]
+        )
+        
+        # Filtrar patrones por tendencia apropiada (solo si USE_TREND_FILTER está activo)
+        # BEARISH signals (reversión bajista): Shooting Star y Hanging Man en tendencia alcista
+        # BULLISH signals (reversión alcista): Hammer e Inverted Hammer en tendencia bajista
+        pattern_detected = None
+        pattern_confidence = 0.0
+        
+        if Config.USE_TREND_FILTER:
+            # Modo CON filtro de tendencia (comportamiento original)
+            if trend == "BEARISH":
+                # En tendencia bajista, buscar reversión alcista
+                if hammer_detected:
+                    pattern_detected = "HAMMER"
+                    pattern_confidence = hammer_conf
+                elif inverted_hammer_detected:
+                    pattern_detected = "INVERTED_HAMMER"
+                    pattern_confidence = inverted_hammer_conf
+            elif trend == "BULLISH":
+                # En tendencia alcista, buscar reversión bajista
+                if shooting_star_detected:
+                    pattern_detected = "SHOOTING_STAR"
+                    pattern_confidence = shooting_star_conf
+                elif hanging_man_detected:
+                    pattern_detected = "HANGING_MAN"
+                    pattern_confidence = hanging_man_conf
+        else:
+            # Modo SIN filtro de tendencia: detectar cualquier patrón sin importar tendencia
+            # Prioridad: Shooting Star > Hanging Man > Hammer > Inverted Hammer
+            if shooting_star_detected:
+                pattern_detected = "SHOOTING_STAR"
+                pattern_confidence = shooting_star_conf
+            elif hanging_man_detected:
+                pattern_detected = "HANGING_MAN"
+                pattern_confidence = hanging_man_conf
+            elif hammer_detected:
+                pattern_detected = "HAMMER"
+                pattern_confidence = hammer_conf
+            elif inverted_hammer_detected:
+                pattern_detected = "INVERTED_HAMMER"
+                pattern_confidence = inverted_hammer_conf
+        
         # Determinar si se debe enviar notificación
-        # 1. Si hay patrón válido en tendencia bajista (lógica original)
-        # 2. Si force_notification=True (nueva lógica: siempre enviar)
-        should_notify = (is_pattern and trend == "BEARISH") or force_notification
+        # SOLO enviar si hay patrón válido
+        should_notify = (pattern_detected is not None)
         
         if should_notify:
             # Generar gráfico en Base64 (operación bloqueante en hilo separado)
@@ -411,12 +408,11 @@ class AnalysisService:
                 is_valid, error_msg = validate_dataframe_for_chart(df, self.chart_lookback)
                 
                 if is_valid:
-                    pattern_label = "SHOOTING_STAR" if (is_pattern and trend == "BEARISH") else "CANDLE_CLOSE"
-                    chart_title = f"{current_candle.source}:{current_candle.symbol} - {pattern_label}"
+                    chart_title = f"{current_candle.source}:{current_candle.symbol} - {pattern_detected}"
                     
                     logger.info(
                         f"📋 GENERANDO GRÁFICO | {source_key} | "
-                        f"Últimas {self.chart_lookback} velas | Patrón: {pattern_label}"
+                        f"Últimas {self.chart_lookback} velas | Patrón: {pattern_detected}"
                     )
                     
                     # CRITICAL: Ejecutar en hilo separado para no bloquear el Event Loop
@@ -429,7 +425,7 @@ class AnalysisService:
                     
                     logger.info(
                         f"✅ GRÁFICO GENERADO | {source_key} | "
-                        f"Tamaño: {len(chart_base64)} bytes Base64 | Patrón: {pattern_label}"
+                        f"Tamaño: {len(chart_base64)} bytes Base64 | Patrón: {pattern_detected}"
                     )
                 else:
                     logger.warning(f"⚠️  No se pudo generar gráfico: {error_msg}")
@@ -439,13 +435,11 @@ class AnalysisService:
                 # Continuar sin gráfico si hay error
                 chart_base64 = None
             
-            # Determinar el patrón para la señal
-            pattern_name = "SHOOTING_STAR" if (is_pattern and trend == "BEARISH") else "CANDLE_CLOSE"
-            
+            # En este punto siempre hay un patrón detectado
             signal = PatternSignal(
                 symbol=current_candle.symbol,
                 source=current_candle.source,
-                pattern=pattern_name,
+                pattern=pattern_detected,
                 timestamp=int(last_closed["timestamp"]),
                 candle=CandleData(
                     timestamp=int(last_closed["timestamp"]),
@@ -459,23 +453,16 @@ class AnalysisService:
                 ),
                 ema_200=last_closed["ema_200"],
                 trend=trend,
-                confidence=confidence if (is_pattern and trend == "BEARISH") else 0.0,
+                confidence=pattern_confidence,
+                trend_filtered=Config.USE_TREND_FILTER,
                 chart_base64=chart_base64
             )
             
-            if is_pattern and trend == "BEARISH":
-                logger.info(
-                    f"🎯 PATTERN DETECTED | {signal.source} | {signal.pattern} | "
-                    f"Close={signal.candle.close:.5f} < EMA200={signal.ema_200:.5f} | "
-                    f"Confidence={signal.confidence:.2f} | Chart={'✓' if chart_base64 else '✗'}"
-                )
-            else:
-                logger.info(
-                    f"📊 CANDLE CLOSED | {signal.source} | "
-                    f"OHLC: O={signal.candle.open:.5f} H={signal.candle.high:.5f} "
-                    f"L={signal.candle.low:.5f} C={signal.candle.close:.5f} | "
-                    f"EMA200={signal.ema_200:.5f} | Chart={'✓' if chart_base64 else '✗'}"
-                )
+            logger.info(
+                f"🎯 PATTERN DETECTED | {signal.source} | {signal.pattern} | "
+                f"Trend={trend} | Close={signal.candle.close:.5f} vs EMA200={signal.ema_200:.5f} | "
+                f"Confidence={signal.confidence:.2f} | Chart={'✓' if chart_base64 else '✗'}"
+            )
             
             # Emitir señal
             if self.on_pattern_detected:

@@ -68,14 +68,63 @@ Velas de 1 Minuto (1m): El análisis técnico y la notificación se generan estr
 El sistema utiliza un modelo de confirmación cruzada para filtrar el ruido inherente a los proveedores de datos.
 
 **Notificación ESTÁNDAR:** Se envía cuando UNA de las fuentes detecta el patrón válido.
-- Mensaje: "📊 CIERRE DE VELA | EURUSD" o "⚠️ POSIBLE OPORTUNIDAD | EURUSD"
-- Incluye: OHLC completo, EMA 200, Tendencia, Confianza del patrón
+- Mensaje (Con Filtro): "⚠️ OPORTUNIDAD ALINEADA | EURUSD"
+- Mensaje (Sin Filtro): "📈 PATRÓN DETECTADO | EURUSD"
+- Incluye: Apertura, Máximo, Mínimo, Cierre (palabras completas, no abreviaturas)
+- Formato: Negrita con asterisco simple (*), no doble (**)
+- Datos: EMA 200, Tendencia, Confianza del patrón
 - Gráfico: Adjunto en Base64 (si `SEND_CHARTS=true`)
+
+**Ejemplo de mensaje estándar:**
+```
+📊 *Fuente:* FX
+📈 *Patrón:* SHOOTING_STAR
+🕒 *Timestamp:* 2025-11-20 14:32:00
+💰 *Apertura:* 1.09050
+💰 *Máximo:* 1.09180
+💰 *Mínimo:* 1.09020
+💰 *Cierre:* 1.09040
+📉 *EMA 200:* 1.08950
+🎯 *Tendencia:* BULLISH
+✨ *Confianza:* 85%
+
+⚡ *Verificar gráfico manualmente antes de operar.*
+```
 
 **Notificación FUERTE (Strong):** Se envía cuando AMBAS fuentes detectan el patrón válido en el mismo cierre de vela (ventana de 2s).
 - Mensaje: "🔥 ALERTA CONFIRMADA | EURUSD | Coincidencia DUAL"
-- Incluye: Comparativa de ambas fuentes, OHLC de cada una, análisis cruzado
+- Incluye: Comparativa de ambas fuentes con datos completos
+- Formato: Negrita con asterisco simple (*), palabras completas
 - Gráfico: Prioriza gráfico de la fuente principal
+
+**Ejemplo de mensaje fuerte:**
+```
+🎯 *CONFIRMACIÓN DUAL-SOURCE*
+📊 *Fuentes:* FX + OANDA
+📈 *Patrón:* SHOOTING_STAR
+🕒 *Timestamp:* 2025-11-20 14:32:00
+
+*FX:*
+  • *Apertura:* 1.09050
+  • *Máximo:* 1.09180
+  • *Mínimo:* 1.09020
+  • *Cierre:* 1.09040
+  • *EMA 200:* 1.08950
+  • *Confianza:* 85%
+
+*OANDA:*
+  • *Apertura:* 1.09048
+  • *Máximo:* 1.09175
+  • *Mínimo:* 1.09018
+  • *Cierre:* 1.09038
+  • *EMA 200:* 1.08948
+  • *Confianza:* 82%
+
+📉 *Tendencia:* BULLISH
+✨ *Confianza Promedio:* 84%
+
+🚀 *Alta probabilidad. Revisar retroceso del 50% en primeros 30s de la siguiente vela.*
+```
 
 **Formato JSON de Telegram API:**
 ```json
@@ -104,19 +153,45 @@ Tendencia BAJISTA: Precio de Cierre < EMA 200.
 Solo se buscan ventas (Estrellas Fugaces).
 
 ### 3.2. Reglas de Disparo
+
+**IMPORTANTE:** El sistema soporta dos modos de operación configurables mediante `USE_TREND_FILTER`:
+
+#### Modo A: CON Filtro de Tendencia (`USE_TREND_FILTER=true`) - Por Defecto
+Sistema conservador que SOLO notifica patrones alineados con la tendencia dominante:
+
 A. Escenario: Tendencia ALCISTA (Precio > EMA 200)
 Patrón: Martillo (Hammer)
 Acción: 🚨 ALERTA DE COMPRA.
 Contexto: Señal de rebote a favor de la tendencia.
 Patrón: Hombre Colgado / Estrella Fugaz
-Acción: Ignorar (o alerta leve de "Posible Cierre").
+Acción: Ignorar (contra-tendencia).
+
 B. Escenario: Tendencia BAJISTA (Precio < EMA 200)
 Patrón: Estrella Fugaz (Shooting Star)
 Acción: 🚨 ALERTA DE VENTA.
 Contexto: Señal de rechazo a favor de la caída.
 Decisión Humana: Esperar retroceso del 50% en los primeros 30s de la siguiente vela para entrar.
 Patrón: Martillo Invertido / Martillo
-Acción: Ignorar.
+Acción: Ignorar (contra-tendencia).
+
+**Título de Notificación:** "⚠️ OPORTUNIDAD ALINEADA | EURUSD"
+
+#### Modo B: SIN Filtro de Tendencia (`USE_TREND_FILTER=false`)
+Sistema más agresivo que notifica CUALQUIER patrón detectado sin importar la tendencia:
+
+- Detecta: Shooting Star, Hanging Man, Inverted Hammer, Hammer
+- Acción: 🚨 NOTIFICA SIEMPRE que se cumplen los criterios matemáticos del patrón
+- Contexto: El trader decide manualmente si la tendencia es apropiada
+- Ventaja: Captura más oportunidades potenciales
+- Desventaja: Mayor ruido, requiere análisis adicional del trader
+
+**Título de Notificación:** "📈 PATRÓN DETECTADO | EURUSD"
+
+#### Comparativa de Títulos:
+- **Con Filtro:** "⚠️ OPORTUNIDAD ALINEADA" - Indica que el patrón está validado por tendencia
+- **Sin Filtro:** "📈 PATRÓN DETECTADO" - Indica solo detección matemática del patrón
+
+**El contenido del mensaje (entries.message) es IDÉNTICO en ambos modos**, solo cambia el título para diferenciar el nivel de validación.
 
 ## 4. Arquitectura Tecnológica Modular
 
@@ -264,6 +339,9 @@ Acción: Ignorar.
 - `TELEGRAM_API_KEY`: API Key para header `x-api-key`
 - `TELEGRAM_SUBSCRIPTION`: Topic de suscripción (ej: `trade:alert`)
 - `SEND_CHARTS`: `true` o `false` para controlar envío de imágenes
+- `USE_TREND_FILTER`: `true` o `false` - Habilita/deshabilita filtro de tendencia
+  - `true` (default): Solo notifica patrones alineados con tendencia EMA 200
+  - `false`: Notifica cualquier patrón detectado sin importar tendencia
 - `CHART_LOOKBACK`: Número de velas en gráfico (default: 30)
 - `EMA_PERIOD`: Período de EMA (default: 200)
 - `DUAL_SOURCE_WINDOW`: Ventana de confirmación en segundos (default: 2.0)

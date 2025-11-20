@@ -18,7 +18,8 @@ import sys
 from typing import Optional
 
 from config import Config
-from src.services import ConnectionService, AnalysisService, TelegramService
+from src.services import ConnectionService, TelegramService
+from src.logic import AnalysisService
 from src.utils.logger import get_logger, log_startup_banner, log_shutdown, log_critical_auth_failure
 
 
