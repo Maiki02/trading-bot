@@ -24,6 +24,7 @@ import numpy as np
 from config import Config
 from src.services.connection_service import CandleData
 from src.utils.logger import get_logger, log_exception
+from src.utils.charting import generate_chart_base64, validate_dataframe_for_chart
 
 
 logger = get_logger(__name__)
@@ -44,6 +45,7 @@ class PatternSignal:
     ema_200: float
     trend: str  # "BEARISH", "BULLISH", "NEUTRAL"
     confidence: float  # 0.0 - 1.0
+    chart_base64: Optional[str] = None  # Gráfico codificado en Base64
 
 
 # =============================================================================
@@ -170,6 +172,7 @@ class AnalysisService:
         # Configuración
         self.ema_period = Config.EMA_PERIOD
         self.min_candles_required = Config.EMA_PERIOD * 3
+        self.chart_lookback = Config.CHART_LOOKBACK
         
         logger.info(f"📊 Analysis Service initialized (EMA Period: {self.ema_period})")
     
@@ -213,7 +216,7 @@ class AnalysisService:
                     return
             
             # Analizar patrón en la vela cerrada (última completa)
-            self._analyze_last_closed_candle(source_key, candle)
+            asyncio.create_task(self._analyze_last_closed_candle(source_key, candle))
         
         else:
             # Actualizar la vela actual (tick intra-candle)
@@ -312,9 +315,9 @@ class AnalysisService:
         # Calcular EMA 200 sobre precios de cierre
         df["ema_200"] = calculate_ema(df["close"], self.ema_period)
     
-    def _analyze_last_closed_candle(self, source_key: str, current_candle: CandleData) -> None:
+    async def _analyze_last_closed_candle(self, source_key: str, current_candle: CandleData) -> None:
         """
-        Analiza la última vela cerrada en busca de patrones.
+        Analiza la última vela cerrada en busca de patrones y genera gráfico.
         
         Args:
             source_key: Clave de la fuente
@@ -345,6 +348,33 @@ class AnalysisService:
         
         # Filtro: Solo señales en tendencia bajista
         if is_pattern and trend == "BEARISH":
+            # Generar gráfico en Base64 (operación bloqueante en hilo separado)
+            chart_base64 = None
+            try:
+                # Validar que hay suficientes datos para el gráfico
+                is_valid, error_msg = validate_dataframe_for_chart(df, self.chart_lookback)
+                
+                if is_valid:
+                    logger.debug(f"📊 Generating chart for {source_key}...")
+                    
+                    # CRITICAL: Ejecutar en hilo separado para no bloquear el Event Loop
+                    chart_title = f"{current_candle.source}:{current_candle.symbol} - {current_candle.pattern if hasattr(current_candle, 'pattern') else 'SHOOTING_STAR'}"
+                    chart_base64 = await asyncio.to_thread(
+                        generate_chart_base64,
+                        df,
+                        self.chart_lookback,
+                        chart_title
+                    )
+                    
+                    logger.info(f"✅ Chart generated successfully ({len(chart_base64)} bytes Base64)")
+                else:
+                    logger.warning(f"⚠️  Cannot generate chart: {error_msg}")
+            
+            except Exception as e:
+                log_exception(logger, "Failed to generate chart", e)
+                # Continuar sin gráfico si hay error
+                chart_base64 = None
+            
             signal = PatternSignal(
                 symbol=current_candle.symbol,
                 source=current_candle.source,
@@ -362,18 +392,19 @@ class AnalysisService:
                 ),
                 ema_200=last_closed["ema_200"],
                 trend=trend,
-                confidence=confidence
+                confidence=confidence,
+                chart_base64=chart_base64
             )
             
             logger.info(
                 f"🎯 PATTERN DETECTED | {signal.source} | {signal.pattern} | "
                 f"Close={signal.candle.close:.5f} < EMA200={signal.ema_200:.5f} | "
-                f"Confidence={signal.confidence:.2f}"
+                f"Confidence={signal.confidence:.2f} | Chart={'✓' if chart_base64 else '✗'}"
             )
             
             # Emitir señal
             if self.on_pattern_detected:
-                self.on_pattern_detected(signal)
+                await self.on_pattern_detected(signal)
     
     def _determine_trend(self, close: float, ema_200: float) -> str:
         """

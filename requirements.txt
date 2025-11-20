@@ -25,6 +25,9 @@ pandas==2.1.4
 numpy==1.26.2
 # Numerical operations for EMA calculations and pattern detection
 
+mplfinance==0.12.10b0
+# Candlestick chart generation for pattern visualization
+
 # Configuration Management
 python-dotenv==1.0.0
 # Environment variable management from .env files

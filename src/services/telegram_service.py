@@ -210,7 +210,7 @@ class TelegramService:
             signal: Señal de patrón detectada
         """
         message = self._format_standard_message(signal)
-        await self._send_to_telegram(message)
+        await self._send_to_telegram(message, signal.chart_base64)
     
     async def _send_strong_alert(
         self,
@@ -225,7 +225,9 @@ class TelegramService:
             signal2: Segunda señal
         """
         message = self._format_strong_message(signal1, signal2)
-        await self._send_to_telegram(message)
+        # Usar el gráfico del primer signal o el segundo si el primero no tiene
+        chart_base64 = signal1.chart_base64 or signal2.chart_base64
+        await self._send_to_telegram(message, chart_base64)
     
     def _format_standard_message(self, signal: PatternSignal) -> AlertMessage:
         """
@@ -245,7 +247,8 @@ class TelegramService:
             f"📊 **Fuente:** {signal.source}\n"
             f"📈 **Patrón:** {signal.pattern}\n"
             f"🕒 **Timestamp:** {timestamp_str}\n"
-            f"💰 **Close:** {signal.candle.close:.5f}\n"
+            f"💰 **OHLC:** O={signal.candle.open:.5f} H={signal.candle.high:.5f} "
+            f"L={signal.candle.low:.5f} C={signal.candle.close:.5f}\n"
             f"📉 **EMA 200:** {signal.ema_200:.5f}\n"
             f"🎯 **Tendencia:** {signal.trend}\n"
             f"✨ **Confianza:** {signal.confidence:.0%}\n\n"
@@ -285,11 +288,13 @@ class TelegramService:
             f"📈 **Patrón:** {signal1.pattern}\n"
             f"🕒 **Timestamp:** {timestamp_str}\n\n"
             f"**{signal1.source}:**\n"
-            f"  • Close: {signal1.candle.close:.5f}\n"
+            f"  • OHLC: O={signal1.candle.open:.5f} H={signal1.candle.high:.5f} "
+            f"L={signal1.candle.low:.5f} C={signal1.candle.close:.5f}\n"
             f"  • EMA 200: {signal1.ema_200:.5f}\n"
             f"  • Confianza: {signal1.confidence:.0%}\n\n"
             f"**{signal2.source}:**\n"
-            f"  • Close: {signal2.candle.close:.5f}\n"
+            f"  • OHLC: O={signal2.candle.open:.5f} H={signal2.candle.high:.5f} "
+            f"L={signal2.candle.low:.5f} C={signal2.candle.close:.5f}\n"
             f"  • EMA 200: {signal2.ema_200:.5f}\n"
             f"  • Confianza: {signal2.confidence:.0%}\n\n"
             f"📉 **Tendencia:** {signal1.trend}\n"
@@ -304,20 +309,22 @@ class TelegramService:
             timestamp=datetime.now()
         )
     
-    async def _send_to_telegram(self, message: AlertMessage) -> None:
+    async def _send_to_telegram(self, message: AlertMessage, chart_base64: Optional[str] = None) -> None:
         """
-        Envía un mensaje a la API de Telegram usando el formato broadcast.
+        Envía un mensaje a la API de Telegram usando el formato broadcast con imagen.
         
         Args:
             message: Mensaje a enviar
+            chart_base64: Imagen del gráfico codificada en Base64 (opcional)
         """
         if not self.session:
             logger.error("❌ Cannot send message: HTTP session not initialized")
             return
         
-        # Formato del payload según BroadcastRequest
+        # Formato del payload según el nuevo formato con image_base64
         payload = {
-            "first_message": f"{message.title}",
+            "first_message": message.title,
+            "image_base64": chart_base64 if chart_base64 else "",
             "entries": [
                 {
                     "subscription": self.subscription,
@@ -333,7 +340,10 @@ class TelegramService:
         
         try:
             logger.info(f"📤 Sending {message.alert_type} alert to Telegram broadcast...")
-            logger.debug(f"Payload: {payload}")
+            if chart_base64:
+                logger.debug(f"📊 Including chart image ({len(chart_base64)} bytes Base64)")
+            else:
+                logger.debug("📊 No chart image included")
             
             async with self.session.post(
                 self.api_url,

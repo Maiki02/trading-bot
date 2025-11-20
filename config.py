@@ -28,6 +28,7 @@ class InstrumentConfig:
     exchange: str  # Ej: "OANDA", "FX"
     timeframe: str  # Ej: "1" para 1 minuto
     full_symbol: str  # Ej: "OANDA:EURUSD"
+    chart_lookback: int = 30  # Número de velas hacia atrás para el gráfico
     
     @property
     def chart_session_id(self) -> str:
@@ -126,6 +127,7 @@ class Config:
     # Trading Parameters
     EMA_PERIOD: int = int(os.getenv("EMA_PERIOD", "200"))
     DUAL_SOURCE_WINDOW: float = float(os.getenv("DUAL_SOURCE_WINDOW", "2.0"))
+    CHART_LOOKBACK: int = int(os.getenv("CHART_LOOKBACK", "30"))
     
     # Reconnection Strategy
     RECONNECT_INITIAL_TIMEOUT: int = int(os.getenv("RECONNECT_INITIAL_TIMEOUT", "5"))
