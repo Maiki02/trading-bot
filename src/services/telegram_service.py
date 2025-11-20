@@ -200,7 +200,9 @@ class TelegramService:
             )
             
             await self._send_standard_alert(pending.signal)
-            del self.pending_alerts[alert_key]
+            # Verificar nuevamente antes de eliminar (puede haber sido limpiado)
+            if alert_key in self.pending_alerts:
+                del self.pending_alerts[alert_key]
     
     async def _send_standard_alert(self, signal: PatternSignal) -> None:
         """
@@ -210,7 +212,9 @@ class TelegramService:
             signal: Señal de patrón detectada
         """
         message = self._format_standard_message(signal)
-        await self._send_to_telegram(message, signal.chart_base64)
+        # Solo enviar gráfico si está habilitado en configuración
+        chart = signal.chart_base64 if Config.TELEGRAM.send_charts else None
+        await self._send_to_telegram(message, chart)
     
     async def _send_strong_alert(
         self,
@@ -226,8 +230,11 @@ class TelegramService:
         """
         message = self._format_strong_message(signal1, signal2)
         # Usar el gráfico del primer signal o el segundo si el primero no tiene
-        chart_base64 = signal1.chart_base64 or signal2.chart_base64
-        await self._send_to_telegram(message, chart_base64)
+        # Solo enviar si está habilitado en configuración
+        chart = None
+        if Config.TELEGRAM.send_charts:
+            chart = signal1.chart_base64 or signal2.chart_base64
+        await self._send_to_telegram(message, chart)
     
     def _format_standard_message(self, signal: PatternSignal) -> AlertMessage:
         """
@@ -337,6 +344,7 @@ class TelegramService:
         payload = {
             "first_message": message.title,
             "image_base64": chart_base64 if chart_base64 else "",
+            "message_type": "markdown",
             "entries": [
                 {
                     "subscription": self.subscription,
@@ -430,7 +438,9 @@ class TelegramService:
                         f"🧹 Limpiando {len(expired_keys)} alerta(s) expirada(s) del buffer"
                     )
                     for key in expired_keys:
-                        del self.pending_alerts[key]
+                        # Verificar que aún exista antes de eliminar (evitar race condition)
+                        if key in self.pending_alerts:
+                            del self.pending_alerts[key]
         
         except asyncio.CancelledError:
             logger.debug("Tarea de limpieza cancelada")

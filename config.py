@@ -42,6 +42,7 @@ class TelegramConfig:
     api_url: str
     api_key: str
     subscription: str
+    send_charts: bool  # Enviar gráficos en Base64 (aumenta costos API Gateway ~10x)
     
     def validate(self) -> None:
         """Valida que todos los parámetros estén configurados."""
@@ -121,7 +122,8 @@ class Config:
     TELEGRAM = TelegramConfig(
         api_url=os.getenv("TELEGRAM_API_URL", ""),
         api_key=os.getenv("TELEGRAM_API_KEY", ""),
-        subscription=os.getenv("TELEGRAM_SUBSCRIPTION", "trading_signals")
+        subscription=os.getenv("TELEGRAM_SUBSCRIPTION", "trading_signals"),
+        send_charts=os.getenv("SEND_CHARTS", "false").lower() == "true"
     )
     
     # Trading Parameters
