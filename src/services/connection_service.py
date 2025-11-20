@@ -188,7 +188,8 @@ class ConnectionService:
     
     async def stop(self) -> None:
         """
-        Detiene el servicio de conexión de forma limpia.
+        Detiene el servicio de conexión de forma limpia (graceful shutdown).
+        Envía mensajes de cierre a TradingView antes de cerrar el WebSocket.
         """
         logger.info("🛑 Stopping Connection Service...")
         self.is_running = False
@@ -201,11 +202,33 @@ class ConnectionService:
             except asyncio.CancelledError:
                 pass
         
-        # Cerrar WebSocket
+        # Cerrar chart sessions y quote session de forma limpia
         if self.websocket and not self.websocket.closed:
-            await self.websocket.close()
+            try:
+                logger.debug("📤 Sending close messages to TradingView...")
+                
+                # Cerrar cada chart session
+                for key, chart_session_id in self.chart_sessions.items():
+                    close_chart_msg = encode_message("remove_series", [chart_session_id, "s1"])
+                    await self.websocket.send(close_chart_msg)
+                    logger.debug(f"✅ Closed chart session: {chart_session_id}")
+                
+                # Cerrar quote session
+                close_quote_msg = encode_message("quote_remove_symbols", [self.quote_session_id])
+                await self.websocket.send(close_quote_msg)
+                logger.debug(f"✅ Closed quote session: {self.quote_session_id}")
+                
+                # Dar tiempo para que se envíen los mensajes
+                await asyncio.sleep(0.5)
+                
+            except Exception as e:
+                logger.warning(f"⚠️  Error sending close messages: {e}")
+            finally:
+                # Cerrar WebSocket
+                await self.websocket.close()
+                logger.debug("🔌 WebSocket connection closed")
         
-        logger.info("✅ Connection Service stopped")
+        logger.info("✅ Connection Service stopped cleanly")
     
     async def _connect_and_run(self) -> None:
         """

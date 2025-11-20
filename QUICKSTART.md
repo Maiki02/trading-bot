@@ -32,9 +32,9 @@ notepad .env
 
 ```env
 TV_SESSION_ID=tu_sessionid_aqui
-TELEGRAM_API_URL=https://api.tu-api.com/telegram
+TELEGRAM_API_URL=https://api.tu-dominio.com/admin/bots/12345/broadcast
 TELEGRAM_API_KEY=tu_api_key
-TELEGRAM_CHAT_ID=tu_chat_id
+TELEGRAM_SUBSCRIPTION=trading_signals
 ```
 
 ### 4️⃣ Ejecutar el bot

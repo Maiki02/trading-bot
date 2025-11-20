@@ -40,14 +40,14 @@ class TelegramConfig:
     """Configuración del servicio de notificaciones Telegram."""
     api_url: str
     api_key: str
-    chat_id: str
+    subscription: str
     
     def validate(self) -> None:
         """Valida que todos los parámetros estén configurados."""
-        if not self.api_url or not self.api_key or not self.chat_id:
+        if not self.api_url or not self.api_key or not self.subscription:
             raise ValueError(
                 "Telegram configuration incomplete. Check TELEGRAM_API_URL, "
-                "TELEGRAM_API_KEY, and TELEGRAM_CHAT_ID in .env"
+                "TELEGRAM_API_KEY, and TELEGRAM_SUBSCRIPTION in .env"
             )
 
 
@@ -118,7 +118,7 @@ class Config:
     TELEGRAM = TelegramConfig(
         api_url=os.getenv("TELEGRAM_API_URL", ""),
         api_key=os.getenv("TELEGRAM_API_KEY", ""),
-        chat_id=os.getenv("TELEGRAM_CHAT_ID", "")
+        subscription=os.getenv("TELEGRAM_SUBSCRIPTION", "trading_signals")
     )
     
     # Trading Parameters

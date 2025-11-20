@@ -71,7 +71,7 @@ class TelegramService:
         # Configuración
         self.api_url = Config.TELEGRAM.api_url
         self.api_key = Config.TELEGRAM.api_key
-        self.chat_id = Config.TELEGRAM.chat_id
+        self.subscription = Config.TELEGRAM.subscription
         self.confirmation_window = Config.DUAL_SOURCE_WINDOW
         
         # Buffer de alertas pendientes (key: symbol_timestamp)
@@ -82,7 +82,7 @@ class TelegramService:
         
         logger.info(
             f"📱 Telegram Service initialized "
-            f"(Confirmation Window: {self.confirmation_window}s)"
+            f"(Subscription: {self.subscription}, Window: {self.confirmation_window}s)"
         )
     
     async def start(self) -> None:
@@ -306,7 +306,7 @@ class TelegramService:
     
     async def _send_to_telegram(self, message: AlertMessage) -> None:
         """
-        Envía un mensaje a la API de Telegram.
+        Envía un mensaje a la API de Telegram usando el formato broadcast.
         
         Args:
             message: Mensaje a enviar
@@ -315,10 +315,15 @@ class TelegramService:
             logger.error("❌ Cannot send message: HTTP session not initialized")
             return
         
+        # Formato del payload según BroadcastRequest
         payload = {
-            "chat_id": self.chat_id,
-            "text": f"{message.title}\n\n{message.body}",
-            "parse_mode": "Markdown"
+            "first_message": f"{message.title}",
+            "entries": [
+                {
+                    "subscription": self.subscription,
+                    "message": message.body
+                }
+            ]
         }
         
         headers = {
@@ -327,7 +332,8 @@ class TelegramService:
         }
         
         try:
-            logger.info(f"📤 Sending {message.alert_type} alert to Telegram...")
+            logger.info(f"📤 Sending {message.alert_type} alert to Telegram broadcast...")
+            logger.debug(f"Payload: {payload}")
             
             async with self.session.post(
                 self.api_url,
