@@ -44,6 +44,10 @@ class PatternSignal:
     timestamp: int
     candle: CandleData
     ema_200: float
+    ema_100: float
+    ema_50: float
+    ema_30: float
+    ema_20: float
     trend: str  # "BEARISH", "BULLISH", "NEUTRAL"
     confidence: float  # 0.0 - 1.0
     trend_filtered: bool  # True si se aplicó filtro de tendencia
@@ -223,7 +227,8 @@ class AnalysisService:
             source_key: Clave única de la fuente (ej: "OANDA_EURUSD")
         """
         self.dataframes[source_key] = pd.DataFrame(columns=[
-            "timestamp", "open", "high", "low", "close", "volume", "ema_200"
+            "timestamp", "open", "high", "low", "close", "volume", 
+            "ema_200", "ema_100", "ema_50", "ema_30", "ema_20"
         ])
         logger.debug(f"📋 DataFrame inicializado para {source_key}")
     
@@ -258,7 +263,11 @@ class AnalysisService:
             "low": candle.low,
             "close": candle.close,
             "volume": candle.volume,
-            "ema_200": np.nan  # Se calculará después
+            "ema_200": np.nan,  # Se calculará después
+            "ema_100": np.nan,
+            "ema_50": np.nan,
+            "ema_30": np.nan,
+            "ema_20": np.nan
         }])
         
         self.dataframes[source_key] = pd.concat(
@@ -292,18 +301,33 @@ class AnalysisService:
     
     def _update_indicators(self, source_key: str) -> None:
         """
-        Recalcula los indicadores técnicos (EMA 200).
+        Recalcula los indicadores técnicos (EMAs: 200, 100, 50, 30, 20).
         
         Args:
             source_key: Clave de la fuente
         """
         df = self.dataframes[source_key]
         
-        if len(df) < self.ema_period:
-            return
+        # Calcular EMAs sobre precios de cierre
+        # EMA 20 - Siempre se puede calcular si hay >= 20 velas
+        if len(df) >= 20:
+            df["ema_20"] = calculate_ema(df["close"], 20)
         
-        # Calcular EMA 200 sobre precios de cierre
-        df["ema_200"] = calculate_ema(df["close"], self.ema_period)
+        # EMA 30
+        if len(df) >= 30:
+            df["ema_30"] = calculate_ema(df["close"], 30)
+        
+        # EMA 50
+        if len(df) >= 50:
+            df["ema_50"] = calculate_ema(df["close"], 50)
+        
+        # EMA 100
+        if len(df) >= 100:
+            df["ema_100"] = calculate_ema(df["close"], 100)
+        
+        # EMA 200 - La principal para detección de tendencia
+        if len(df) >= self.ema_period:
+            df["ema_200"] = calculate_ema(df["close"], self.ema_period)
     
     async def _analyze_last_closed_candle(self, source_key: str, current_candle: CandleData, force_notification: bool = False) -> None:
         """
@@ -327,12 +351,16 @@ class AnalysisService:
         if pd.isna(last_closed["ema_200"]):
             return
         
-        # LOG: Información de la vela cerrada
+        # LOG: Información de la vela cerrada con todas las EMAs
+        ema_20_val = last_closed.get('ema_20', np.nan)
+        ema_30_val = last_closed.get('ema_30', np.nan)
+        ema_50_val = last_closed.get('ema_50', np.nan)
+        ema_100_val = last_closed.get('ema_100', np.nan)
+        
         logger.info(
             f"\n\n"
-            f"{'='*80}\n"
             f"🕯️  VELA CERRADA - INICIANDO ANÁLISIS\n"
-            f"{'='*80}\n"
+            f"{'='*40}\n"
             f"📊 Fuente: {source_key}\n"
             f"🕒 Timestamp: {last_closed['timestamp']}\n"
             f"💰 Apertura: {last_closed['open']:.5f}\n"
@@ -340,8 +368,12 @@ class AnalysisService:
             f"💰 Mínimo: {last_closed['low']:.5f}\n"
             f"💰 Cierre: {last_closed['close']:.5f}\n"
             f"📊 Volumen: {last_closed['volume']:.2f}\n"
-            f"📉 EMA 200: {last_closed['ema_200']:.5f}\n"
-            f"{'='*80}\n"
+            f"📉 EMAs: 20={ema_20_val:.5f if not pd.isna(ema_20_val) else 'N/A'} | "
+            f"30={ema_30_val:.5f if not pd.isna(ema_30_val) else 'N/A'} | "
+            f"50={ema_50_val:.5f if not pd.isna(ema_50_val) else 'N/A'} | "
+            f"100={ema_100_val:.5f if not pd.isna(ema_100_val) else 'N/A'} | "
+            f"200={last_closed['ema_200']:.5f}\n"
+            f"{'='*40}\n"
         )
         
         # Determinar tendencia
@@ -472,6 +504,10 @@ class AnalysisService:
                     symbol=current_candle.symbol
                 ),
                 ema_200=last_closed["ema_200"],
+                ema_100=last_closed.get("ema_100", np.nan),
+                ema_50=last_closed.get("ema_50", np.nan),
+                ema_30=last_closed.get("ema_30", np.nan),
+                ema_20=last_closed.get("ema_20", np.nan),
                 trend=trend,
                 confidence=pattern_confidence,
                 trend_filtered=Config.USE_TREND_FILTER,

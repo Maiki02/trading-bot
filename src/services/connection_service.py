@@ -387,7 +387,7 @@ class ConnectionService:
             
             # Log de TODOS los métodos recibidos para debug
             if method:
-                logger.info(f"\n\n\n\n🔔 MENSAJE RECIBIDO | Método: {method}")
+                logger.info(f"📥 Mensaje recibido | Método: {method}")
             
             # Detectar fallo de autenticación o error de protocolo
             if method == "critical_error" or method == "error" or method == "protocol_error":
@@ -421,7 +421,7 @@ class ConnectionService:
             
             # Procesar actualizaciones en tiempo real (método 'du' = data update)
             elif method == "du":
-                logger.info(f"🔄 MENSAJE DU | Params: {params[:2] if len(params) > 2 else params}")
+                # logger.info(f"🔄 MENSAJE DU | Params: {params[:2] if len(params) > 2 else params}")
                 # Procesar vela en tiempo real (SÍ genera gráficos)
                 await self._process_realtime_update(params)
             

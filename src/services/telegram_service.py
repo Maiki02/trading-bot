@@ -256,6 +256,13 @@ class TelegramService:
             # Modo SIN filtro: Solo indicar patrón detectado
             title = f"📈 PATRÓN DETECTADO | {signal.symbol}"
         
+        # Formatear EMAs (mostrar N/A si no están disponibles)
+        import math
+        ema_20_str = f"{signal.ema_20:.5f}" if not math.isnan(signal.ema_20) else "N/A"
+        ema_30_str = f"{signal.ema_30:.5f}" if not math.isnan(signal.ema_30) else "N/A"
+        ema_50_str = f"{signal.ema_50:.5f}" if not math.isnan(signal.ema_50) else "N/A"
+        ema_100_str = f"{signal.ema_100:.5f}" if not math.isnan(signal.ema_100) else "N/A"
+        
         # Cuerpo del mensaje (SIEMPRE el mismo formato)
         body = (
             f"📊 *Fuente:* {signal.source}\n"
@@ -264,8 +271,13 @@ class TelegramService:
             f"💰 *Apertura:* {signal.candle.open:.5f}\n"
             f"💰 *Máximo:* {signal.candle.high:.5f}\n"
             f"💰 *Mínimo:* {signal.candle.low:.5f}\n"
-            f"💰 *Cierre:* {signal.candle.close:.5f}\n"
-            f"📉 *EMA 200:* {signal.ema_200:.5f}\n"
+            f"💰 *Cierre:* {signal.candle.close:.5f}\n\n"
+            f"📉 *EMAs:*\n"
+            f"  • EMA 20: {ema_20_str}\n"
+            f"  • EMA 30: {ema_30_str}\n"
+            f"  • EMA 50: {ema_50_str}\n"
+            f"  • EMA 100: {ema_100_str}\n"
+            f"  • EMA 200: {signal.ema_200:.5f}\n\n"
             f"🎯 *Tendencia:* {signal.trend}\n"
             f"✨ *Confianza:* {signal.confidence:.0%}\n\n"
             f"⚡ *Verificar gráfico manualmente antes de operar.*"
@@ -298,6 +310,21 @@ class TelegramService:
         
         title = f"🔥 ALERTA CONFIRMADA | {signal1.symbol}"
         
+        # Formatear EMAs de ambas señales
+        import math
+        
+        # Signal 1 EMAs
+        ema1_20 = f"{signal1.ema_20:.5f}" if not math.isnan(signal1.ema_20) else "N/A"
+        ema1_30 = f"{signal1.ema_30:.5f}" if not math.isnan(signal1.ema_30) else "N/A"
+        ema1_50 = f"{signal1.ema_50:.5f}" if not math.isnan(signal1.ema_50) else "N/A"
+        ema1_100 = f"{signal1.ema_100:.5f}" if not math.isnan(signal1.ema_100) else "N/A"
+        
+        # Signal 2 EMAs
+        ema2_20 = f"{signal2.ema_20:.5f}" if not math.isnan(signal2.ema_20) else "N/A"
+        ema2_30 = f"{signal2.ema_30:.5f}" if not math.isnan(signal2.ema_30) else "N/A"
+        ema2_50 = f"{signal2.ema_50:.5f}" if not math.isnan(signal2.ema_50) else "N/A"
+        ema2_100 = f"{signal2.ema_100:.5f}" if not math.isnan(signal2.ema_100) else "N/A"
+        
         body = (
             f"🎯 *CONFIRMACIÓN DUAL-SOURCE*\n"
             f"📊 *Fuentes:* {signal1.source} + {signal2.source}\n"
@@ -308,14 +335,14 @@ class TelegramService:
             f"  • *Máximo:* {signal1.candle.high:.5f}\n"
             f"  • *Mínimo:* {signal1.candle.low:.5f}\n"
             f"  • *Cierre:* {signal1.candle.close:.5f}\n"
-            f"  • *EMA 200:* {signal1.ema_200:.5f}\n"
+            f"  • *EMAs:* 20={ema1_20} | 30={ema1_30} | 50={ema1_50} | 100={ema1_100} | 200={signal1.ema_200:.5f}\n"
             f"  • *Confianza:* {signal1.confidence:.0%}\n\n"
             f"*{signal2.source}:*\n"
             f"  • *Apertura:* {signal2.candle.open:.5f}\n"
             f"  • *Máximo:* {signal2.candle.high:.5f}\n"
             f"  • *Mínimo:* {signal2.candle.low:.5f}\n"
             f"  • *Cierre:* {signal2.candle.close:.5f}\n"
-            f"  • *EMA 200:* {signal2.ema_200:.5f}\n"
+            f"  • *EMAs:* 20={ema2_20} | 30={ema2_30} | 50={ema2_50} | 100={ema2_100} | 200={signal2.ema_200:.5f}\n"
             f"  • *Confianza:* {signal2.confidence:.0%}\n\n"
             f"📉 *Tendencia:* {signal1.trend}\n"
             f"✨ *Confianza Promedio:* {avg_confidence:.0%}\n\n"
