@@ -394,6 +394,36 @@ class TelegramService:
                 import base64
                 from pathlib import Path
                 
+                # VALIDAR BASE64 ANTES DE ENVIAR
+                logger.info(
+                    f"\n{'-'*80}\n"
+                    f"🔍 VALIDACIÓN DE BASE64\n"
+                    f"{'-'*80}\n"
+                    f"  • Longitud total: {len(chart_base64)} caracteres\n"
+                    f"  • Tiene saltos de línea: {'SÍ' if chr(10) in chart_base64 or chr(13) in chart_base64 else 'NO'}\n"
+                    f"  • Tiene espacios: {'SÍ' if ' ' in chart_base64 else 'NO'}\n"
+                    f"  • Tiene prefijo data:image: {'SÍ' if chart_base64.startswith('data:image') else 'NO'}\n"
+                    f"  • Primeros 80 chars: {chart_base64[:80]}\n"
+                    f"  • Últimos 80 chars: {chart_base64[-80:]}\n"
+                    f"{'-'*80}"
+                )
+                
+                # Limpiar Base64 (remover espacios y saltos de línea por si acaso)
+                chart_base64_clean = chart_base64.replace('\n', '').replace('\r', '').replace(' ', '')
+                
+                if chart_base64_clean != chart_base64:
+                    logger.warning(
+                        f"⚠️ BASE64 LIMPIADO | Removidos {len(chart_base64) - len(chart_base64_clean)} caracteres inválidos"
+                    )
+                    chart_base64 = chart_base64_clean
+                
+                # Intentar decodificar para verificar que es válido
+                try:
+                    decoded_test = base64.b64decode(chart_base64)
+                    logger.info(f"✅ BASE64 VÁLIDO | Decodifica a {len(decoded_test)} bytes")
+                except Exception as decode_err:
+                    logger.error(f"❌ BASE64 INVÁLIDO | Error al decodificar: {decode_err}")
+                
                 # Crear directorio logs si no existe
                 logs_dir = Path("logs")
                 logs_dir.mkdir(exist_ok=True)
@@ -408,6 +438,11 @@ class TelegramService:
                 filepath.write_bytes(image_data)
                 
                 logger.info(f"💾 Gráfico guardado en {filepath} | Tamaño: {len(image_data)} bytes")
+                
+                # Guardar también el Base64 en un archivo .txt para debugging
+                txt_filepath = logs_dir / f"chart_{message.alert_type}_{timestamp_str}.txt"
+                txt_filepath.write_text(chart_base64, encoding='utf-8')
+                logger.info(f"💾 Base64 guardado en {txt_filepath}")
             
             except Exception as e:
                 logger.error(f"❌ Fallo al guardar imagen del gráfico: {e}")

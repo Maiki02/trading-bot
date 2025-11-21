@@ -448,7 +448,6 @@ class AnalysisService:
                     pattern_detected = "HANGING_MAN"
                     pattern_confidence = hanging_man_conf
         else:
-            logger.debug("⚙️  USE_TREND_FILTER is disabled. Detecting patterns without trend filtering.")
             # Modo SIN filtro de tendencia: detectar cualquier patrón sin importar tendencia
             # Prioridad: Shooting Star > Hanging Man > Hammer > Inverted Hammer
             if shooting_star_detected:
@@ -467,10 +466,6 @@ class AnalysisService:
         # Determinar si se debe enviar notificación
         # SOLO enviar si hay patrón válido
         should_notify = (pattern_detected is not None)
-
-        logger.debug(
-            f"Vamos a notificar si hay patrón: {should_notify}"
-        )
         
         if should_notify:
             # Generar gráfico en Base64 (operación bloqueante en hilo separado)

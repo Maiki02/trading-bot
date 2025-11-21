@@ -145,6 +145,21 @@ def generate_chart_base64(
         # Codificar en Base64
         base64_string = base64.b64encode(image_bytes).decode('utf-8')
         
+        # Validar que el Base64 sea válido (sin espacios, saltos de línea, etc.)
+        # Nota: No debe tener prefijo data:image/png;base64,
+        base64_length = len(base64_string)
+        has_newlines = '\n' in base64_string or '\r' in base64_string
+        has_spaces = ' ' in base64_string
+        
+        # Log de depuración
+        print(f"🖼️ CHART BASE64 INFO:")
+        print(f"  • Image size: {len(image_bytes)} bytes")
+        print(f"  • Base64 length: {base64_length} chars")
+        print(f"  • Has newlines: {has_newlines}")
+        print(f"  • Has spaces: {has_spaces}")
+        print(f"  • First 50 chars: {base64_string[:50]}")
+        print(f"  • Last 50 chars: {base64_string[-50:]}")
+        
         return base64_string
     
     finally:
