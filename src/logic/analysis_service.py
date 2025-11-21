@@ -357,6 +357,12 @@ class AnalysisService:
         ema_50_val = last_closed.get('ema_50', np.nan)
         ema_100_val = last_closed.get('ema_100', np.nan)
         
+        # Formatear EMAs (convertir a string antes)
+        ema_20_str = f"{ema_20_val:.5f}" if not pd.isna(ema_20_val) else "N/A"
+        ema_30_str = f"{ema_30_val:.5f}" if not pd.isna(ema_30_val) else "N/A"
+        ema_50_str = f"{ema_50_val:.5f}" if not pd.isna(ema_50_val) else "N/A"
+        ema_100_str = f"{ema_100_val:.5f}" if not pd.isna(ema_100_val) else "N/A"
+        
         logger.info(
             f"\n\n"
             f"🕯️  VELA CERRADA - INICIANDO ANÁLISIS\n"
@@ -368,11 +374,7 @@ class AnalysisService:
             f"💰 Mínimo: {last_closed['low']:.5f}\n"
             f"💰 Cierre: {last_closed['close']:.5f}\n"
             f"📊 Volumen: {last_closed['volume']:.2f}\n"
-            f"📉 EMAs: 20={ema_20_val:.5f if not pd.isna(ema_20_val) else 'N/A'} | "
-            f"30={ema_30_val:.5f if not pd.isna(ema_30_val) else 'N/A'} | "
-            f"50={ema_50_val:.5f if not pd.isna(ema_50_val) else 'N/A'} | "
-            f"100={ema_100_val:.5f if not pd.isna(ema_100_val) else 'N/A'} | "
-            f"200={last_closed['ema_200']:.5f}\n"
+            f"📉 EMAs: 20={ema_20_str} | 30={ema_30_str} | 50={ema_50_str} | 100={ema_100_str} | 200={last_closed['ema_200']:.5f}\n"
             f"{'='*40}\n"
         )
         
@@ -407,6 +409,19 @@ class AnalysisService:
             last_closed["low"],
             last_closed["close"]
         )
+
+        strHammer = "✓" if hammer_detected else "✗"
+        strInvertedHammer = "✓" if inverted_hammer_detected else "✗"
+        strShootingStar = "✓" if shooting_star_detected else "✗"
+        strHangingMan = "✓" if hanging_man_detected else "✗"
+
+        logger.info(
+            f"🔍 Patrón Detectado:\n"
+            f"   • Shooting Star: {strShootingStar} (Confianza: {shooting_star_conf:.2f})\n"
+            f"   • Hanging Man: {strHangingMan} (Confianza: {hanging_man_conf:.2f})\n"
+            f"   • Inverted Hammer: {strInvertedHammer} (Confianza: {inverted_hammer_conf:.2f})\n"
+            f"   • Hammer: {strHammer} (Confianza: {hammer_conf:.2f})\n"
+        )
         
         # Filtrar patrones por tendencia apropiada (solo si USE_TREND_FILTER está activo)
         # BEARISH signals (reversión bajista): Shooting Star y Hanging Man en tendencia alcista
@@ -433,6 +448,7 @@ class AnalysisService:
                     pattern_detected = "HANGING_MAN"
                     pattern_confidence = hanging_man_conf
         else:
+            logger.debug("⚙️  USE_TREND_FILTER is disabled. Detecting patterns without trend filtering.")
             # Modo SIN filtro de tendencia: detectar cualquier patrón sin importar tendencia
             # Prioridad: Shooting Star > Hanging Man > Hammer > Inverted Hammer
             if shooting_star_detected:
@@ -451,6 +467,10 @@ class AnalysisService:
         # Determinar si se debe enviar notificación
         # SOLO enviar si hay patrón válido
         should_notify = (pattern_detected is not None)
+
+        logger.debug(
+            f"Vamos a notificar si hay patrón: {should_notify}"
+        )
         
         if should_notify:
             # Generar gráfico en Base64 (operación bloqueante en hilo separado)
@@ -458,7 +478,9 @@ class AnalysisService:
             try:
                 # Validar que hay suficientes datos para el gráfico
                 is_valid, error_msg = validate_dataframe_for_chart(df, self.chart_lookback)
-                
+                logger.debug(
+                    f"Validación de DataFrame para gráfico: is_valid={is_valid}, error_msg='{error_msg}'"
+                )
                 if is_valid:
                     chart_title = f"{current_candle.source}:{current_candle.symbol} - {pattern_detected}"
                     
@@ -529,6 +551,10 @@ class AnalysisService:
                 pattern_detected
             )
             
+            logger.info(
+                f"✅ Señal de patrón emitida para {signal.source} | "
+                f"{signal.pattern} @ {signal.timestamp}"
+            )
             # Emitir señal
             if self.on_pattern_detected:
                 await self.on_pattern_detected(signal)
