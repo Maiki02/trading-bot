@@ -324,6 +324,23 @@ class AnalysisService:
         if pd.isna(last_closed["ema_200"]):
             return
         
+        # LOG: Información de la vela cerrada
+        logger.info(
+            f"\n\n"
+            f"{'='*80}\n"
+            f"🕯️  VELA CERRADA - INICIANDO ANÁLISIS\n"
+            f"{'='*80}\n"
+            f"📊 Fuente: {source_key}\n"
+            f"🕒 Timestamp: {last_closed['timestamp']}\n"
+            f"💰 Apertura: {last_closed['open']:.5f}\n"
+            f"💰 Máximo: {last_closed['high']:.5f}\n"
+            f"💰 Mínimo: {last_closed['low']:.5f}\n"
+            f"💰 Cierre: {last_closed['close']:.5f}\n"
+            f"📊 Volumen: {last_closed['volume']:.2f}\n"
+            f"📉 EMA 200: {last_closed['ema_200']:.5f}\n"
+            f"{'='*80}\n"
+        )
+        
         # Determinar tendencia
         trend = self._determine_trend(last_closed["close"], last_closed["ema_200"])
         

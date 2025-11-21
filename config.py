@@ -158,7 +158,7 @@ class Config:
     EMA_PERIOD: int = int(os.getenv("EMA_PERIOD", "200"))
     DUAL_SOURCE_WINDOW: float = float(os.getenv("DUAL_SOURCE_WINDOW", "2.0"))
     CHART_LOOKBACK: int = int(os.getenv("CHART_LOOKBACK", "30"))
-    USE_TREND_FILTER: bool = os.getenv("USE_TREND_FILTER", "true").lower() == "true"
+    USE_TREND_FILTER: bool = os.getenv("USE_TREND_FILTER", "false").lower() == "true"
     
     # Reconnection Strategy
     RECONNECT_INITIAL_TIMEOUT: int = int(os.getenv("RECONNECT_INITIAL_TIMEOUT", "5"))

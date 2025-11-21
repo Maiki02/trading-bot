@@ -1,0 +1,30 @@
+[
+  {
+    "apertura": 1.15296,
+    "cierre": 1.15299,
+    "maximo": 1.15304,
+    "minimo": 1.15296,
+    "tipo_vela": "inverted_hammer"
+  },
+  {
+    "apertura": 1.15290,
+    "cierre": 1.15292,
+    "maximo": 1.15292,
+    "minimo": 1.15284,
+    "tipo_vela": "hammer"
+  },
+  {
+    "apertura": 1.15358,
+    "cierre": 1.15359,
+    "maximo": 1.15360,
+    "minimo": 1.15349,
+    "tipo_vela": "hammer"
+  },
+  {
+    "apertura": 1.15300,
+    "cierre": 1.15301,
+    "maximo": 1.15306,
+    "minimo": 1.15299,
+    "tipo_vela": "inverted_hammer"
+  }
+]
