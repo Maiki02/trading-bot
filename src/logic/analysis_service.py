@@ -177,7 +177,10 @@ class AnalysisService:
         is_new_candle = self._is_new_candle(source_key, candle.timestamp)
         
         if is_new_candle:
-            logger.info(f"🕒 NUEVA VELA | {source_key} | T={candle.timestamp} | Close={candle.close:.5f}")
+            # LOG: Vela cerrada con hora
+            from datetime import datetime
+            candle_time = datetime.fromtimestamp(candle.timestamp).strftime("%H:%M")
+            logger.info(f"🕯️ VELA CERRADA | {source_key} | Hora: {candle_time}")
             
             # Agregar la vela anterior al buffer antes de procesar la nueva
             self._add_new_candle(source_key, candle)
@@ -481,6 +484,15 @@ class AnalysisService:
                 f"Confidence={signal.confidence:.2f} | Chart={'✓' if chart_base64 else '✗'}"
             )
             
+            # Guardar vela detectada en test_data.json
+            await self._save_detected_candle_to_test_data(
+                last_closed["open"],
+                last_closed["high"],
+                last_closed["low"],
+                last_closed["close"],
+                pattern_detected
+            )
+            
             # Emitir señal
             if self.on_pattern_detected:
                 await self.on_pattern_detected(signal)
@@ -504,6 +516,78 @@ class AnalysisService:
             return "BULLISH"
         else:
             return "NEUTRAL"
+    
+    async def _save_detected_candle_to_test_data(
+        self,
+        apertura: float,
+        maximo: float,
+        minimo: float,
+        cierre: float,
+        pattern: str
+    ) -> None:
+        """
+        Guarda una vela detectada en test/test_data.json.
+        
+        Args:
+            apertura: Precio de apertura
+            maximo: Precio máximo
+            minimo: Precio mínimo
+            cierre: Precio de cierre
+            pattern: Tipo de patrón detectado (SHOOTING_STAR, HANGING_MAN, etc.)
+        """
+        try:
+            from pathlib import Path
+            import json
+            
+            # Mapear nombres de patrones a formato del test
+            pattern_map = {
+                "SHOOTING_STAR": "shooting_star",
+                "HANGING_MAN": "hanging_man",
+                "INVERTED_HAMMER": "inverted_hammer",
+                "HAMMER": "hammer"
+            }
+            
+            tipo_vela = pattern_map.get(pattern)
+            if not tipo_vela:
+                logger.warning(f"⚠️  Patrón desconocido para guardar: {pattern}")
+                return
+            
+            # Ruta al archivo test_data.json
+            test_file = Path("test") / "test_data.json"
+            
+            # Crear directorio si no existe
+            test_file.parent.mkdir(exist_ok=True)
+            
+            # Leer datos existentes
+            if test_file.exists():
+                with open(test_file, "r", encoding="utf-8") as f:
+                    test_data = json.load(f)
+            else:
+                test_data = []
+            
+            # Crear nuevo elemento
+            new_entry = {
+                "apertura": float(apertura),
+                "cierre": float(cierre),
+                "maximo": float(maximo),
+                "minimo": float(minimo),
+                "tipo_vela": tipo_vela
+            }
+            
+            # Agregar al array
+            test_data.append(new_entry)
+            
+            # Guardar archivo actualizado
+            with open(test_file, "w", encoding="utf-8") as f:
+                json.dump(test_data, f, indent=2, ensure_ascii=False)
+            
+            logger.info(
+                f"💾 VELA GUARDADA EN TEST_DATA.JSON | Tipo: {tipo_vela} | "
+                f"Total velas: {len(test_data)}"
+            )
+            
+        except Exception as e:
+            log_exception(logger, "Error guardando vela en test_data.json", e)
     
     def get_buffer_status(self) -> Dict[str, int]:
         """

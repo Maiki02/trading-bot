@@ -520,7 +520,8 @@ class ConnectionService:
         Args:
             params: Parámetros del mensaje du
         """
-        logger.info(f"🕒 PROCESANDO ACTUALIZACIÓN EN TIEMPO REAL | Longitud params: {len(params)}")
+        # LOG COMENTADO: Demasiado verbose en producción
+        # logger.info(f"🕒 PROCESANDO ACTUALIZACIÓN EN TIEMPO REAL | Longitud params: {len(params)}")
         
         if len(params) < 2:
             logger.warning(f"⚠️  ACTUALIZACIÓN EN TIEMPO REAL FALLÓ | Params insuficientes: {len(params)}")
@@ -567,11 +568,12 @@ class ConnectionService:
                         # Detectar si es actualización o nueva vela
                         candle_index = series_data[0].get("i", -1)
                         
-                        logger.info(
-                            f"🕒 ACTUALIZACIÓN VELA #{candle_index} | {source}:{symbol} | "
-                            f"T={candle.timestamp} | O={candle.open:.5f} H={candle.high:.5f} "
-                            f"L={candle.low:.5f} C={candle.close:.5f} | Vol={candle.volume:.0f}"
-                        )
+                        # LOG COMENTADO: Demasiado verbose en producción
+                        # logger.info(
+                        #     f"🕒 ACTUALIZACIÓN VELA #{candle_index} | {source}:{symbol} | "
+                        #     f"T={candle.timestamp} | O={candle.open:.5f} H={candle.high:.5f} "
+                        #     f"L={candle.low:.5f} C={candle.close:.5f} | Vol={candle.volume:.0f}"
+                        # )
                         
                         # Procesar vela en tiempo real - genera gráficos y alertas
                         if self.analysis_service:

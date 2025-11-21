@@ -389,10 +389,18 @@ class TelegramService:
         try:
             chart_status = 'SÍ' if chart_base64 else 'NO'
             chart_size = len(chart_base64) if chart_base64 else 0
+            
             logger.info(
-                f"📤 ENVIANDO A TELEGRAM | Tipo: {message.alert_type} | "
-                f"Título: {message.title} | Gráfico: {chart_status} | "
-                f"Tamaño Gráfico: {chart_size} bytes"
+                f"\n{'='*80}\n"
+                f"📤 INICIANDO PETICIÓN HTTP A TELEGRAM\n"
+                f"{'='*80}\n"
+                f"🔹 URL: {self.api_url}\n"
+                f"🔹 Tipo Alerta: {message.alert_type}\n"
+                f"🔹 Título: {message.title}\n"
+                f"🔹 Gráfico Incluido: {chart_status}\n"
+                f"🔹 Tamaño Gráfico: {chart_size} bytes\n"
+                f"🔹 Suscripción: {self.subscription}\n"
+                f"{'='*80}"
             )
             
             async with self.session.post(
@@ -401,16 +409,28 @@ class TelegramService:
                 headers=headers,
                 timeout=aiohttp.ClientTimeout(total=10)
             ) as response:
+                response_text = await response.text()
+                
                 if response.status == 200:
                     logger.info(
-                        f"✅ TELEGRAM ENVIADO EXITOSAMENTE | Tipo: {message.alert_type} | "
-                        f"Estado: {response.status}"
+                        f"\n{'='*80}\n"
+                        f"✅ PETICIÓN HTTP EXITOSA\n"
+                        f"{'='*80}\n"
+                        f"🔹 Estado HTTP: {response.status}\n"
+                        f"🔹 Tipo Alerta: {message.alert_type}\n"
+                        f"🔹 Respuesta: {response_text[:200]}\n"
+                        f"{'='*80}"
                     )
                 else:
-                    error_text = await response.text()
                     logger.error(
-                        f"❌ Fallo al enviar alerta. Estado: {response.status}, "
-                        f"Respuesta: {error_text}"
+                        f"\n{'='*80}\n"
+                        f"❌ PETICIÓN HTTP FALLÓ\n"
+                        f"{'='*80}\n"
+                        f"🔹 Estado HTTP: {response.status}\n"
+                        f"🔹 URL: {self.api_url}\n"
+                        f"🔹 Respuesta: {response_text}\n"
+                        f"🔹 Headers Enviados: {headers}\n"
+                        f"{'='*80}"
                     )
         
         except asyncio.TimeoutError:
