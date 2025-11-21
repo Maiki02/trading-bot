@@ -75,5 +75,26 @@
     "maximo": 1.15366,
     "minimo": 1.15362,
     "tipo_vela": "shooting_star"
+  },
+  {
+    "apertura": 1.15352,
+    "cierre": 1.15351,
+    "maximo": 1.15359,
+    "minimo": 1.1535,
+    "tipo_vela": "shooting_star"
+  },
+  {
+    "apertura": 1.15364,
+    "cierre": 1.15365,
+    "maximo": 1.15368,
+    "minimo": 1.15364,
+    "tipo_vela": "shooting_star"
+  },
+  {
+    "apertura": 1.15344,
+    "cierre": 1.15346,
+    "maximo": 1.15354,
+    "minimo": 1.15344,
+    "tipo_vela": "shooting_star"
   }
 ]
