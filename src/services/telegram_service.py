@@ -263,24 +263,24 @@ class TelegramService:
         ema_50_str = f"{signal.ema_50:.5f}" if not math.isnan(signal.ema_50) else "N/A"
         ema_100_str = f"{signal.ema_100:.5f}" if not math.isnan(signal.ema_100) else "N/A"
         
-        # Cuerpo del mensaje (SIEMPRE el mismo formato)
+        # Cuerpo del mensaje (formato TEXTO PLANO sin markdown)
         body = (
-            f"📊 *Fuente:* {signal.source}\n"
-            f"📈 *Patrón:* {signal.pattern}\n"
-            f"🕒 *Timestamp:* {timestamp_str}\n"
-            f"💰 *Apertura:* {signal.candle.open:.5f}\n"
-            f"💰 *Máximo:* {signal.candle.high:.5f}\n"
-            f"💰 *Mínimo:* {signal.candle.low:.5f}\n"
-            f"💰 *Cierre:* {signal.candle.close:.5f}\n\n"
-            f"📉 *EMAs:*\n"
+            f"📊 Fuente: {signal.source}\n"
+            f"📈 Patrón: {signal.pattern}\n"
+            f"🕒 Timestamp: {timestamp_str}\n"
+            f"💰 Apertura: {signal.candle.open:.5f}\n"
+            f"💰 Máximo: {signal.candle.high:.5f}\n"
+            f"💰 Mínimo: {signal.candle.low:.5f}\n"
+            f"💰 Cierre: {signal.candle.close:.5f}\n\n"
+            f"📉 EMAs:\n"
             f"  • EMA 20: {ema_20_str}\n"
             f"  • EMA 30: {ema_30_str}\n"
             f"  • EMA 50: {ema_50_str}\n"
             f"  • EMA 100: {ema_100_str}\n"
             f"  • EMA 200: {signal.ema_200:.5f}\n\n"
-            f"🎯 *Tendencia:* {signal.trend}\n"
-            f"✨ *Confianza:* {signal.confidence:.0%}\n\n"
-            f"⚡ *Verificar gráfico manualmente antes de operar.*"
+            f"🎯 Tendencia: {signal.trend}\n"
+            f"✨ Confianza: {signal.confidence:.0%}\n\n"
+            f"⚡ Verificar gráfico manualmente antes de operar."
         )
         
         return AlertMessage(
@@ -326,27 +326,27 @@ class TelegramService:
         ema2_100 = f"{signal2.ema_100:.5f}" if not math.isnan(signal2.ema_100) else "N/A"
         
         body = (
-            f"🎯 *CONFIRMACIÓN DUAL-SOURCE*\n"
-            f"📊 *Fuentes:* {signal1.source} + {signal2.source}\n"
-            f"📈 *Patrón:* {signal1.pattern}\n"
-            f"🕒 *Timestamp:* {timestamp_str}\n\n"
-            f"*{signal1.source}:*\n"
-            f"  • *Apertura:* {signal1.candle.open:.5f}\n"
-            f"  • *Máximo:* {signal1.candle.high:.5f}\n"
-            f"  • *Mínimo:* {signal1.candle.low:.5f}\n"
-            f"  • *Cierre:* {signal1.candle.close:.5f}\n"
-            f"  • *EMAs:* 20={ema1_20} | 30={ema1_30} | 50={ema1_50} | 100={ema1_100} | 200={signal1.ema_200:.5f}\n"
-            f"  • *Confianza:* {signal1.confidence:.0%}\n\n"
-            f"*{signal2.source}:*\n"
-            f"  • *Apertura:* {signal2.candle.open:.5f}\n"
-            f"  • *Máximo:* {signal2.candle.high:.5f}\n"
-            f"  • *Mínimo:* {signal2.candle.low:.5f}\n"
-            f"  • *Cierre:* {signal2.candle.close:.5f}\n"
-            f"  • *EMAs:* 20={ema2_20} | 30={ema2_30} | 50={ema2_50} | 100={ema2_100} | 200={signal2.ema_200:.5f}\n"
-            f"  • *Confianza:* {signal2.confidence:.0%}\n\n"
-            f"📉 *Tendencia:* {signal1.trend}\n"
-            f"✨ *Confianza Promedio:* {avg_confidence:.0%}\n\n"
-            f"🚀 *Alta probabilidad. Revisar retroceso del 50% en primeros 30s de la siguiente vela.*"
+            f"🎯 CONFIRMACIÓN DUAL-SOURCE\n"
+            f"📊 Fuentes: {signal1.source} + {signal2.source}\n"
+            f"📈 Patrón: {signal1.pattern}\n"
+            f"🕒 Timestamp: {timestamp_str}\n\n"
+            f"{signal1.source}:\n"
+            f"  • Apertura: {signal1.candle.open:.5f}\n"
+            f"  • Máximo: {signal1.candle.high:.5f}\n"
+            f"  • Mínimo: {signal1.candle.low:.5f}\n"
+            f"  • Cierre: {signal1.candle.close:.5f}\n"
+            f"  • EMAs: 20={ema1_20} | 30={ema1_30} | 50={ema1_50} | 100={ema1_100} | 200={signal1.ema_200:.5f}\n"
+            f"  • Confianza: {signal1.confidence:.0%}\n\n"
+            f"{signal2.source}:\n"
+            f"  • Apertura: {signal2.candle.open:.5f}\n"
+            f"  • Máximo: {signal2.candle.high:.5f}\n"
+            f"  • Mínimo: {signal2.candle.low:.5f}\n"
+            f"  • Cierre: {signal2.candle.close:.5f}\n"
+            f"  • EMAs: 20={ema2_20} | 30={ema2_30} | 50={ema2_50} | 100={ema2_100} | 200={signal2.ema_200:.5f}\n"
+            f"  • Confianza: {signal2.confidence:.0%}\n\n"
+            f"📉 Tendencia: {signal1.trend}\n"
+            f"✨ Confianza Promedio: {avg_confidence:.0%}\n\n"
+            f"🚀 Alta probabilidad. Revisar retroceso del 50% en primeros 30s de la siguiente vela."
         )
         
         return AlertMessage(
@@ -372,7 +372,7 @@ class TelegramService:
         payload = {
             "first_message": message.title,
             "image_base64": chart_base64 if chart_base64 else "",
-            "message_type": "markdown",
+            "message_type": "text",
             "entries": [
                 {
                     "subscription": self.subscription,
