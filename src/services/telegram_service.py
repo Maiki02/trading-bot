@@ -333,7 +333,7 @@ class TelegramService:
         payload = {
             "first_message": message.title,
             "image_base64": chart_base64 if chart_base64 else "",
-            "message_type": "text",
+            #"message_type": "standard",
             "entries": [
                 {
                     "subscription": self.subscription,

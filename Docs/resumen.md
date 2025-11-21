@@ -3,13 +3,19 @@
 ## 1. Objetivo del Proyecto
 Integrar un monitor automatizado 24/7 que capture datos de mercado en tiempo real de TradingView mediante ingeniería inversa de WebSocket. El sistema identificará patrones de velas japonesas en temporalidad de 1 minuto y, al detectar una configuración válida alineada con la tendencia, enviará una alerta inmediata vía Telegram con gráfico visual adjunto.
 
-### 1.1. Objetivo Versión 0.0.2 (MVP Actualizado)
-Para la primera iteración funcional, el alcance se limita a probar la viabilidad técnica de monitorear una fuente de datos público:
-- **Par:** Únicamente EUR/USD.
+### 1.1. Objetivo Versión 0.0.2 (MVP Completado) ✅
+El MVP ha sido completado exitosamente con todas las funcionalidades core implementadas:
+- **Par:** EUR/USD monitoreado en tiempo real.
 - **Fuente de Datos:** FX:EURUSD (Feed público de TradingView - **NO requiere autenticación**).
-- **Patrón:** Únicamente detección de Estrella Fugaz (Shooting Star).
-- **Visualización:** Generación automática de gráfico de velas (30 últimas) con EMA 200 incluida.
-- **Validación:** Confirmar estabilidad de conexión WebSocket pública, convergencia de EMA 200, detección de patrones y envío de alertas con contexto visual.
+- **Patrones:** Detección de los **4 patrones principales para MVP**:
+  - ✅ Shooting Star (Estrella Fugaz)
+  - ✅ Hanging Man (Hombre Colgado)
+  - ✅ Inverted Hammer (Martillo Invertido)
+  - ✅ Hammer (Martillo)
+- **Testing:** Sistema de pruebas automatizado implementado en `test/test_candles.py` con validación estricta de los 4 patrones, reporte de fidelidad matemática y mensajes de diagnóstico detallados.
+- **Visualización:** Generación automática de gráficos con `mplfinance` codificados en Base64, con cantidad de velas parametrizable (`CHART_LOOKBACK`), enviados automáticamente vía Telegram.
+- **Modo de Operación:** Sistema configurado con `USE_TREND_FILTER=false`, notifica **cualquier patrón detectado sin filtro de tendencia**, delegando la decisión final al trader.
+- **Estado:** ✅ **MVP OPERATIVO** - Sistema probado, estable y listo para monitoreo 24/7.
 
 ### 1.2. Cambios Críticos Implementados vs Plan Original
 
@@ -24,11 +30,13 @@ Para la primera iteración funcional, el alcance se limita a probar la viabilida
 - **Implementación:**
   - Biblioteca: `mplfinance==0.12.10b0` para generación profesional de gráficos financieros.
   - Estilo: Tema oscuro (`'nightclouds'`) con velas verdes (alcistas) y rojas (bajistas).
-  - EMA 200: Línea cyan superpuesta sobre el precio.
-  - Lookback: 30 velas configurables vía `CHART_LOOKBACK`.
+  - EMAs: Múltiples medias móviles exponenciales calculadas (20, 30, 50, 100, 200).
+  - Lookback: **Cantidad de velas parametrizable** vía `CHART_LOOKBACK` (default: 30, recomendado: 20-30).
   - Ejecución: Generación en **hilo separado** (`asyncio.to_thread`) para no bloquear WebSocket.
-  - Tamaño: ~76 KB en Base64 (~57 KB imagen PNG).
-- **Control de Costos:** Variable `SEND_CHARTS` permite deshabilitar envío de imágenes en producción (ahorra ~10x en costos de API Gateway).
+  - Tamaño: ~60 KB imagen PNG → ~80 KB en Base64 (con CHART_LOOKBACK=100).
+  - Envío: Integrado en notificaciones de Telegram como `image_base64` en el payload.
+- **Control de Costos:** Variable `SEND_CHARTS` permite deshabilitar envío de imágenes en producción.
+- **Optimización:** Se recomienda `CHART_LOOKBACK=30` o menor para evitar payloads excesivamente grandes (~80KB con 100 velas).
 
 #### 🔄 **Protocolo de Heartbeat Optimizado**
 - **Plan Original:** Heartbeat proactivo enviado por el cliente cada 30s.
@@ -209,22 +217,41 @@ Sistema más agresivo que notifica CUALQUIER patrón detectado sin importar la t
 - **Cálculo Vectorizado:** Usa `pandas` para gestionar arrays de precios con alta eficiencia.
 - **Integridad Matemática (Buffer):**
   - Se solicitan 1000 velas al conectar.
-  - EMA 200 converge correctamente con mínimo 600 velas.
+  - EMAs (20, 30, 50, 100, 200) convergen correctamente con buffer mínimo.
   - Sistema no emite señales hasta alcanzar buffer mínimo.
-- **Validación de Patrones:** Detecta proporciones estrictas (Cuerpo vs Mecha) con scoring de confianza (0-100%).
+- **Validación de Patrones:** Detecta **4 patrones principales del MVP**:
+  - ✅ **Shooting Star** (Estrella Fugaz) - Reversión bajista
+  - ✅ **Hanging Man** (Hombre Colgado) - Reversión bajista
+  - ✅ **Inverted Hammer** (Martillo Invertido) - Reversión alcista
+  - ✅ **Hammer** (Martillo) - Reversión alcista
+  - Validación con proporciones estrictas (Cuerpo vs Mecha) y scoring de confianza (70-100%).
+- **Sistema de Testing Automatizado:**
+  - Ubicación: `test/test_candles.py` y `test/test_data.json`
+  - Funcionalidades:
+    - Validación estricta de los 4 tipos de patrones con criterios matemáticos.
+    - Reporte de fidelidad porcentual para cada patrón detectado.
+    - Mensajes de diagnóstico detallados con razones de fallo.
+    - Auto-guardado de velas detectadas en producción para expandir casos de prueba.
+  - Propósito: Garantizar precisión matemática y evitar falsos positivos.
 - **Generación de Gráficos:**
   - Biblioteca: `mplfinance` con backend sin GUI (`matplotlib.use('Agg')`).
   - Ejecución asíncrona: `asyncio.to_thread()` para no bloquear Event Loop.
   - Output: Imagen PNG codificada en Base64.
-  - Lookback: 30 velas configurables.
-  - Incluye: EMA 200 (línea cyan), volumen, timestamp.
+  - Lookback: **Parametrizable** vía `CHART_LOOKBACK` (recomendado: 20-30 velas).
+  - Incluye: Múltiples EMAs visualizadas (20, 30, 50, 100, 200), volumen, timestamp.
+  - Integración: Se envía automáticamente en el campo `image_base64` del payload de Telegram.
 
 **Módulo 3: Notification Service (Output)**
 - Cliente HTTP asíncrono (`aiohttp`) con timeout de 10s.
 - **Dual-Source Buffer:** Ventana temporal de 2s para correlacionar señales de múltiples fuentes.
 - **Limpieza Automática:** Task periódico que elimina alertas expiradas del buffer.
 - **Race Condition Fix:** Verificación doble antes de eliminar alertas del diccionario.
+- **Envío de Gráficos Integrado:**
+  - Imágenes Base64 generadas por `charting.py` se envían en el campo `image_base64` del payload.
+  - Control parametrizable con `SEND_CHARTS` (true/false).
+  - Validación automática del Base64 antes de envío (detección de espacios, saltos de línea, prefijos).
 - **Guardado Local:** Imágenes Base64 se decodifican y guardan en `logs/chart_*.png` para auditoría.
+- **Formato de Mensaje:** Texto plano con emojis (message_type: "text"), sin markdown para evitar errores de parsing.
 - **Control de Costos:** Variable `SEND_CHARTS` permite desactivar envío de imágenes (ahorro ~90% en transfer costs).
 
 **Módulo 4: Charting Utilities (Nuevo)**
@@ -380,9 +407,104 @@ Sistema más agresivo que notifica CUALQUIER patrón detectado sin importar la t
 - ✅ Documentación de impacto económico (10x diferencia)
 - ✅ Modo producción vs debugging claramente diferenciado
 
+### 6.6. Sistema de Testing Automatizado
+- ✅ Test suite en `test/test_candles.py` con validación estricta de los 4 patrones
+- ✅ Base de datos de casos de prueba en `test/test_data.json`
+- ✅ Auto-guardado de velas detectadas en producción
+- ✅ Reporte de fidelidad matemática y diagnósticos detallados
+- ✅ Verificación de criterios: cuerpo, mechas, proporciones, direccionalidad
+
+### 6.7. Cálculo de EMAs Múltiples
+- ✅ Implementación de EMAs 20, 30, 50, 100, 200 períodos
+- ✅ Cálculo condicional basado en disponibilidad de datos
+- ✅ Visualización de todas las EMAs en mensajes de Telegram
+- ✅ Integración completa en gráficos generados
+
+### 6.8. Modo Sin Filtro de Tendencia (MVP Actual)
+- ✅ Configuración `USE_TREND_FILTER=false` implementada
+- ✅ Sistema notifica todos los patrones detectados sin restricción de tendencia
+- ✅ Título diferenciado: "📈 PATRÓN DETECTADO" vs "⚠️ OPORTUNIDAD ALINEADA"
+- ✅ Delegación de decisión final al trader humano
+
 ---
 
-## 7. Próximos Pasos (Roadmap Post-MVP)
+## 7. Estado Actual del MVP ✅
+
+### 7.1. Funcionalidades Completadas
+El MVP v0.0.2 está **100% operativo** con las siguientes características:
+
+✅ **Detección de Patrones:**
+- Shooting Star (Estrella Fugaz)
+- Hanging Man (Hombre Colgado)
+- Inverted Hammer (Martillo Invertido)
+- Hammer (Martillo)
+- Sistema de confianza matemática (70-100%)
+
+✅ **Sistema de Testing:**
+- Suite automatizada con validación estricta
+- Reporte de fidelidad porcentual
+- Auto-guardado de casos detectados
+- Diagnósticos detallados de fallos
+
+✅ **Generación de Gráficos:**
+- Implementación con `mplfinance`
+- Codificación Base64 automática
+- Cantidad de velas parametrizable (`CHART_LOOKBACK`)
+- Envío integrado vía Telegram
+
+✅ **Cálculo de Indicadores:**
+- EMAs múltiples (20, 30, 50, 100, 200)
+- Cálculo condicional eficiente
+- Visualización en mensajes y gráficos
+
+✅ **Notificaciones Telegram:**
+- Envío automático con imagen Base64
+- Formato texto plano optimizado
+- Control de costos con `SEND_CHARTS`
+- Validación de payload antes de envío
+
+✅ **Modo de Operación:**
+- `USE_TREND_FILTER=false` (sin filtro de tendencia)
+- Notifica cualquier patrón detectado
+- Delegación de decisión al trader
+- Título diferenciado: "📈 PATRÓN DETECTADO"
+
+### 7.2. Configuración Recomendada
+Para operación óptima del MVP:
+
+```env
+# Configuración de Gráficos
+CHART_LOOKBACK=30          # Recomendado: 20-30 velas (evita payloads >80KB)
+SEND_CHARTS=true           # Enviar gráficos con alertas
+
+# Modo de Operación MVP
+USE_TREND_FILTER=false     # Notificar todos los patrones (MVP actual)
+
+# Indicadores
+EMA_PERIOD=200             # EMA principal para tendencia
+```
+
+### 7.3. Próximas Mejoras Sugeridas
+Basadas en la experiencia del MVP:
+
+**Optimización de Payloads:**
+- Considerar compresión de imágenes antes de Base64
+- Implementar fallback a texto-solo si imagen excede límite
+- Agregar validación de tamaño máximo de payload
+
+**Expansión de Testing:**
+- Agregar más casos de prueba a `test_data.json`
+- Implementar tests de regresión automáticos
+- Validar comportamiento con diferentes CHART_LOOKBACK
+
+**Monitoreo:**
+- Dashboard de métricas en tiempo real
+- Tracking de latencia de generación de gráficos
+- Estadísticas de detección por patrón
+
+---
+
+## 8. Próximos Pasos (Roadmap Post-MVP)
 
 ### v0.0.3 - Dual-Source Completo
 - [ ] Reactivar OANDA como fuente primaria
@@ -395,9 +517,11 @@ Sistema más agresivo que notifica CUALQUIER patrón detectado sin importar la t
 - [ ] Dashboard de monitoreo en tiempo real
 
 ### v0.2.0 - Nuevos Patrones
-- [ ] Martillo (Hammer) para compras
-- [ ] Doji, Envolvente, Estrella de la Mañana/Tarde
+- [ ] Doji (múltiples variantes)
+- [ ] Envolvente Alcista/Bajista
+- [ ] Estrella de la Mañana/Tarde
 - [ ] Configuración flexible de patrones por instrumento
+- [ ] Filtros de confirmación adicionales (volumen, ATR)
 
 ### v0.3.0 - Persistencia y Analytics
 - [ ] Base de datos PostgreSQL/SQLite
@@ -407,5 +531,15 @@ Sistema más agresivo que notifica CUALQUIER patrón detectado sin importar la t
 ---
 
 **Versión del Documento:** v0.0.2  
-**Última Actualización:** 20 de noviembre de 2025  
-**Estado del Proyecto:** ✅ MVP Operativo - Testing en Producción
+**Última Actualización:** 21 de noviembre de 2025  
+**Estado del Proyecto:** ✅ **MVP COMPLETADO** - Sistema Operativo y Probado
+
+**Logros del MVP:**
+- ✅ 4 patrones de velas implementados y validados
+- ✅ Sistema de testing automatizado funcional
+- ✅ Generación de gráficos con `mplfinance` integrada
+- ✅ Envío de imágenes Base64 vía Telegram operativo
+- ✅ Cálculo de EMAs múltiples (20, 30, 50, 100, 200)
+- ✅ Modo sin filtro de tendencia configurado
+- ✅ Cantidad de velas en gráficos parametrizable
+- ✅ Sistema de notificaciones robusto y estable
