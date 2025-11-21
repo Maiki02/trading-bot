@@ -14,6 +14,8 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 
 import aiohttp
+import math
+import numpy as np
 
 from config import Config
 from src.logic.analysis_service import PatternSignal
@@ -248,13 +250,29 @@ class TelegramService:
         """
         timestamp_str = datetime.fromtimestamp(signal.timestamp).strftime("%Y-%m-%d %H:%M:%S")
         
-        # Título dinámico según si se usó filtro de tendencia
-        if signal.trend_filtered:
-            # Modo CON filtro: Indicar oportunidad alineada con tendencia
-            title = f"⚠️ OPORTUNIDAD ALINEADA | {signal.symbol}"
+        # Determinar tipo de alerta basado en tendencia y patrón
+        # ALERTA FUERTE: Patrón de reversión alineado con tendencia fuerte
+        # ADVERTENCIA: Patrón de reversión en tendencia débil/neutral
+        # DETECCIÓN: Solo informativo
+        
+        is_strong_bullish = signal.trend in ["STRONG_BULLISH", "WEAK_BULLISH"]
+        is_strong_bearish = signal.trend in ["STRONG_BEARISH", "WEAK_BEARISH"]
+        
+        # Caso 1: ALERTA FUERTE - Reversión bajista en tendencia alcista
+        if is_strong_bullish and signal.pattern == "SHOOTING_STAR":
+            title = f"🔴 ALERTA FUERTE | {signal.symbol}\nAlta probabilidad de apertura BAJISTA\n"
+        # Caso 2: ALERTA FUERTE - Reversión alcista en tendencia bajista
+        elif is_strong_bearish and signal.pattern == "HAMMER":
+            title = f"🟢 ALERTA FUERTE | {signal.symbol}\nAlta probabilidad de apertura ALCISTA\n"
+        # Caso 3: AVISO - Martillo invertido en tendencia alcista (debilitamiento)
+        elif is_strong_bullish and signal.pattern == "INVERTED_HAMMER":
+            title = f"⚠️ AVISO | {signal.symbol}\nPosible debilitamiento alcista\n"
+        # Caso 4: AVISO - Hombre colgado en tendencia bajista (debilitamiento)
+        elif is_strong_bearish and signal.pattern == "HANGING_MAN":
+            title = f"⚠️ AVISO | {signal.symbol}\nPosible debilitamiento bajista\n"
+        # Caso 5: DETECCIÓN - Resto de casos (informativo)
         else:
-            # Modo SIN filtro: Solo indicar patrón detectado
-            title = f"📈 PATRÓN DETECTADO | {signal.symbol}"
+            title = f"📊 PATRÓN DETECTADO | {signal.symbol}\nSolo informativo\n"
         
         # Formatear EMAs (mostrar N/A si no están disponibles)
         import math
@@ -263,8 +281,60 @@ class TelegramService:
         ema_50_str = f"{signal.ema_50:.5f}" if not math.isnan(signal.ema_50) else "N/A"
         ema_100_str = f"{signal.ema_100:.5f}" if not math.isnan(signal.ema_100) else "N/A"
         
-        # Cuerpo del mensaje (formato TEXTO PLANO sin markdown - UNA SOLA LÍNEA)
-        body = f"📊 Fuente: {signal.source}\n📈 Patrón: {signal.pattern}\n🕒 Timestamp: {timestamp_str}\n💰 Apertura: {signal.candle.open:.5f}\n💰 Máximo: {signal.candle.high:.5f}\n💰 Mínimo: {signal.candle.low:.5f}\n💰 Cierre: {signal.candle.close:.5f}\n\n📉 EMAs:\n  • EMA 20: {ema_20_str}\n  • EMA 30: {ema_30_str}\n  • EMA 50: {ema_50_str}\n  • EMA 100: {ema_100_str}\n  • EMA 200: {signal.ema_200:.5f}\n\n🎯 Tendencia: {signal.trend}\n✨ Confianza: {signal.confidence:.0%}\n\n⚡ Verificar gráfico manualmente antes de operar."
+        # Determinar estructura de EMAs para mensaje
+        if not math.isnan(signal.ema_20) and not math.isnan(signal.ema_200):
+            if signal.candle.close > signal.ema_20 > signal.ema_200:
+                estructura = f"Precio > EMA20 > EMA200 (Alineación alcista)"
+            elif signal.candle.close < signal.ema_20 < signal.ema_200:
+                estructura = f"Precio < EMA20 < EMA200 (Alineación bajista)"
+            else:
+                estructura = f"EMAs mixtas (Sin alineación clara)"
+        else:
+            estructura = "Datos insuficientes"
+        
+        # Determinar interpretación de tendencia
+        if signal.trend_score >= 6:
+            trend_interpretation = "Tendencia alcista muy fuerte"
+        elif signal.trend_score >= 1:
+            trend_interpretation = "Tendencia alcista débil"
+        elif signal.trend_score >= -1:
+            trend_interpretation = "Sin tendencia clara (Mercado lateral)"
+        elif signal.trend_score >= -5:
+            trend_interpretation = "Tendencia bajista débil"
+        else:
+            trend_interpretation = "Tendencia bajista muy fuerte"
+        
+        # Cuerpo del mensaje estructurado
+        body = (
+            f"━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"📊 INFORMACIÓN DE LA VELA\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"🔹 Fuente: {signal.source}\n"
+            f"🔹 Patrón: {signal.pattern}\n"
+            f"🔹 Timestamp: {timestamp_str}\n"
+            f"🔹 Apertura: {signal.candle.open:.5f}\n"
+            f"🔹 Máximo: {signal.candle.high:.5f}\n"
+            f"🔹 Mínimo: {signal.candle.low:.5f}\n"
+            f"🔹 Cierre: {signal.candle.close:.5f}\n"
+            f"🔹 Confianza del Patrón: {signal.confidence:.0%}\n\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"📉 ANÁLISIS DE EMAS\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"🔹 EMA 20: {ema_20_str}\n"
+            f"🔹 EMA 30: {ema_30_str}\n"
+            f"🔹 EMA 50: {ema_50_str}\n"
+            f"🔹 EMA 100: {ema_100_str}\n"
+            f"🔹 EMA 200: {signal.ema_200:.5f}\n"
+            f"🔹 Estructura: {estructura}\n"
+            f"🔹 Alineación: {'✓ Confirmada' if signal.is_trend_aligned else '✗ No confirmada'}\n\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"🎯 ANÁLISIS DE TENDENCIA\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"🔹 Estado: {signal.trend}\n"
+            f"🔹 Score: {signal.trend_score:+d}/10\n"
+            f"🔹 Interpretación: {trend_interpretation}\n\n"
+            f"⚡ IMPORTANTE: Verificar gráfico y contexto de mercado antes de operar."
+        )
         
         return AlertMessage(
             title=title,
@@ -308,7 +378,22 @@ class TelegramService:
         ema2_50 = f"{signal2.ema_50:.5f}" if not math.isnan(signal2.ema_50) else "N/A"
         ema2_100 = f"{signal2.ema_100:.5f}" if not math.isnan(signal2.ema_100) else "N/A"
         
-        body = f"🎯 CONFIRMACIÓN DUAL-SOURCE\n📊 Fuentes: {signal1.source} + {signal2.source}\n📈 Patrón: {signal1.pattern}\n🕒 Timestamp: {timestamp_str}\n\n{signal1.source}:\n  • Apertura: {signal1.candle.open:.5f}\n  • Máximo: {signal1.candle.high:.5f}\n  • Mínimo: {signal1.candle.low:.5f}\n  • Cierre: {signal1.candle.close:.5f}\n  • EMAs: 20={ema1_20} | 30={ema1_30} | 50={ema1_50} | 100={ema1_100} | 200={signal1.ema_200:.5f}\n  • Confianza: {signal1.confidence:.0%}\n\n{signal2.source}:\n  • Apertura: {signal2.candle.open:.5f}\n  • Máximo: {signal2.candle.high:.5f}\n  • Mínimo: {signal2.candle.low:.5f}\n  • Cierre: {signal2.candle.close:.5f}\n  • EMAs: 20={ema2_20} | 30={ema2_30} | 50={ema2_50} | 100={ema2_100} | 200={signal2.ema_200:.5f}\n  • Confianza: {signal2.confidence:.0%}\n\n📉 Tendencia: {signal1.trend}\n✨ Confianza Promedio: {avg_confidence:.0%}\n\n🚀 Alta probabilidad. Revisar retroceso del 50% en primeros 30s de la siguiente vela."
+        # Determinar estructura de EMAs promedio
+        avg_ema_20 = (signal1.ema_20 + signal2.ema_20) / 2 if not math.isnan(signal1.ema_20) and not math.isnan(signal2.ema_20) else np.nan
+        avg_ema_200 = (signal1.ema_200 + signal2.ema_200) / 2
+        avg_close = (signal1.candle.close + signal2.candle.close) / 2
+        
+        if not math.isnan(avg_ema_20):
+            if avg_close > avg_ema_20 > avg_ema_200:
+                estructura = f"Precio > EMA20 > EMA200 (Alcista fuerte)"
+            elif avg_close < avg_ema_20 < avg_ema_200:
+                estructura = f"Precio < EMA20 < EMA200 (Bajista fuerte)"
+            else:
+                estructura = f"EMAs mixtas"
+        else:
+            estructura = "Datos insuficientes"
+        
+        body = f"🎯 CONFIRMACIÓN DUAL-SOURCE\n📊 Fuentes: {signal1.source} + {signal2.source}\n📈 Patrón: {signal1.pattern}\n🕒 Timestamp: {timestamp_str}\n\n{signal1.source}:\n  • Apertura: {signal1.candle.open:.5f}\n  • Máximo: {signal1.candle.high:.5f}\n  • Mínimo: {signal1.candle.low:.5f}\n  • Cierre: {signal1.candle.close:.5f}\n  • EMAs: 20={ema1_20} | 30={ema1_30} | 50={ema1_50} | 100={ema1_100} | 200={signal1.ema_200:.5f}\n  • Tendencia: {signal1.trend} (Score: {signal1.trend_score:+d})\n  • Confianza: {signal1.confidence:.0%}\n\n{signal2.source}:\n  • Apertura: {signal2.candle.open:.5f}\n  • Máximo: {signal2.candle.high:.5f}\n  • Mínimo: {signal2.candle.low:.5f}\n  • Cierre: {signal2.candle.close:.5f}\n  • EMAs: 20={ema2_20} | 30={ema2_30} | 50={ema2_50} | 100={ema2_100} | 200={signal2.ema_200:.5f}\n  • Tendencia: {signal2.trend} (Score: {signal2.trend_score:+d})\n  • Confianza: {signal2.confidence:.0%}\n\n📐 Estructura Promedio: {estructura}\n🔗 Alineación: {signal1.source}={'✓' if signal1.is_trend_aligned else '✗'} | {signal2.source}={'✓' if signal2.is_trend_aligned else '✗'}\n✨ Confianza Promedio: {avg_confidence:.0%}\n\n🚀 Alta probabilidad. Revisar retroceso del 50% en primeros 30s de la siguiente vela."
         
         return AlertMessage(
             title=title,
@@ -348,80 +433,6 @@ class TelegramService:
         }
 
         logger.info("🔔 MENSAJE LISTO PARA ENVIAR | Preparando envío de alerta a Telegram")
-        
-        # IMPRIMIR BODY PARA DEBUG (copiar y pegar en Postman)
-        logger.info(
-            f"\n{'-'*80}\n"
-            f"📝 BODY DEL MENSAJE (copiar para testing):\n"
-            f"{'-'*80}\n"
-            f"{message.body}\n"
-            f"{'-'*80}\n"
-            f"📏 Longitud del body: {len(message.body)} caracteres\n"
-            f"🔍 Tiene saltos de línea (\\n): {'SÍ' if chr(10) in message.body else 'NO'}\n"
-            f"🔍 Tiene retornos de carro (\\r): {'SÍ' if chr(13) in message.body else 'NO'}\n"
-            f"🔍 Representación escapada: {repr(message.body)}\n"
-            f"{'-'*80}"
-        )
-
-        # Guardar imagen Base64 en logs/ antes de enviar
-        if chart_base64:
-            try:
-                import base64
-                from pathlib import Path
-                
-                # VALIDAR BASE64 ANTES DE ENVIAR
-                logger.info(
-                    f"\n{'-'*80}\n"
-                    f"🔍 VALIDACIÓN DE BASE64\n"
-                    f"{'-'*80}\n"
-                    f"  • Longitud total: {len(chart_base64)} caracteres\n"
-                    f"  • Tiene saltos de línea: {'SÍ' if chr(10) in chart_base64 or chr(13) in chart_base64 else 'NO'}\n"
-                    f"  • Tiene espacios: {'SÍ' if ' ' in chart_base64 else 'NO'}\n"
-                    f"  • Tiene prefijo data:image: {'SÍ' if chart_base64.startswith('data:image') else 'NO'}\n"
-                    f"  • Primeros 80 chars: {chart_base64[:80]}\n"
-                    f"  • Últimos 80 chars: {chart_base64[-80:]}\n"
-                    f"{'-'*80}"
-                )
-                
-                # Limpiar Base64 (remover espacios y saltos de línea por si acaso)
-                chart_base64_clean = chart_base64.replace('\n', '').replace('\r', '').replace(' ', '')
-                
-                if chart_base64_clean != chart_base64:
-                    logger.warning(
-                        f"⚠️ BASE64 LIMPIADO | Removidos {len(chart_base64) - len(chart_base64_clean)} caracteres inválidos"
-                    )
-                    chart_base64 = chart_base64_clean
-                
-                # Intentar decodificar para verificar que es válido
-                try:
-                    decoded_test = base64.b64decode(chart_base64)
-                    logger.info(f"✅ BASE64 VÁLIDO | Decodifica a {len(decoded_test)} bytes")
-                except Exception as decode_err:
-                    logger.error(f"❌ BASE64 INVÁLIDO | Error al decodificar: {decode_err}")
-                
-                # Crear directorio logs si no existe
-                logs_dir = Path("logs")
-                logs_dir.mkdir(exist_ok=True)
-                
-                # Generar nombre de archivo con timestamp
-                timestamp_str = datetime.now().strftime("%Y%m%d_%H%M%S")
-                filename = f"chart_{message.alert_type}_{timestamp_str}.png"
-                filepath = logs_dir / filename
-                
-                # Decodificar Base64 y guardar imagen
-                image_data = base64.b64decode(chart_base64)
-                filepath.write_bytes(image_data)
-                
-                logger.info(f"💾 Gráfico guardado en {filepath} | Tamaño: {len(image_data)} bytes")
-                
-                # Guardar también el Base64 en un archivo .txt para debugging
-                txt_filepath = logs_dir / f"chart_{message.alert_type}_{timestamp_str}.txt"
-                txt_filepath.write_text(chart_base64, encoding='utf-8')
-                logger.info(f"💾 Base64 guardado en {txt_filepath}")
-            
-            except Exception as e:
-                logger.error(f"❌ Fallo al guardar imagen del gráfico: {e}")
-        
 
         try:
             chart_status = 'SÍ' if chart_base64 else 'NO'

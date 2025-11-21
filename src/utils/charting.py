@@ -73,18 +73,34 @@ def generate_chart_base64(
     df_plot = df_subset[['open', 'high', 'low', 'close', 'volume']].copy()
     df_plot.columns = ['Open', 'High', 'Low', 'Close', 'Volume']
     
-    # Preparar EMA 200 como additional plot si está disponible
+    # Preparar EMAs como additional plots (solo EMA 20 y EMA 200 para visualización limpia)
     additional_plots = []
+    
+    # EMA 200 - Referencia Macro (Cyan)
     if 'ema_200' in df_subset.columns and not df_subset['ema_200'].isna().all():
-        ema_data = df_subset['ema_200'].copy()
-        ema_plot = mpf.make_addplot(
-            ema_data,
+        ema_200_data = df_subset['ema_200'].copy()
+        ema_200_plot = mpf.make_addplot(
+            ema_200_data,
             color='#00D4FF',  # Cyan brillante
             width=1.5,
             panel=0,  # Panel principal (precio)
-            secondary_y=False
+            secondary_y=False,
+            label='EMA 200'
         )
-        additional_plots.append(ema_plot)
+        additional_plots.append(ema_200_plot)
+    
+    # EMA 20 - Momentum (Amarillo/Naranja)
+    if 'ema_20' in df_subset.columns and not df_subset['ema_20'].isna().all():
+        ema_20_data = df_subset['ema_20'].copy()
+        ema_20_plot = mpf.make_addplot(
+            ema_20_data,
+            color='#FFD700',  # Amarillo dorado
+            width=1.0,
+            panel=0,  # Panel principal (precio)
+            secondary_y=False,
+            label='EMA 20'
+        )
+        additional_plots.append(ema_20_plot)
     
     # Configurar estilo del gráfico
     # Colores: Velas alcistas (verdes), velas bajistas (rojas)

@@ -36,6 +36,19 @@ logger = get_logger(__name__)
 # =============================================================================
 
 @dataclass
+class TrendAnalysis:
+    """Análisis completo de tendencia basado en múltiples EMAs."""
+    status: str      # "STRONG_BULLISH", "WEAK_BULLISH", "NEUTRAL", "WEAK_BEARISH", "STRONG_BEARISH"
+    score: int       # De -10 a +10
+    is_aligned: bool # True si EMAs están ordenadas correctamente (EMA20 > EMA50 > EMA200 o inversa)
+    
+    def __str__(self) -> str:
+        """Representación legible para logs."""
+        alignment_str = "Alineadas" if self.is_aligned else "Desalineadas"
+        return f"{self.status} (Score: {self.score:+d}, {alignment_str})"
+
+
+@dataclass
 class PatternSignal:
     """Señal de patrón detectado."""
     symbol: str
@@ -48,7 +61,9 @@ class PatternSignal:
     ema_50: float
     ema_30: float
     ema_20: float
-    trend: str  # "BEARISH", "BULLISH", "NEUTRAL"
+    trend: str  # "STRONG_BULLISH", "WEAK_BULLISH", "NEUTRAL", "WEAK_BEARISH", "STRONG_BEARISH"
+    trend_score: int  # Score numérico de -10 a +10
+    is_trend_aligned: bool  # Si las EMAs están alineadas correctamente
     confidence: float  # 0.0 - 1.0
     trend_filtered: bool  # True si se aplicó filtro de tendencia
     chart_base64: Optional[str] = None  # Gráfico codificado en Base64
@@ -70,6 +85,101 @@ def calculate_ema(series: pd.Series, period: int) -> pd.Series:
         pd.Series: Serie con valores de EMA
     """
     return series.ewm(span=period, adjust=False).mean()
+
+
+def analyze_trend(close: float, emas: Dict[str, float]) -> TrendAnalysis:
+    """
+    Analiza la tendencia usando sistema de puntuación ponderada con múltiples EMAs.
+    
+    Estrategia de Scoring (Weighted Score):
+    - Precio > EMA 200: +3 pts | Precio < EMA 200: -3 pts  (Macro Trend)
+    - Precio > EMA 100: +2 pts | Precio < EMA 100: -2 pts  (Mid-Term)
+    - EMA 50 > EMA 200: +2 pts | EMA 50 < EMA 200: -2 pts  (Alineación Macro)
+    - Precio > EMA 20: +2 pts | Precio < EMA 20: -2 pts    (Momentum)
+    - EMA 20 > EMA 50: +1 pt | EMA 20 < EMA 50: -1 pt      (Cruce Corto)
+    
+    Clasificación:
+    - Score >= 6: STRONG_BULLISH
+    - Score 1 a 5: WEAK_BULLISH
+    - Score -1 a 1: NEUTRAL
+    - Score -5 a -1: WEAK_BEARISH
+    - Score <= -6: STRONG_BEARISH
+    
+    Args:
+        close: Precio de cierre actual
+        emas: Diccionario con claves 'ema_20', 'ema_50', 'ema_100', 'ema_200'
+              (pueden ser NaN si no hay suficientes datos)
+    
+    Returns:
+        TrendAnalysis: Objeto con status, score e is_aligned
+    """
+    score = 0
+    
+    # Extraer EMAs (manejar NaN)
+    ema_20 = emas.get('ema_20', np.nan)
+    ema_50 = emas.get('ema_50', np.nan)
+    ema_100 = emas.get('ema_100', np.nan)
+    ema_200 = emas.get('ema_200', np.nan)
+    
+    # Regla 1: Precio vs EMA 200 (Macro Trend) - Peso: 3
+    if not np.isnan(ema_200):
+        if close > ema_200:
+            score += 3
+        elif close < ema_200:
+            score -= 3
+    
+    # Regla 2: Precio vs EMA 100 (Mid-Term) - Peso: 2
+    if not np.isnan(ema_100):
+        if close > ema_100:
+            score += 2
+        elif close < ema_100:
+            score -= 2
+    
+    # Regla 3: EMA 50 vs EMA 200 (Alineación Macro) - Peso: 2
+    if not np.isnan(ema_50) and not np.isnan(ema_200):
+        if ema_50 > ema_200:
+            score += 2
+        elif ema_50 < ema_200:
+            score -= 2
+    
+    # Regla 4: Precio vs EMA 20 (Momentum) - Peso: 2
+    if not np.isnan(ema_20):
+        if close > ema_20:
+            score += 2
+        elif close < ema_20:
+            score -= 2
+    
+    # Regla 5: EMA 20 vs EMA 50 (Cruce Corto) - Peso: 1
+    if not np.isnan(ema_20) and not np.isnan(ema_50):
+        if ema_20 > ema_50:
+            score += 1
+        elif ema_20 < ema_50:
+            score -= 1
+    
+    # Clasificar según score
+    if score >= 6:
+        status = "STRONG_BULLISH"
+    elif score >= 1:
+        status = "WEAK_BULLISH"
+    elif score >= -1:
+        status = "NEUTRAL"
+    elif score >= -5:
+        status = "WEAK_BEARISH"
+    else:
+        status = "STRONG_BEARISH"
+    
+    # Verificar alineación de EMAs
+    # Alcista: EMA20 > EMA50 > EMA200
+    # Bajista: EMA20 < EMA50 < EMA200
+    is_aligned = False
+    if not any(np.isnan([ema_20, ema_50, ema_200])):
+        is_aligned = (ema_20 > ema_50 > ema_200) or (ema_20 < ema_50 < ema_200)
+    
+    return TrendAnalysis(
+        status=status,
+        score=score,
+        is_aligned=is_aligned
+    )
 
 
 # =============================================================================
@@ -378,8 +488,21 @@ class AnalysisService:
             f"{'='*40}\n"
         )
         
-        # Determinar tendencia
-        trend = self._determine_trend(last_closed["close"], last_closed["ema_200"])
+        # Analizar tendencia con sistema de scoring
+        emas_dict = {
+            'ema_20': last_closed.get('ema_20', np.nan),
+            'ema_50': last_closed.get('ema_50', np.nan),
+            'ema_100': last_closed.get('ema_100', np.nan),
+            'ema_200': last_closed['ema_200']
+        }
+        trend_analysis = analyze_trend(last_closed["close"], emas_dict)
+        
+        logger.info(
+            f"📈 Análisis de Tendencia: {trend_analysis}\n"
+            f"   • Status: {trend_analysis.status}\n"
+            f"   • Score: {trend_analysis.score:+d}/10\n"
+            f"   • Alineación EMAs: {'✓' if trend_analysis.is_aligned else '✗'}\n"
+        )
         
         # Detectar los 4 patrones de velas japonesas
         shooting_star_detected, shooting_star_conf = is_shooting_star(
@@ -408,19 +531,6 @@ class AnalysisService:
             last_closed["high"],
             last_closed["low"],
             last_closed["close"]
-        )
-
-        strHammer = "✓" if hammer_detected else "✗"
-        strInvertedHammer = "✓" if inverted_hammer_detected else "✗"
-        strShootingStar = "✓" if shooting_star_detected else "✗"
-        strHangingMan = "✓" if hanging_man_detected else "✗"
-
-        logger.info(
-            f"🔍 Patrón Detectado:\n"
-            f"   • Shooting Star: {strShootingStar} (Confianza: {shooting_star_conf:.2f})\n"
-            f"   • Hanging Man: {strHangingMan} (Confianza: {hanging_man_conf:.2f})\n"
-            f"   • Inverted Hammer: {strInvertedHammer} (Confianza: {inverted_hammer_conf:.2f})\n"
-            f"   • Hammer: {strHammer} (Confianza: {hammer_conf:.2f})\n"
         )
         
         # Filtrar patrones por tendencia apropiada (solo si USE_TREND_FILTER está activo)
@@ -525,7 +635,9 @@ class AnalysisService:
                 ema_50=last_closed.get("ema_50", np.nan),
                 ema_30=last_closed.get("ema_30", np.nan),
                 ema_20=last_closed.get("ema_20", np.nan),
-                trend=trend,
+                trend=trend_analysis.status,
+                trend_score=trend_analysis.score,
+                is_trend_aligned=trend_analysis.is_aligned,
                 confidence=pattern_confidence,
                 trend_filtered=Config.USE_TREND_FILTER,
                 chart_base64=chart_base64
@@ -533,8 +645,9 @@ class AnalysisService:
             
             logger.info(
                 f"🎯 PATTERN DETECTED | {signal.source} | {signal.pattern} | "
-                f"Trend={trend} | Close={signal.candle.close:.5f} vs EMA200={signal.ema_200:.5f} | "
-                f"Confidence={signal.confidence:.2f} | Chart={'✓' if chart_base64 else '✗'}"
+                f"Trend={trend_analysis.status} (Score: {trend_analysis.score:+d}) | "
+                f"Close={signal.candle.close:.5f} | Confidence={signal.confidence:.2f} | "
+                f"Chart={'✓' if chart_base64 else '✗'}"
             )
             
             # Guardar vela detectada en test_data.json
@@ -553,26 +666,6 @@ class AnalysisService:
             # Emitir señal
             if self.on_pattern_detected:
                 await self.on_pattern_detected(signal)
-    
-    def _determine_trend(self, close: float, ema_200: float) -> str:
-        """
-        Determina la tendencia comparando el cierre con la EMA 200.
-        
-        Args:
-            close: Precio de cierre
-            ema_200: Valor de la EMA 200
-            
-        Returns:
-            str: "BEARISH", "BULLISH", o "NEUTRAL"
-        """
-        threshold = 0.0001  # Margen de tolerancia para evitar falsos neutrales
-        
-        if close < ema_200 - threshold:
-            return "BEARISH"
-        elif close > ema_200 + threshold:
-            return "BULLISH"
-        else:
-            return "NEUTRAL"
     
     async def _save_detected_candle_to_test_data(
         self,
