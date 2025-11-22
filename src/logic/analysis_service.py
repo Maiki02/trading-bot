@@ -57,7 +57,6 @@ class PatternSignal:
     timestamp: int
     candle: CandleData
     ema_200: float
-    ema_100: float
     ema_50: float
     ema_30: float
     ema_20: float
@@ -89,88 +88,80 @@ def calculate_ema(series: pd.Series, period: int) -> pd.Series:
 
 def analyze_trend(close: float, emas: Dict[str, float]) -> TrendAnalysis:
     """
-    Analiza la tendencia usando sistema de puntuación ponderada con múltiples EMAs.
+    Analiza la tendencia optimizada para OPCIONES BINARIAS (1 min).
     
-    Estrategia de Scoring (Weighted Score):
-    - Precio > EMA 200: +3 pts | Precio < EMA 200: -3 pts  (Macro Trend)
-    - Precio > EMA 100: +2 pts | Precio < EMA 100: -2 pts  (Mid-Term)
-    - EMA 50 > EMA 200: +2 pts | EMA 50 < EMA 200: -2 pts  (Alineación Macro)
-    - Precio > EMA 20: +2 pts | Precio < EMA 20: -2 pts    (Momentum)
-    - EMA 20 > EMA 50: +1 pt | EMA 20 < EMA 50: -1 pt      (Cruce Corto)
+    Estrategia de Scoring (Momentum Centric):
+    PRIORIDAD ALTA (Corto Plazo):
+    - Precio vs EMA 20: Indica la fuerza inmediata. (Peso: 4)
+    - EMA 20 vs EMA 50: Confirma la dirección del flujo actual. (Peso: 3)
     
-    Clasificación:
-    - Score >= 6: STRONG_BULLISH
-    - Score 1 a 5: WEAK_BULLISH
-    - Score -1 a 1: NEUTRAL
-    - Score -5 a -1: WEAK_BEARISH
-    - Score <= -6: STRONG_BEARISH
+    PRIORIDAD MEDIA/BAJA (Contexto):
+    - Precio vs EMA 50: Soporte dinámico cercano. (Peso: 2)
+    - Precio vs EMA 200: Filtro macro (evita ir contra trenes de carga). (Peso: 1)
     
-    Args:
-        close: Precio de cierre actual
-        emas: Diccionario con claves 'ema_20', 'ema_50', 'ema_100', 'ema_200'
-              (pueden ser NaN si no hay suficientes datos)
-    
-    Returns:
-        TrendAnalysis: Objeto con status, score e is_aligned
+    Escala Total: +/- 10 puntos
     """
     score = 0
     
-    # Extraer EMAs (manejar NaN)
+    # Extraer EMAs (manejar NaN con seguridad)
     ema_20 = emas.get('ema_20', np.nan)
     ema_50 = emas.get('ema_50', np.nan)
-    ema_100 = emas.get('ema_100', np.nan)
     ema_200 = emas.get('ema_200', np.nan)
     
-    # Regla 1: Precio vs EMA 200 (Macro Trend) - Peso: 3
-    if not np.isnan(ema_200):
-        if close > ema_200:
-            score += 3
-        elif close < ema_200:
-            score -= 3
-    
-    # Regla 2: Precio vs EMA 100 (Mid-Term) - Peso: 2
-    if not np.isnan(ema_100):
-        if close > ema_100:
-            score += 2
-        elif close < ema_100:
-            score -= 2
-    
-    # Regla 3: EMA 50 vs EMA 200 (Alineación Macro) - Peso: 2
-    if not np.isnan(ema_50) and not np.isnan(ema_200):
-        if ema_50 > ema_200:
-            score += 2
-        elif ema_50 < ema_200:
-            score -= 2
-    
-    # Regla 4: Precio vs EMA 20 (Momentum) - Peso: 2
+    # ---------------------------------------------------------
+    # 1. MOMENTUM INMEDIATO (Lo más importante para 1 min)
+    # Peso: 4 puntos
+    # ---------------------------------------------------------
     if not np.isnan(ema_20):
         if close > ema_20:
-            score += 2
+            score += 4
         elif close < ema_20:
-            score -= 2
-    
-    # Regla 5: EMA 20 vs EMA 50 (Cruce Corto) - Peso: 1
+            score -= 4
+            
+    # ---------------------------------------------------------
+    # 2. DIRECCIÓN DE CORTO PLAZO (Flujo de órdenes)
+    # Peso: 3 puntos
+    # ---------------------------------------------------------
     if not np.isnan(ema_20) and not np.isnan(ema_50):
         if ema_20 > ema_50:
-            score += 1
+            score += 3
         elif ema_20 < ema_50:
+            score -= 3
+
+    # ---------------------------------------------------------
+    # 3. ZONA DE VALOR (Mediano Plazo)
+    # Peso: 2 puntos
+    # ---------------------------------------------------------
+    if not np.isnan(ema_50):
+        if close > ema_50:
+            score += 2
+        elif close < ema_50:
+            score -= 2
+
+    # ---------------------------------------------------------
+    # 4. FILTRO MACRO (Solo contexto general)
+    # Peso: 1 punto (Ya no penaliza tanto ir contra macro si hay momentum)
+    # ---------------------------------------------------------
+    if not np.isnan(ema_200):
+        if close > ema_200:
+            score += 1
+        elif close < ema_200:
             score -= 1
     
-    # Clasificar según score
+    # Clasificación según score (Mismos rangos, interpretación distinta)
     if score >= 6:
-        status = "STRONG_BULLISH"
-    elif score >= 1:
-        status = "WEAK_BULLISH"
+        status = "STRONG_BULLISH"   # Mucho momentum alcista
+    elif score >= 2:
+        status = "WEAK_BULLISH"     # Momentum alcista pero contexto sucio
     elif score >= -1:
-        status = "NEUTRAL"
+        status = "NEUTRAL"          # Rango o indecisión
     elif score >= -5:
-        status = "WEAK_BEARISH"
+        status = "WEAK_BEARISH"     # Momentum bajista pero contexto sucio
     else:
-        status = "STRONG_BEARISH"
+        status = "STRONG_BEARISH"   # Mucho momentum bajista
     
-    # Verificar alineación de EMAs
-    # Alcista: EMA20 > EMA50 > EMA200
-    # Bajista: EMA20 < EMA50 < EMA200
+    # Verificar alineación perfecta de corto plazo (Sniper entry)
+    # Solo nos importa 20 > 50 > 200 para "Alineado" en binarias
     is_aligned = False
     if not any(np.isnan([ema_20, ema_50, ema_200])):
         is_aligned = (ema_20 > ema_50 > ema_200) or (ema_20 < ema_50 < ema_200)
@@ -402,7 +393,7 @@ class AnalysisService:
         """
         self.dataframes[source_key] = pd.DataFrame(columns=[
             "timestamp", "open", "high", "low", "close", "volume", 
-            "ema_200", "ema_100", "ema_50", "ema_30", "ema_20"
+            "ema_200", "ema_50", "ema_30", "ema_20"
         ])
         logger.debug(f"📋 DataFrame inicializado para {source_key}")
     
@@ -438,7 +429,6 @@ class AnalysisService:
             "close": candle.close,
             "volume": candle.volume,
             "ema_200": np.nan,  # Se calculará después
-            "ema_100": np.nan,
             "ema_50": np.nan,
             "ema_30": np.nan,
             "ema_20": np.nan
@@ -495,10 +485,6 @@ class AnalysisService:
         # EMA 50
         if len(df) >= 50:
             df["ema_50"] = calculate_ema(df["close"], 50)
-        
-        # EMA 100
-        if len(df) >= 100:
-            df["ema_100"] = calculate_ema(df["close"], 100)
         
         # EMA 200 - La principal para detección de tendencia
         if len(df) >= self.ema_period:

@@ -1,13 +1,24 @@
 # Sistema de Análisis de Tendencia con Score Ponderado
 
-## 🎉 PROBLEMA RESUELTO - Sistema Implementado
+## 🎉 ACTUALIZACIÓN CRÍTICA - Optimizado para Opciones Binarias (22/Nov/2025)
 
-El sistema ahora utiliza un **algoritmo de scoring ponderado** con múltiples EMAs para determinar la tendencia de forma robusta.
+**⚠️ CAMBIO IMPORTANTE:** El sistema ha sido **reoptimizado para OPCIONES BINARIAS** con temporalidad de 1 minuto. Los pesos del scoring ahora priorizan el **momentum de corto plazo** sobre la tendencia macro.
+
+**Cambios clave:**
+- ✅ EMA 20 ahora tiene **4x más peso** que EMA 200
+- ✅ Cruce EMA 20/50 tiene **3x más peso** que antes
+- ✅ EMA 100 eliminada del scoring (simplificación)
+- ✅ Se permite operar contra-tendencia macro si hay momentum fuerte
+
+**Filosofía anterior:** "No operar contra la tendencia de EMA 200"  
+**Filosofía actual:** "Priorizar momentum inmediato - EMA 200 es solo contexto"
+
+---
 
 ## Contexto del Proyecto
 Bot de trading que detecta patrones de velas japonesas en tiempo real (EUR/USD, temporalidad 1 minuto). Detecta 4 patrones: Shooting Star, Hanging Man, Inverted Hammer y Hammer.
 
-## ✅ Solución Implementada: Sistema de Trend Scoring
+## ✅ Solución Implementada: Sistema de Momentum Scoring
 
 ### Arquitectura del Sistema
 
@@ -18,67 +29,77 @@ Bot de trading que detecta patrones de velas japonesas en tiempo real (EUR/USD, 
 - `score` (int): Puntuación de -10 a +10
 - `is_aligned` (bool): Si las EMAs están alineadas correctamente
 
-### Algoritmo de Scoring (5 Reglas Ponderadas)
+### Algoritmo de Scoring (4 Reglas Ponderadas - Optimizado para Opciones Binarias)
 
-El sistema evalúa **5 relaciones diferentes** entre precio y EMAs, asignando puntos según cada comparación:
+**Filosofía:** Sistema optimizado para **OPCIONES BINARIAS (1 minuto)** donde el momentum de corto plazo es CRÍTICO. Los pesos priorizan las EMAs más cercanas al precio actual, ya que en temporalidades tan cortas la tendencia macro es menos relevante.
 
-#### 🔹 Regla 1: Precio vs EMA 200 (Macro Trend) - Peso: ±3 puntos
-**Importancia:** Máxima - Define la tendencia macro
-```python
-if close > ema_200:
-    score += 3  # Macro alcista
-elif close < ema_200:
-    score -= 3  # Macro bajista
-```
+El sistema evalúa **4 relaciones clave** entre precio y EMAs, con pesos que reflejan su importancia en operaciones de 1 minuto:
 
-#### 🔹 Regla 2: Precio vs EMA 100 (Mid-Term) - Peso: ±2 puntos
-**Importancia:** Alta - Confirma tendencia de mediano plazo
-```python
-if close > ema_100:
-    score += 2  # Medio plazo alcista
-elif close < ema_100:
-    score -= 2  # Medio plazo bajista
-```
+#### 🔴 PRIORIDAD ALTA - Corto Plazo (70% del score)
 
-#### 🔹 Regla 3: EMA 50 vs EMA 200 (Alineación Macro) - Peso: ±2 puntos
-**Importancia:** Alta - Verifica alineación estructural
-```python
-if ema_50 > ema_200:
-    score += 2  # Estructura alcista
-elif ema_50 < ema_200:
-    score -= 2  # Estructura bajista
-```
-
-#### 🔹 Regla 4: Precio vs EMA 20 (Momentum) - Peso: ±2 puntos
-**Importancia:** Alta - Detecta momentum de corto plazo
+**Regla 1: Precio vs EMA 20 (Momentum Inmediato)** - Peso: ±4 puntos
+**Importancia:** CRÍTICA - Indica la fuerza inmediata del flujo de órdenes
 ```python
 if close > ema_20:
-    score += 2  # Momentum alcista
+    score += 4  # Fuerza alcista inmediata
 elif close < ema_20:
-    score -= 2  # Momentum bajista
+    score -= 4  # Fuerza bajista inmediata
 ```
+**Justificación:** En 1 minuto, la EMA 20 refleja la dirección ACTUAL del mercado. Es 4x más importante que la tendencia macro.
 
-#### 🔹 Regla 5: EMA 20 vs EMA 50 (Cruce Corto) - Peso: ±1 punto
-**Importancia:** Moderada - Confirma cruce de corto plazo
+**Regla 2: EMA 20 vs EMA 50 (Dirección del Flujo)** - Peso: ±3 puntos
+**Importancia:** CRÍTICA - Confirma que el momentum no es solo un spike temporal
 ```python
 if ema_20 > ema_50:
-    score += 1  # Cruce alcista
+    score += 3  # Cruce alcista confirmado
 elif ema_20 < ema_50:
-    score -= 1  # Cruce bajista
+    score -= 3  # Cruce bajista confirmado
 ```
+**Justificación:** Un cruce 20/50 indica que hay una tendencia de corto plazo establecida, no solo ruido.
+
+#### 🟡 PRIORIDAD MEDIA - Contexto (20% del score)
+
+**Regla 3: Precio vs EMA 50 (Zona de Valor)** - Peso: ±2 puntos
+**Importancia:** MEDIA - Indica si el precio está "caro" o "barato" a mediano plazo
+```python
+if close > ema_50:
+    score += 2  # Soporte dinámico alcista
+elif close < ema_50:
+    score -= 2  # Resistencia dinámica bajista
+```
+**Justificación:** Ayuda a identificar zonas de soporte/resistencia dinámicas.
+
+#### 🟢 PRIORIDAD BAJA - Filtro Macro (10% del score)
+
+**Regla 4: Precio vs EMA 200 (Filtro Macro)** - Peso: ±1 punto
+**Importancia:** BAJA - Solo contexto general, NO penaliza operaciones contra-tendencia
+```python
+if close > ema_200:
+    score += 1  # Macro alcista
+elif close < ema_200:
+    score -= 1  # Macro bajista
+```
+**Justificación:** En opciones binarias, un momentum fuerte de corto plazo puede superar la tendencia macro.
 
 ### Rango de Score Total
 
 **Máximo Alcista:** +10 puntos (todas las condiciones alcistas)
-- Precio > EMA 200: +3
-- Precio > EMA 100: +2
-- EMA 50 > EMA 200: +2
-- Precio > EMA 20: +2
-- EMA 20 > EMA 50: +1
+- Precio > EMA 20: +4 🔴 (Momentum inmediato)
+- EMA 20 > EMA 50: +3 🔴 (Dirección confirmada)
+- Precio > EMA 50: +2 🟡 (Zona de valor)
+- Precio > EMA 200: +1 🟢 (Contexto macro)
 
 **Máximo Bajista:** -10 puntos (todas las condiciones bajistas)
 
 **Neutral:** 0 puntos (señales contradictorias se cancelan)
+
+**⚠️ IMPORTANTE para Opciones Binarias:**
+Un score de +7 (sin EMA 200 favorable) es válido para entrar:
+- Precio > EMA 20: +4
+- EMA 20 > EMA 50: +3
+- Total: +7 = STRONG_BULLISH
+
+Esto significa que priorizamos el momentum inmediato sobre la tendencia macro.
 
 ### Clasificación de Tendencia
 
@@ -112,13 +133,21 @@ Todas las medias móviles ordenadas de mayor a menor período.
 
 El sistema calcula **5 EMAs** con cálculo condicional:
 
-| EMA | Período | Velas Mínimas | Propósito |
-|-----|---------|---------------|-----------|
-| EMA 20 | 20 min | 20 | Momentum de muy corto plazo |
-| EMA 30 | 30 min | 30 | Momentum de corto plazo |
-| EMA 50 | 50 min | 50 | Tendencia de mediano plazo |
-| EMA 100 | 100 min | 100 | Tendencia de mediano-largo plazo |
-| EMA 200 | 200 min | 600* | Tendencia macro (3x para convergencia) |
+| EMA | Período | Velas Mínimas | Propósito | Peso en Score | Prioridad |
+|-----|---------|---------------|-----------|---------------|----------|
+| EMA 20 | 20 min | 20 | Momentum inmediato (flujo de órdenes) | ±4 pts | 🔴 CRÍTICA |
+| EMA 30 | 30 min | 30 | Visualización (no usado en scoring) | 0 pts | - |
+| EMA 50 | 50 min | 50 | Zona de valor / Soporte dinámico | ±2 pts | 🟡 MEDIA |
+| EMA 100 | 100 min | 100 | Visualización (no usado en scoring) | 0 pts | - |
+| EMA 200 | 200 min | 600* | Contexto macro (filtro opcional) | ±1 pt | 🟢 BAJA |
+
+**⚠️ Cambio Clave vs Versión Anterior:**
+- **EMA 20:** Aumentó de ±2 pts a **±4 pts** (2x más peso)
+- **EMA 20 vs EMA 50:** Aumentó de ±1 pt a **±3 pts** (3x más peso)
+- **EMA 200:** Disminuyó de ±3 pts a **±1 pt** (3x menos peso)
+- **EMA 100:** Eliminada del scoring (solo visualización)
+
+**Justificación:** En opciones binarias (1 min), el momentum de corto plazo es 4x más importante que la tendencia macro.
 
 **Nota:** Si no hay suficientes velas, la EMA se marca como `NaN` y no participa en el scoring.
 
@@ -217,39 +246,87 @@ USE_TREND_FILTER = True  # Solo notifica patrones alineados con tendencia
 - Valida que el patrón sea coherente con la tendencia detectada
 - Reduce falsos positivos significativamente
 
-## 🔬 Ejemplo de Cálculo Real
+## 🔬 Ejemplo de Cálculo Real (Nuevo Sistema)
 
-**Escenario:**
+### Escenario 1: Momentum Alcista Fuerte (Contra Tendencia Macro)
 ```
 Precio actual: 1.08650
-EMA 20: 1.08700 (precio DEBAJO)
-EMA 50: 1.08600 (precio ARRIBA)
-EMA 100: 1.08550 (precio ARRIBA)
-EMA 200: 1.08500 (precio ARRIBA)
+EMA 20: 1.08600 (precio ARRIBA) ✓
+EMA 50: 1.08550 (precio ARRIBA) ✓
+EMA 200: 1.08700 (precio DEBAJO) ✗
 ```
 
 **Cálculo del Score:**
-1. Precio > EMA 200 → +3 ✓
-2. Precio > EMA 100 → +2 ✓
-3. EMA 50 > EMA 200 → +2 ✓
-4. Precio < EMA 20 → -2 ✗ (momentum negativo)
-5. EMA 20 > EMA 50 → +1 ✓
+1. Precio > EMA 20 → **+4** ✓ (momentum alcista inmediato)
+2. EMA 20 > EMA 50 → **+3** ✓ (dirección confirmada)
+3. Precio > EMA 50 → **+2** ✓ (zona de valor alcista)
+4. Precio < EMA 200 → **-1** ✗ (macro bajista)
 
-**Score Total:** +3 +2 +2 -2 +1 = **+6 puntos**
+**Score Total:** +4 +3 +2 -1 = **+8 puntos**
 
 **Clasificación:** `STRONG_BULLISH` (≥6)
 
-**Alineación:** ✗ No confirmada (EMA20 > precio, rompe la secuencia)
+**Alineación:** ✗ No confirmada (EMA 200 por encima)
 
-**Interpretación:** "Tendencia alcista muy fuerte con momentum débil de corto plazo"
+**Interpretación Opciones Binarias:** "Momentum alcista MUY FUERTE de corto plazo. Válido para entrada CALL a pesar de tendencia macro bajista. Score +8 domina sobre -1 del macro."
+
+---
+
+### Escenario 2: Momentum Débil en Tendencia Alcista
+```
+Precio actual: 1.08650
+EMA 20: 1.08700 (precio DEBAJO) ✗
+EMA 50: 1.08600 (precio ARRIBA) ✓
+EMA 200: 1.08500 (precio ARRIBA) ✓
+```
+
+**Cálculo del Score:**
+1. Precio < EMA 20 → **-4** ✗ (momentum bajista inmediato)
+2. EMA 20 > EMA 50 → **+3** ✓ (dirección alcista confirmada)
+3. Precio > EMA 50 → **+2** ✓ (zona de valor alcista)
+4. Precio > EMA 200 → **+1** ✓ (macro alcista)
+
+**Score Total:** -4 +3 +2 +1 = **+2 puntos**
+
+**Clasificación:** `WEAK_BULLISH` (2 a 5)
+
+**Interpretación Opciones Binarias:** "Retroceso temporal en tendencia alcista. Momentum inmediato bajista (-4) contradice contexto alcista (+6). Zona de indecisión - esperar confirmación."
 
 ## 📝 Estado del Sistema
 
-**✅ Completamente Implementado y Operativo**
+**✅ Completamente Implementado y Operativo - Optimizado para Opciones Binarias**
 
 **Ubicación del código:**
-- `src/logic/analysis_service.py` - Función `analyze_trend()` (líneas 73-190)
+- `src/logic/analysis_service.py` - Función `analyze_trend()` (líneas 88-177)
+  - Sistema de scoring con 4 reglas ponderadas
+  - Prioridad en EMAs de corto plazo (20/50)
+  - Clasificación en 5 niveles de momentum
+
 - `src/services/telegram_service.py` - Clasificación de alertas (líneas 248-276)
+  - Mensajes adaptados a momentum vs tendencia
+  - Información completa de las 5 EMAs calculadas
+
+**⚠️ CAMBIOS CRÍTICOS vs Versión Anterior:**
+
+| Componente | Versión Anterior | Versión Actual | Impacto |
+|------------|-----------------|----------------|---------|
+| **EMA 20 (Precio)** | ±2 pts | **±4 pts** | 2x más peso en momentum inmediato |
+| **EMA 20 vs 50** | ±1 pt | **±3 pts** | 3x más peso en confirmación de flujo |
+| **EMA 200** | ±3 pts | **±1 pt** | 3x menos peso, solo contexto |
+| **EMA 100** | ±2 pts | **Eliminada** | Simplificación del algoritmo |
+| **Filosofía** | Tendencia macro | **Momentum corto** | Apto para binarias 1min |
+
+**Validación en Producción:**
+- ✅ Permite operar contra-tendencia macro si hay momentum fuerte
+- ✅ Score +7 (sin EMA 200) genera alertas STRONG_BULLISH
+- ✅ Clasificación refleja "momentum" en vez de "tendencia"
+- ✅ Sistema alineado con estrategia de opciones binarias
+
+**Próximos pasos sugeridos:**
+- Implementar tracking histórico de scores en `logs/trend_scores.jsonl`
+- Validar correlación entre score y movimiento real del precio en ventana de 1-5 minutos
+- Analizar win rate por rango de score (≥6 vs 2-5 vs ≤-6)
+- Considerar añadir volumen como factor de confirmación adicional
 - `src/utils/charting.py` - Visualización de EMAs en gráficos
 
 **⚠️ SUJETO A CAMBIOS:**

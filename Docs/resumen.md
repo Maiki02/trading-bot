@@ -234,70 +234,82 @@ Sistema más agresivo que notifica CUALQUIER patrón detectado sin importar la t
 
 **El contenido del mensaje (entries.message) es IDÉNTICO en ambos modos**, solo cambia el título para diferenciar el nivel de validación.
 
-## 4. Cálculos y Algoritmos de Detección ⚠️ SUJETO A CAMBIOS
+## 4. Cálculos y Algoritmos de Detección
 
-**ADVERTENCIA:** Los algoritmos descritos en esta sección están en fase de validación en producción. Los criterios matemáticos, pesos, umbrales y lógica de clasificación pueden ajustarse según los resultados observados en operación real.
+**📅 ÚLTIMA ACTUALIZACIÓN: 22/Nov/2025** - Sistema optimizado para opciones binarias con énfasis en momentum de corto plazo.
 
-### 4.1. Sistema de Trend Scoring (Análisis de Tendencia)
+### 4.1. Sistema de Momentum Scoring (Análisis de Tendencia)
 
-El sistema utiliza un **algoritmo de scoring ponderado** que evalúa la relación entre el precio y 5 EMAs diferentes para determinar la fuerza y dirección de la tendencia.
+El sistema utiliza un **algoritmo de scoring ponderado optimizado para OPCIONES BINARIAS (1 minuto)** que evalúa la relación entre el precio y EMAs, priorizando el momentum de corto plazo sobre la tendencia macro.
+
+**Filosofía:** En temporalidades de 1 minuto, el momentum inmediato (EMA 20) es 4x más importante que la tendencia macro (EMA 200). Se permite operar contra-tendencia si hay fuerza de corto plazo.
 
 #### EMAs Calculadas
 
 | EMA | Período | Velas Mínimas | Propósito | Uso en Score |
 |-----|---------|---------------|-----------|--------------|
-| EMA 20 | 20 min | 20 | Momentum muy corto | ✓ Reglas 4 y 5 |
-| EMA 30 | 30 min | 30 | Momentum corto | ✗ Solo visualización |
-| EMA 50 | 50 min | 50 | Tendencia mediano plazo | ✓ Reglas 3 y 5 |
-| EMA 100 | 100 min | 100 | Tendencia mediano-largo | ✓ Regla 2 |
-| EMA 200 | 200 min | 600* | Tendencia macro | ✓ Reglas 1 y 3 |
+| EMA 20 | 20 min | 20 | Momentum inmediato (CRÍTICO) | ✓ Reglas 1 y 2 (±7 pts) |
+| EMA 30 | 30 min | 30 | Visualización | ✗ Solo visualización |
+| EMA 50 | 50 min | 50 | Zona de valor / Soporte dinámico | ✓ Reglas 2 y 3 |
+| EMA 100 | 100 min | 100 | Visualización | ✗ Solo visualización |
+| EMA 200 | 200 min | 600* | Contexto macro | ✓ Regla 4 (peso reducido) |
 
 *EMA 200 requiere 3x el período (600 velas) para convergencia adecuada.
 
 **Cálculo Condicional:** Si no hay suficientes velas históricas, la EMA se marca como `NaN` y no participa en el scoring.
 
-#### Algoritmo de Scoring (5 Reglas Ponderadas)
+#### Algoritmo de Scoring (4 Reglas Ponderadas - Optimizado para Opciones Binarias)
 
 **Función:** `analyze_trend(close, emas)` en `src/logic/analysis_service.py`
 
 **Rango del Score:** -10 a +10 puntos
 
-**Reglas:**
+**Filosofía:** Sistema optimizado para **OPCIONES BINARIAS (1 minuto)** donde el momentum de corto plazo es CRÍTICO. Los pesos priorizan las EMAs más cercanas al precio, permitiendo operar contra-tendencia macro si hay momentum fuerte.
 
-1. **Precio vs EMA 200 (Macro Trend)** - Peso: ±3 puntos
-   - Si `close > ema_200`: +3 (macro alcista)
-   - Si `close < ema_200`: -3 (macro bajista)
-   - Justificación: EMA 200 define la tendencia de largo plazo
+**Reglas (Ordenadas por Prioridad):**
 
-2. **Precio vs EMA 100 (Mid-Term)** - Peso: ±2 puntos
-   - Si `close > ema_100`: +2 (medio plazo alcista)
-   - Si `close < ema_100`: -2 (medio plazo bajista)
-   - Justificación: Confirma tendencia intermedia
+1. **Precio vs EMA 20 (Momentum Inmediato)** - Peso: ±4 puntos (🔴 CRÍTICO)
+   - Si `close > ema_20`: +4 (fuerza alcista inmediata)
+   - Si `close < ema_20`: -4 (fuerza bajista inmediata)
+   - Justificación: En 1 minuto, indica la dirección ACTUAL del flujo de órdenes. Es 4x más importante que la tendencia macro.
 
-3. **EMA 50 vs EMA 200 (Alineación Macro)** - Peso: ±2 puntos
-   - Si `ema_50 > ema_200`: +2 (estructura alcista)
-   - Si `ema_50 < ema_200`: -2 (estructura bajista)
-   - Justificación: Verifica alineación estructural (Golden/Death Cross)
+2. **EMA 20 vs EMA 50 (Dirección del Flujo)** - Peso: ±3 puntos (🔴 CRÍTICO)
+   - Si `ema_20 > ema_50`: +3 (cruce alcista confirmado)
+   - Si `ema_20 < ema_50`: -3 (cruce bajista confirmado)
+   - Justificación: Confirma que el momentum no es solo un spike temporal, sino una tendencia de corto plazo establecida.
 
-4. **Precio vs EMA 20 (Momentum)** - Peso: ±2 puntos
-   - Si `close > ema_20`: +2 (momentum alcista)
-   - Si `close < ema_20`: -2 (momentum bajista)
-   - Justificación: Detecta momentum inmediato
+3. **Precio vs EMA 50 (Zona de Valor)** - Peso: ±2 puntos (🟡 MEDIO)
+   - Si `close > ema_50`: +2 (soporte dinámico alcista)
+   - Si `close < ema_50`: -2 (resistencia dinámica bajista)
+   - Justificación: Indica si el precio está en zona "cara" o "barata" a mediano plazo.
 
-5. **EMA 20 vs EMA 50 (Cruce Corto)** - Peso: ±1 punto
-   - Si `ema_20 > ema_50`: +1 (cruce alcista)
-   - Si `ema_20 < ema_50`: -1 (cruce bajista)
-   - Justificación: Confirma dirección de corto plazo
+4. **Precio vs EMA 200 (Filtro Macro)** - Peso: ±1 punto (🟢 BAJO)
+   - Si `close > ema_200`: +1 (macro alcista)
+   - Si `close < ema_200`: -1 (macro bajista)
+   - Justificación: Solo contexto general. NO penaliza fuertemente operar contra-tendencia macro si hay momentum de corto plazo.
+
+**⚠️ Cambio Clave vs Versión Anterior:**
+- **EMA 20:** Aumentó de ±2 pts a **±4 pts** (prioridad máxima)
+- **EMA 20 vs EMA 50:** Aumentó de ±1 pt a **±3 pts** (confirmación crítica)
+- **EMA 200:** Disminuyó de ±3 pts a **±1 pt** (solo contexto)
+- **EMA 100:** Eliminada del scoring (solo visualización)
+
+**Ejemplo:** Score +7 sin EMA 200 favorable es válido para entrar:
+- Precio > EMA 20: +4
+- EMA 20 > EMA 50: +3
+- Total: +7 = STRONG_BULLISH (operar contra macro está permitido)
 
 #### Clasificación del Score
 
 | Score Range | Status | Interpretación Español |
 |------------|--------|------------------------|
-| ≥ 6 | `STRONG_BULLISH` | Tendencia alcista muy fuerte |
-| 1 a 5 | `WEAK_BULLISH` | Tendencia alcista débil |
-| -1 a 1 | `NEUTRAL` | Sin tendencia clara (mercado lateral) |
-| -5 a -1 | `WEAK_BEARISH` | Tendencia bajista débil |
-| ≤ -6 | `STRONG_BEARISH` | Tendencia bajista muy fuerte |
+| ≥ 6 | `STRONG_BULLISH` | Momentum alcista muy fuerte |
+| 2 a 5 | `WEAK_BULLISH` | Momentum alcista débil |
+| -1 a 1 | `NEUTRAL` | Rango o indecisión |
+| -5 a -2 | `WEAK_BEARISH` | Momentum bajista débil |
+| ≤ -6 | `STRONG_BEARISH` | Momentum bajista muy fuerte |
+
+**Nota:** Las interpretaciones ahora reflejan "momentum" en vez de "tendencia" para enfatizar el enfoque de corto plazo.
 
 #### Detección de Alineación
 

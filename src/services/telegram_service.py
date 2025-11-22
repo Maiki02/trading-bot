@@ -332,11 +332,10 @@ class TelegramService:
             f"━━━━━━━━━━━━━━━━━━━━━━━━\n"
             f"📉 ANÁLISIS DE EMAS\n"
             f"━━━━━━━━━━━━━━━━━━━━━━━━\n"
-            f"🔹 EMA 20: {ema_20_str}\n"
-            f"🔹 EMA 30: {ema_30_str}\n"
-            f"🔹 EMA 50: {ema_50_str}\n"
-            f"🔹 EMA 100: {ema_100_str}\n"
-            f"🔹 EMA 200: {signal.ema_200:.5f}\n"
+            f"° EMA 20: {ema_20_str}\n"
+            f"° EMA 30: {ema_30_str}\n"
+            f"° EMA 50: {ema_50_str}\n"
+            f"° EMA 200: {signal.ema_200:.5f}\n"
             f"🔹 Estructura: {estructura}\n"
             f"🔹 Alineación: {'✓ Confirmada' if signal.is_trend_aligned else '✗ No confirmada'}\n\n"
             f"━━━━━━━━━━━━━━━━━━━━━━━━\n"
@@ -382,13 +381,11 @@ class TelegramService:
         ema1_20 = f"{signal1.ema_20:.5f}" if not math.isnan(signal1.ema_20) else "N/A"
         ema1_30 = f"{signal1.ema_30:.5f}" if not math.isnan(signal1.ema_30) else "N/A"
         ema1_50 = f"{signal1.ema_50:.5f}" if not math.isnan(signal1.ema_50) else "N/A"
-        ema1_100 = f"{signal1.ema_100:.5f}" if not math.isnan(signal1.ema_100) else "N/A"
         
         # Signal 2 EMAs
         ema2_20 = f"{signal2.ema_20:.5f}" if not math.isnan(signal2.ema_20) else "N/A"
         ema2_30 = f"{signal2.ema_30:.5f}" if not math.isnan(signal2.ema_30) else "N/A"
         ema2_50 = f"{signal2.ema_50:.5f}" if not math.isnan(signal2.ema_50) else "N/A"
-        ema2_100 = f"{signal2.ema_100:.5f}" if not math.isnan(signal2.ema_100) else "N/A"
         
         # Determinar estructura de EMAs promedio
         avg_ema_20 = (signal1.ema_20 + signal2.ema_20) / 2 if not math.isnan(signal1.ema_20) and not math.isnan(signal2.ema_20) else np.nan
@@ -405,7 +402,7 @@ class TelegramService:
         else:
             estructura = "Datos insuficientes"
         
-        body = f"🎯 CONFIRMACIÓN DUAL-SOURCE\n📊 Fuentes: {signal1.source} + {signal2.source}\n📈 Patrón: {signal1.pattern}\n🕒 Timestamp: {timestamp_str}\n\n{signal1.source}:\n  • Apertura: {signal1.candle.open:.5f}\n  • Máximo: {signal1.candle.high:.5f}\n  • Mínimo: {signal1.candle.low:.5f}\n  • Cierre: {signal1.candle.close:.5f}\n  • EMAs: 20={ema1_20} | 30={ema1_30} | 50={ema1_50} | 100={ema1_100} | 200={signal1.ema_200:.5f}\n  • Tendencia: {signal1.trend} (Score: {signal1.trend_score:+d})\n  • Confianza: {signal1.confidence:.0%}\n\n{signal2.source}:\n  • Apertura: {signal2.candle.open:.5f}\n  • Máximo: {signal2.candle.high:.5f}\n  • Mínimo: {signal2.candle.low:.5f}\n  • Cierre: {signal2.candle.close:.5f}\n  • EMAs: 20={ema2_20} | 30={ema2_30} | 50={ema2_50} | 100={ema2_100} | 200={signal2.ema_200:.5f}\n  • Tendencia: {signal2.trend} (Score: {signal2.trend_score:+d})\n  • Confianza: {signal2.confidence:.0%}\n\n📐 Estructura Promedio: {estructura}\n🔗 Alineación: {signal1.source}={'✓' if signal1.is_trend_aligned else '✗'} | {signal2.source}={'✓' if signal2.is_trend_aligned else '✗'}\n✨ Confianza Promedio: {avg_confidence:.0%}\n\n🚀 Alta probabilidad. Revisar retroceso del 50% en primeros 30s de la siguiente vela."
+        body = f"🎯 CONFIRMACIÓN DUAL-SOURCE\n📊 Fuentes: {signal1.source} + {signal2.source}\n📈 Patrón: {signal1.pattern}\n🕒 Timestamp: {timestamp_str}\n\n{signal1.source}:\n  • Apertura: {signal1.candle.open:.5f}\n  • Máximo: {signal1.candle.high:.5f}\n  • Mínimo: {signal1.candle.low:.5f}\n  • Cierre: {signal1.candle.close:.5f}\n  • EMAs: 20={ema1_20} | 30={ema1_30} | 50={ema1_50} | 200={signal1.ema_200:.5f}\n  • Tendencia: {signal1.trend} (Score: {signal1.trend_score:+d})\n  • Confianza: {signal1.confidence:.0%}\n\n{signal2.source}:\n  • Apertura: {signal2.candle.open:.5f}\n  • Máximo: {signal2.candle.high:.5f}\n  • Mínimo: {signal2.candle.low:.5f}\n  • Cierre: {signal2.candle.close:.5f}\n  • EMAs: 20={ema2_20} | 30={ema2_30} | 50={ema2_50} | 200={signal2.ema_200:.5f}\n  • Tendencia: {signal2.trend} (Score: {signal2.trend_score:+d})\n  • Confianza: {signal2.confidence:.0%}\n\n📐 Estructura Promedio: {estructura}\n🔗 Alineación: {signal1.source}={'✓' if signal1.is_trend_aligned else '✗'} | {signal2.source}={'✓' if signal2.is_trend_aligned else '✗'}\n✨ Confianza Promedio: {avg_confidence:.0%}\n\n🚀 Alta probabilidad. Revisar retroceso del 50% en primeros 30s de la siguiente vela."
         
         return AlertMessage(
             title=title,

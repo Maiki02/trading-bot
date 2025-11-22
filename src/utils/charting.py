@@ -91,19 +91,6 @@ def generate_chart_base64(
         )
         additional_plots.append(ema_200_plot)
     
-    # EMA 100 - Tendencia Media (Azul)
-    if 'ema_100' in df_subset.columns and not df_subset['ema_100'].isna().all():
-        ema_100_data = df_subset['ema_100'].copy()
-        ema_100_plot = mpf.make_addplot(
-            ema_100_data,
-            color='#0080FF',  # Azul medio
-            width=1.8,
-            panel=0,
-            secondary_y=False,
-            label='EMA 100'
-        )
-        additional_plots.append(ema_100_plot)
-    
     # EMA 50 - Tendencia Corto Plazo (Verde)
     if 'ema_50' in df_subset.columns and not df_subset['ema_50'].isna().all():
         ema_50_data = df_subset['ema_50'].copy()
@@ -203,8 +190,6 @@ def generate_chart_base64(
             
             if 'ema_200' in df_subset.columns and not df_subset['ema_200'].isna().all():
                 legend_elements.append(Line2D([0], [0], color='#00D4FF', lw=2, label='EMA 200'))
-            if 'ema_100' in df_subset.columns and not df_subset['ema_100'].isna().all():
-                legend_elements.append(Line2D([0], [0], color='#0080FF', lw=1.8, label='EMA 100'))
             if 'ema_50' in df_subset.columns and not df_subset['ema_50'].isna().all():
                 legend_elements.append(Line2D([0], [0], color='#00FF80', lw=1.5, label='EMA 50'))
             if 'ema_30' in df_subset.columns and not df_subset['ema_30'].isna().all():

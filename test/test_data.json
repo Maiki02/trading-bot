@@ -1398,5 +1398,152 @@
     "maximo": 84639.99,
     "minimo": 84600.0,
     "tipo_vela": "shooting_star"
+  },
+  {
+    "apertura": 84659.04,
+    "cierre": 84652.9,
+    "maximo": 84679.31,
+    "minimo": 84652.9,
+    "tipo_vela": "shooting_star"
+  },
+  {
+    "apertura": 84714.36,
+    "cierre": 84718.61,
+    "maximo": 84722.45,
+    "minimo": 84690.67,
+    "tipo_vela": "hammer"
+  },
+  {
+    "apertura": 84669.43,
+    "cierre": 84666.88,
+    "maximo": 84669.43,
+    "minimo": 84641.91,
+    "tipo_vela": "hanging_man"
+  },
+  {
+    "apertura": 84504.8,
+    "cierre": 84510.61,
+    "maximo": 84545.17,
+    "minimo": 84504.8,
+    "tipo_vela": "inverted_hammer"
+  },
+  {
+    "apertura": 84353.29,
+    "cierre": 84358.48,
+    "maximo": 84373.16,
+    "minimo": 84353.28,
+    "tipo_vela": "inverted_hammer"
+  },
+  {
+    "apertura": 84295.28,
+    "cierre": 84297.94,
+    "maximo": 84297.94,
+    "minimo": 84286.84,
+    "tipo_vela": "hammer"
+  },
+  {
+    "apertura": 84399.95,
+    "cierre": 84395.99,
+    "maximo": 84438.59,
+    "minimo": 84388.58,
+    "tipo_vela": "shooting_star"
+  },
+  {
+    "apertura": 84325.1,
+    "cierre": 84327.46,
+    "maximo": 84353.16,
+    "minimo": 84324.24,
+    "tipo_vela": "inverted_hammer"
+  },
+  {
+    "apertura": 84326.39,
+    "cierre": 84333.73,
+    "maximo": 84366.0,
+    "minimo": 84326.38,
+    "tipo_vela": "inverted_hammer"
+  },
+  {
+    "apertura": 84310.0,
+    "cierre": 84312.07,
+    "maximo": 84345.78,
+    "minimo": 84310.0,
+    "tipo_vela": "inverted_hammer"
+  },
+  {
+    "apertura": 84347.79,
+    "cierre": 84353.41,
+    "maximo": 84372.0,
+    "minimo": 84347.79,
+    "tipo_vela": "inverted_hammer"
+  },
+  {
+    "apertura": 84403.26,
+    "cierre": 84404.83,
+    "maximo": 84409.14,
+    "minimo": 84380.0,
+    "tipo_vela": "hammer"
+  },
+  {
+    "apertura": 84396.45,
+    "cierre": 84390.86,
+    "maximo": 84431.75,
+    "minimo": 84390.86,
+    "tipo_vela": "shooting_star"
+  },
+  {
+    "apertura": 84404.37,
+    "cierre": 84401.04,
+    "maximo": 84404.38,
+    "minimo": 84388.12,
+    "tipo_vela": "hanging_man"
+  },
+  {
+    "apertura": 84401.03,
+    "cierre": 84406.73,
+    "maximo": 84406.74,
+    "minimo": 84387.35,
+    "tipo_vela": "hammer"
+  },
+  {
+    "apertura": 84539.71,
+    "cierre": 84540.74,
+    "maximo": 84558.29,
+    "minimo": 84539.71,
+    "tipo_vela": "inverted_hammer"
+  },
+  {
+    "apertura": 84616.51,
+    "cierre": 84627.65,
+    "maximo": 84629.74,
+    "minimo": 84566.33,
+    "tipo_vela": "hammer"
+  },
+  {
+    "apertura": 84754.57,
+    "cierre": 84760.58,
+    "maximo": 84760.59,
+    "minimo": 84721.7,
+    "tipo_vela": "hammer"
+  },
+  {
+    "apertura": 84985.21,
+    "cierre": 84974.8,
+    "maximo": 85080.0,
+    "minimo": 84971.85,
+    "tipo_vela": "shooting_star"
+  },
+  {
+    "apertura": 84953.99,
+    "cierre": 84962.03,
+    "maximo": 84983.01,
+    "minimo": 84953.99,
+    "tipo_vela": "inverted_hammer"
+  },
+  {
+    "apertura": 84876.09,
+    "cierre": 84877.24,
+    "maximo": 84913.46,
+    "minimo": 84876.09,
+    "tipo_vela": "inverted_hammer"
   }
 ]
