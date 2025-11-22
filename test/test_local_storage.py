@@ -4,9 +4,15 @@ Test Script - Local Notification Storage
 Script de prueba para verificar el funcionamiento del almacenamiento local.
 """
 
+import sys
+from pathlib import Path
+
+# Agregar el directorio raíz al path de Python
+root_dir = Path(__file__).parent.parent
+sys.path.insert(0, str(root_dir))
+
 import asyncio
 import base64
-from pathlib import Path
 
 from src.services.local_notification_storage import LocalNotificationStorage
 
