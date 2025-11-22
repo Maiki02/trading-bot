@@ -467,7 +467,7 @@ class AnalysisService:
         if len(df) == 0:
             return
         
-        indexToSearch = -2  # Última fila
+        indexToSearch = -1  # Última fila
         # Actualizar última fila
         df.iloc[indexToSearch, df.columns.get_loc("high")] = max(df.iloc[indexToSearch]["high"], candle.high)
         df.iloc[indexToSearch, df.columns.get_loc("low")] = min(df.iloc[indexToSearch]["low"], candle.low)
@@ -665,6 +665,16 @@ class AnalysisService:
         
         # Obtener la última vela CERRADA (penúltima en el buffer)
         last_closed = df.iloc[-2]
+        
+        # ⚠️ VALIDACIÓN: Filtrar velas vacías (sin movimiento real)
+        # TradingView envía primer tick de vela nueva con todos los valores iguales
+        total_range = last_closed["high"] - last_closed["low"]
+        if total_range == 0 or last_closed["volume"] == 0:
+            logger.debug(
+                f"⏭️  Vela vacía detectada (Range: {total_range}, Vol: {last_closed['volume']:.2f}). "
+                "Saltando análisis."
+            )
+            return
         
         # Verificar que EMA 200 esté disponible
         if pd.isna(last_closed["ema_200"]):
