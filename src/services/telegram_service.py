@@ -455,7 +455,7 @@ class TelegramService:
                 self.api_url,
                 json=payload,
                 headers=headers,
-                timeout=aiohttp.ClientTimeout(total=10)
+                timeout=aiohttp.ClientTimeout(total=15)  # Aumentado para múltiples usuarios
             ) as response:
                 response_text = await response.text()
                 

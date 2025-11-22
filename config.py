@@ -151,7 +151,7 @@ class Config:
         api_url=os.getenv("TELEGRAM_API_URL", ""),
         api_key=os.getenv("TELEGRAM_API_KEY", ""),
         subscription=os.getenv("TELEGRAM_SUBSCRIPTION", "trading_signals"),
-        send_charts=os.getenv("SEND_CHARTS", "false").lower() == "true"
+        send_charts=os.getenv("SEND_CHARTS", "true").lower() == "true"
     )
     
     # Trading Parameters
@@ -170,12 +170,20 @@ class Config:
     
     # Instruments Configuration (MVP: EUR/USD only)
     INSTRUMENTS: Dict[str, InstrumentConfig] = {
+        # Testeos los fines de semana
         "primary": InstrumentConfig(
-            symbol="EURUSD",
-            exchange="OANDA",
+            symbol="BTCUSDT",
+            exchange="BINANCE",
             timeframe="1",
-            full_symbol="OANDA:EURUSD"
+            full_symbol="BINANCE:BTCUSDT"
         ),
+        
+        # "primary": InstrumentConfig(
+        #     symbol="EURUSD",
+        #     exchange="OANDA",
+        #     timeframe="1",
+        #     full_symbol="OANDA:EURUSD"
+        # ),
         # "secondary": InstrumentConfig(
         #     symbol="EURUSD",
         #     exchange="FX",

@@ -607,5 +607,12 @@
     "maximo": 1.15138,
     "minimo": 1.15127,
     "tipo_vela": "hanging_man"
+  },
+  {
+    "apertura": 85404.4,
+    "cierre": 85389.47,
+    "maximo": 85438.26,
+    "minimo": 85384.61,
+    "tipo_vela": "shooting_star"
   }
 ]
