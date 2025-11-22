@@ -18,6 +18,7 @@ Author: TradingView Pattern Monitor Team
 
 import asyncio
 import json
+import numpy as np
 from pathlib import Path
 from typing import Dict, Any, Optional
 from datetime import datetime
@@ -198,11 +199,39 @@ class StorageService:
         Args:
             record: Registro a escribir
         """
+        # Convertir tipos de NumPy a tipos nativos de Python
+        sanitized_record = self._sanitize_numpy_types(record)
+        
         # Serializar a JSON (una línea)
-        json_line = json.dumps(record, ensure_ascii=False) + "\n"
+        json_line = json.dumps(sanitized_record, ensure_ascii=False) + "\n"
         
         # Escribir de forma asíncrona sin bloquear Event Loop
         await asyncio.to_thread(self._sync_write, json_line)
+    
+    def _sanitize_numpy_types(self, obj: Any) -> Any:
+        """
+        Convierte recursivamente tipos de NumPy a tipos nativos de Python.
+        
+        Args:
+            obj: Objeto a sanitizar (puede ser dict, list, o valor primitivo)
+            
+        Returns:
+            Objeto con tipos nativos de Python compatibles con JSON
+        """
+        if isinstance(obj, dict):
+            return {key: self._sanitize_numpy_types(value) for key, value in obj.items()}
+        elif isinstance(obj, list):
+            return [self._sanitize_numpy_types(item) for item in obj]
+        elif isinstance(obj, np.bool_):
+            return bool(obj)
+        elif isinstance(obj, (np.int_, np.intc, np.intp, np.int8, np.int16, np.int32, np.int64)):
+            return int(obj)
+        elif isinstance(obj, (np.float_, np.float16, np.float32, np.float64)):
+            return float(obj)
+        elif isinstance(obj, np.ndarray):
+            return obj.tolist()
+        else:
+            return obj
     
     def _sync_write(self, json_line: str) -> None:
         """
