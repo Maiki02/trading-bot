@@ -48,11 +48,16 @@ Estos patrones aparecen típicamente en **tendencias alcistas** y sugieren una p
 - Mecha superior larga (≥60% del rango total)
 - Cuerpo pequeño (≤30% del rango total)
 - Mecha inferior mínima (≤15% del rango total)
-- Preferencia por vela bajista
+- **DEBE SER VELA ROJA O NEUTRAL** (close <= open) ⚠️ VALIDACIÓN CRÍTICA
 
 **Fórmulas de Validación:**
 
 ```python
+# Validación de color (crítica)
+if close > open_price:
+    return False, 0.0  # Rechaza velas verdes
+
+# Validaciones matemáticas
 upper_wick_ratio ≥ UPPER_WICK_RATIO_MIN (0.60)
 body_ratio ≤ SMALL_BODY_RATIO (0.30)
 lower_wick_ratio ≤ OPPOSITE_WICK_MAX (0.15)
@@ -84,11 +89,16 @@ Confidence = min(1.0, Base + Σ Bonuses)
 - Mecha inferior larga (≥60% del rango total)
 - Cuerpo pequeño (≤30% del rango total)
 - Mecha superior mínima (≤15% del rango total)
-- Puede ser alcista o bajista
+- **DEBE SER VELA ROJA O NEUTRAL** (close <= open) ⚠️ VALIDACIÓN CRÍTICA
 
 **Fórmulas de Validación:**
 
 ```python
+# Validación de color (crítica)
+if close > open_price:
+    return False, 0.0  # Rechaza velas verdes
+
+# Validaciones matemáticas
 lower_wick_ratio ≥ LOWER_WICK_RATIO_MIN (0.60)
 body_ratio ≤ SMALL_BODY_RATIO (0.30)
 upper_wick_ratio ≤ OPPOSITE_WICK_MAX (0.15)
@@ -124,11 +134,16 @@ Estos patrones aparecen típicamente en **tendencias bajistas** y sugieren una p
 - Mecha superior larga (≥60% del rango total)
 - Cuerpo pequeño (≤30% del rango total)
 - Mecha inferior mínima (≤15% del rango total)
-- Preferencia por vela alcista
+- **DEBE SER VELA VERDE** (close > open) ⚠️ VALIDACIÓN CRÍTICA
 
 **Fórmulas de Validación:**
 
 ```python
+# Validación de color (crítica)
+if close <= open_price:
+    return False, 0.0  # Rechaza velas rojas
+
+# Validaciones matemáticas
 upper_wick_ratio ≥ UPPER_WICK_RATIO_MIN (0.60)
 body_ratio ≤ SMALL_BODY_RATIO (0.30)
 lower_wick_ratio ≤ OPPOSITE_WICK_MAX (0.15)
@@ -144,10 +159,11 @@ Bonuses:
 - Upper Wick Ratio ≥ 0.70: +0.10
 - Body Ratio ≤ 0.20: +0.10
 - Lower Wick Ratio ≤ 0.10: +0.10
-- Es vela alcista (Close > Open): +0.10
 
 Confidence = min(1.0, Base + Σ Bonuses)
 ```
+
+**Nota:** NO hay bono por color verde porque es OBLIGATORIO.
 
 **Contexto de Uso:**
 - Tendencia: Bajista (Close < EMA 200)
@@ -161,11 +177,16 @@ Confidence = min(1.0, Base + Σ Bonuses)
 - Mecha inferior larga (≥60% del rango total)
 - Cuerpo pequeño (≤30% del rango total)
 - Mecha superior mínima (≤15% del rango total)
-- Preferencia por vela alcista
+- **DEBE SER VELA VERDE** (close > open) ⚠️ VALIDACIÓN CRÍTICA
 
 **Fórmulas de Validación:**
 
 ```python
+# Validación de color (crítica)
+if close <= open_price:
+    return False, 0.0  # Rechaza velas rojas
+
+# Validaciones matemáticas
 lower_wick_ratio ≥ LOWER_WICK_RATIO_MIN (0.60)
 body_ratio ≤ SMALL_BODY_RATIO (0.30)
 upper_wick_ratio ≤ OPPOSITE_WICK_MAX (0.15)
@@ -181,10 +202,13 @@ Bonuses:
 - Lower Wick Ratio ≥ 0.70: +0.10
 - Body Ratio ≤ 0.20: +0.10
 - Upper Wick Ratio ≤ 0.10: +0.10
-- Es vela alcista (Close > Open): +0.10
 
 Confidence = min(1.0, Base + Σ Bonuses)
 ```
+
+**Nota:** NO hay bono por color verde porque es OBLIGATORIO.
+A diferencia del Hanging Man, el Hammer DEBE ser verde (cierre > apertura).
+La diferencia es: Hammer (verde) vs Hanging Man (rojo) con misma geometría.
 
 **Contexto de Uso:**
 - Tendencia: Bajista (Close < EMA 200)
@@ -275,9 +299,39 @@ Si `Total Range = 0` o `Body Size = 0`, el patrón retorna `(False, 0.0)`.
 ### Velas Doji
 Velas con cuerpo muy pequeño (≈0) pueden detectarse como múltiples patrones. El sistema prioriza según la tendencia actual.
 
+### Validación de Color (⚠️ CRÍTICO)
+
+**Patrones BAJISTAS (Requieren vela ROJA o NEUTRAL):**
+- **Shooting Star**: `if close > open: return False, 0.0`
+- **Hanging Man**: `if close > open: return False, 0.0`
+- **Razón:** Velas verdes indican compras fuertes, contradicen reversión bajista
+
+**Patrones ALCISTAS (Aceptan cualquier color):**
+- **Inverted Hammer**: Verde o roja aceptadas (sin bono)
+- **Hammer**: Verde o roja aceptadas (+10% bono si es verde)
+- **Razón:** Martillos pueden ser de cualquier color, pero verde refuerza señal alcista
+
+**Ejemplo de vela RECHAZADA:**
+```python
+# Vela VERDE con mecha inferior larga
+apertura = 84751.56
+cierre = 84752.68  # ← cierre > apertura (VERDE)
+maximo = 84755.31
+minimo = 84702.73
+
+# Intento de detección
+is_hanging_man(apertura, maximo, minimo, cierre)
+# → (False, 0.0) ✅ Correctamente rechazada
+
+# Pero puede ser detectada como Hammer
+is_hammer(apertura, maximo, minimo, cierre)
+# → (True, 1.0) si cumple criterios matemáticos
+```
+
 ### Patrones Similares
-- **Shooting Star vs Inverted Hammer**: Mismas métricas, diferente contexto de tendencia
-- **Hanging Man vs Hammer**: Mismas métricas, el Hammer prefiere velas alcistas
+- **Shooting Star vs Inverted Hammer**: MISMA geometría (mecha superior larga), DIFERENTE color (SS=rojo, IH=verde)
+- **Hanging Man vs Hammer**: MISMA geometría (mecha inferior larga), DIFERENTE color (HM=rojo, H=verde)
+- **Diferenciación clave:** El COLOR es el que determina si el patrón es bajista o alcista
 
 ---
 

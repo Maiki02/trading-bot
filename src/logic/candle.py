@@ -225,9 +225,11 @@ def is_inverted_hammer(
     - Mecha inferior mínima (< 15% del rango total)
     - Mecha superior >= 2x el tamaño del cuerpo
     - Cuerpo ubicado en la parte inferior de la vela
+    - DEBE SER VELA VERDE (close > open) ⚠️ VALIDACIÓN CRÍTICA
     
     INTERPRETACIÓN:
     Indica que los compradores intentaron empujar el precio pero fueron rechazados.
+    Sin embargo, la presencia de compradores (vela verde) sugiere posible reversión.
     Válido en tendencia bajista como señal de posible reversión alcista.
     
     Args:
@@ -244,6 +246,11 @@ def is_inverted_hammer(
     )
     
     if total_range == 0:
+        return False, 0.0
+    
+    # ⚠️ VALIDACIÓN CRÍTICA: Inverted Hammer debe ser VERDE
+    # Si es vela ROJA (close <= open), NO es Inverted Hammer (sería Shooting Star)
+    if close <= open_price:
         return False, 0.0
     
     # Cálculo de ratios
@@ -295,10 +302,12 @@ def is_hammer(
     - Mecha superior mínima (< 15% del rango total)
     - Mecha inferior >= 2x el tamaño del cuerpo
     - Cuerpo ubicado en la parte superior de la vela
-    - PREFERIBLE vela alcista (verde) pero acepta roja con menor confianza
+    - DEBE SER VELA VERDE (close > open) ⚠️ VALIDACIÓN CRÍTICA
     
-    NOTA: A diferencia del Hanging Man, el Hammer puede ser verde o rojo,
-    pero recibe bonificación de confianza si es verde (señal más fuerte).
+    NOTA: A diferencia del Hanging Man, el Hammer DEBE ser verde (cierre > apertura).
+    La diferencia entre Hammer y Hanging Man es:
+    - Hammer: Verde + Tendencia Bajista = Reversión Alcista
+    - Hanging Man: Rojo + Tendencia Alcista = Reversión Bajista
     
     INTERPRETACIÓN:
     Indica rechazo fuerte de precios bajos por parte de compradores.
@@ -318,6 +327,11 @@ def is_hammer(
     )
     
     if total_range == 0:
+        return False, 0.0
+    
+    # ⚠️ VALIDACIÓN CRÍTICA: Hammer debe ser VERDE
+    # Si es vela ROJA (close <= open), NO es Hammer (sería Hanging Man)
+    if close <= open_price:
         return False, 0.0
     
     # Cálculo de ratios
@@ -349,10 +363,8 @@ def is_hammer(
     if upper_wick_ratio <= 0.10:
         confidence += Config.CANDLE.BONUS_CONFIDENCE_PER_CONDITION
     
-    # ⚠️ Bono adicional SOLO si es vela alcista (cierre > apertura)
-    # Hammer verde = señal más fuerte de reversión alcista
-    if close > open_price:
-        confidence += Config.CANDLE.BONUS_CONFIDENCE_PER_CONDITION
+    # Nota: NO hay bono adicional por color verde porque ES OBLIGATORIO
+    # (ya fue validado al inicio de la función)
     
     confidence = min(confidence, 1.0)
     

@@ -133,7 +133,7 @@ El sistema clasifica las alertas en **3 niveles** según la relación patrón-te
 
 **Mensaje:** "Alta probabilidad de apertura BAJISTA/ALCISTA"
 
-### ⚠️ ADVERTENCIA (Debilitamiento)
+### ⚠️ AVISO (Debilitamiento)
 **Condiciones:**
 - Inverted Hammer + Tendencia BULLISH → Posible debilitamiento alcista
 - Hanging Man + Tendencia BEARISH → Posible debilitamiento bajista

@@ -296,6 +296,7 @@ Para cada vela se calculan:
 **Tipo:** Reversión bajista
 
 **Criterios Matemáticos:**
+- **DEBE SER VELA ROJA O NEUTRAL** (`close <= open`) ⚠️ VALIDACIÓN CRÍTICA
 - Mecha superior ≥ 60% del rango total (`upper_wick_ratio >= 0.60`)
 - Cuerpo pequeño ≤ 30% del rango total (`body_ratio <= 0.30`)
 - Mecha inferior ≤ 15% del rango total (`lower_wick_ratio <= 0.15`)
@@ -308,13 +309,14 @@ Para cada vela se calculan:
 - +10% si mecha inferior ≤ 10%
 - Máximo: 100%
 
-**Color:** Irrelevante (puede ser verde o roja)
+**Color:** DEBE ser ROJA o NEUTRAL (velas verdes son rechazadas)
 
 #### Patrón 2: Hanging Man (Hombre Colgado)
 
 **Tipo:** Reversión bajista (en tendencia alcista)
 
 **Criterios Matemáticos:**
+- **DEBE SER VELA ROJA O NEUTRAL** (`close <= open`) ⚠️ VALIDACIÓN CRÍTICA
 - Mecha inferior ≥ 60% del rango total
 - Cuerpo pequeño ≤ 30% del rango total
 - Mecha superior ≤ 15% del rango total
@@ -333,6 +335,7 @@ Para cada vela se calculan:
 **Tipo:** Reversión alcista (en tendencia bajista)
 
 **Criterios Matemáticos:**
+- **DEBE SER VELA VERDE** (`close > open`) ⚠️ VALIDACIÓN CRÍTICA
 - Mecha superior ≥ 60% del rango total
 - Cuerpo pequeño ≤ 30% del rango total
 - Mecha inferior ≤ 15% del rango total
@@ -351,6 +354,7 @@ Para cada vela se calculan:
 **Tipo:** Reversión alcista
 
 **Criterios Matemáticos:**
+- **DEBE SER VELA VERDE** (`close > open`) ⚠️ VALIDACIÓN CRÍTICA
 - Mecha inferior ≥ 60% del rango total
 - Cuerpo pequeño ≤ 30% del rango total
 - Mecha superior ≤ 15% del rango total
@@ -363,7 +367,7 @@ Para cada vela se calculan:
 - +10% si mecha superior ≤ 10%
 - Máximo: 100%
 
-**Color:** Irrelevante (puede ser verde o roja)
+**Color:** DEBE ser verde (color obligatorio, no otorga bono)
 
 ### 4.3. Sistema de Alertas Inteligentes (3 Niveles)
 
@@ -381,7 +385,7 @@ El sistema clasifica alertas según la **relación entre patrón detectado y ten
 
 **Interpretación:** Patrón de reversión detectado CONTRA la tendencia actual → Mayor probabilidad de cambio de dirección.
 
-#### Nivel 2: ⚠️ ADVERTENCIA (Debilitamiento)
+#### Nivel 2: ⚠️ AVISO (Debilitamiento)
 
 **Condiciones:**
 - Inverted Hammer + Tendencia BULLISH → Posible debilitamiento alcista
