@@ -247,8 +247,8 @@ class ConnectionService:
         async with websockets.connect(
             Config.TRADINGVIEW.ws_url,
             extra_headers=headers,
-            ping_interval=20,  # Ping cada 20 segundos para mantener la conexión viva
-            ping_timeout=20,   # Timeout de ping 20 segundos
+            ping_interval=30,  # Ping cada 30 segundos (reduce tráfico)
+            ping_timeout=60,   # Timeout de 60s (tolerante a latencia/silencio temporal)
             close_timeout=10   # Timeout al cerrar 10 segundos
         ) as websocket:
             self.websocket = websocket

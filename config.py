@@ -175,26 +175,26 @@ class Config:
     # Instruments Configuration (MVP: EUR/USD only)
     INSTRUMENTS: Dict[str, InstrumentConfig] = {
         # Configuración PRODUCCIÓN: EUR/USD Dual-Source (OANDA + FX)
-        "primary": InstrumentConfig(
-            symbol="EURUSD",
-            exchange="OANDA",
-            timeframe="1",
-            full_symbol="OANDA:EURUSD"
-        ),
-        "secondary": InstrumentConfig(
-            symbol="EURUSD",
-            exchange="FX",
-            timeframe="1",
-            full_symbol="FX:EURUSD"
-        ),
+        # "primary": InstrumentConfig(
+        #     symbol="EURUSD",
+        #     exchange="OANDA",
+        #     timeframe="1",
+        #     full_symbol="OANDA:EURUSD"
+        # ),
+        # "secondary": InstrumentConfig(
+        #     symbol="EURUSD",
+        #     exchange="FX",
+        #     timeframe="1",
+        #     full_symbol="FX:EURUSD"
+        # ),
         
         # Configuración TEST: BTC/USDT para testeos de fin de semana
-        # "primary": InstrumentConfig(
-        #     symbol="BTCUSDT",
-        #     exchange="BINANCE",
-        #     timeframe="1",
-        #     full_symbol="BINANCE:BTCUSDT"
-        # ),
+        "primary": InstrumentConfig(
+            symbol="BTCUSDT",
+            exchange="BINANCE",
+            timeframe="1",
+            full_symbol="BINANCE:BTCUSDT"
+        ),
     }
     
     @classmethod
