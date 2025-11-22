@@ -68,10 +68,12 @@ class TelegramConfig:
     api_key: str
     subscription: str
     send_charts: bool  # Enviar gráficos en Base64 (aumenta costos API Gateway ~10x)
+    enable_notifications: bool  # Habilitar/deshabilitar envío de notificaciones
     
     def validate(self) -> None:
         """Valida que todos los parámetros estén configurados."""
-        if not self.api_url or not self.api_key or not self.subscription:
+        # Solo validar credenciales si las notificaciones están habilitadas
+        if self.enable_notifications and (not self.api_url or not self.api_key or not self.subscription):
             raise ValueError(
                 "Telegram configuration incomplete. Check TELEGRAM_API_URL, "
                 "TELEGRAM_API_KEY, and TELEGRAM_SUBSCRIPTION in .env"
@@ -155,7 +157,8 @@ class Config:
         api_url=os.getenv("TELEGRAM_API_URL", ""),
         api_key=os.getenv("TELEGRAM_API_KEY", ""),
         subscription=os.getenv("TELEGRAM_SUBSCRIPTION", "trading_signals"),
-        send_charts=os.getenv("SEND_CHARTS", "true").lower() == "true"
+        send_charts=os.getenv("SEND_CHARTS", "true").lower() == "true",
+        enable_notifications=os.getenv("ENABLE_NOTIFICATIONS", "true").lower() == "true"
     )
     
     # Trading Parameters

@@ -84,7 +84,8 @@ class TelegramService:
         
         logger.info(
             f"📱 Telegram Service inicializado "
-            f"(Suscripción: {self.subscription}, Ventana: {self.confirmation_window}s)"
+            f"(Suscripción: {self.subscription}, Ventana: {self.confirmation_window}s, "
+            f"Notificaciones: {'✅ Habilitadas' if Config.TELEGRAM.enable_notifications else '❌ Deshabilitadas'})"
         )
     
     async def start(self) -> None:
@@ -410,6 +411,11 @@ class TelegramService:
             message: Mensaje a enviar
             chart_base64: Imagen del gráfico codificada en Base64 (opcional)
         """
+        # Verificar si las notificaciones están habilitadas
+        if not Config.TELEGRAM.enable_notifications:
+            logger.debug("📵 Notificaciones deshabilitadas. Mensaje no enviado.")
+            return
+        
         if not self.session:
             logger.error("❌ No se puede enviar mensaje: Sesión HTTP no inicializada")
             return
