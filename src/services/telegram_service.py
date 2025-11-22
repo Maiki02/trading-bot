@@ -266,10 +266,10 @@ class TelegramService:
             title = f"🟢 ALERTA FUERTE | {signal.symbol}\nAlta probabilidad de apertura ALCISTA\n"
         # Caso 3: AVISO - Martillo invertido en tendencia alcista (debilitamiento)
         elif is_strong_bullish and signal.pattern == "INVERTED_HAMMER":
-            title = f"⚠️ AVISO | {signal.symbol}\nPosible debilitamiento alcista\n"
+            title = f"⚠️ AVISO | {signal.symbol}\nPosible operación a la baja\n"
         # Caso 4: AVISO - Hombre colgado en tendencia bajista (debilitamiento)
         elif is_strong_bearish and signal.pattern == "HANGING_MAN":
-            title = f"⚠️ AVISO | {signal.symbol}\nPosible debilitamiento bajista\n"
+            title = f"⚠️ AVISO | {signal.symbol}\nPosible operación al alza\n"
         # Caso 5: DETECCIÓN - Resto de casos (informativo)
         else:
             title = f"📊 PATRÓN DETECTADO | {signal.symbol}\nSolo informativo\n"

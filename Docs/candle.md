@@ -121,6 +121,7 @@ Confidence = min(1.0, Base + Σ Bonuses)
 **Contexto de Uso:**
 - Tendencia: Alcista (Close > EMA 200)
 - Interpretación: Intento fallido de compra, posible reversión bajista
+- **En Tendencia BAJISTA:** Genera ⚠️ AVISO - Posible operación al alza (requiere cautela, no es señal fuerte)
 
 ---
 
@@ -168,6 +169,7 @@ Confidence = min(1.0, Base + Σ Bonuses)
 **Contexto de Uso:**
 - Tendencia: Bajista (Close < EMA 200)
 - Interpretación: Intento de compra, posible reversión alcista
+- **En Tendencia ALCISTA:** Genera ⚠️ AVISO - Posible operación a la baja (requiere cautela, no es señal fuerte)
 
 ---
 

@@ -690,7 +690,12 @@ class AnalysisService:
         
         if Config.USE_TREND_FILTER:
             # Modo CON filtro de tendencia (comportamiento original)
-            if trend == "BEARISH":
+            # Mapear estados granulares a direcciones generales
+            current_status = trend_analysis.status
+            is_bearish = "BEARISH" in current_status  # STRONG_BEARISH o WEAK_BEARISH
+            is_bullish = "BULLISH" in current_status  # STRONG_BULLISH o WEAK_BULLISH
+            
+            if is_bearish:
                 # En tendencia bajista, buscar reversión alcista
                 if hammer_detected:
                     pattern_detected = "HAMMER"
@@ -698,7 +703,7 @@ class AnalysisService:
                 elif inverted_hammer_detected:
                     pattern_detected = "INVERTED_HAMMER"
                     pattern_confidence = inverted_hammer_conf
-            elif trend == "BULLISH":
+            elif is_bullish:
                 # En tendencia alcista, buscar reversión bajista
                 if shooting_star_detected:
                     pattern_detected = "SHOOTING_STAR"
@@ -722,9 +727,32 @@ class AnalysisService:
                 pattern_detected = "INVERTED_HAMMER"
                 pattern_confidence = inverted_hammer_conf
         
-        # Determinar si se debe enviar notificación
-        # SOLO enviar si hay patrón válido
-        should_notify = (pattern_detected is not None)
+        # Si no hay patrón detectado, salir (force_notification no puede forzar patrones inexistentes)
+        if not pattern_detected:
+            logger.info("ℹ️  No se detectó ningún patrón relevante en esta vela.")
+            return
+        
+        # Determinar si el patrón está alineado con la tendencia (para el sistema de alertas)
+        is_trend_aligned = False
+        if pattern_detected in ["SHOOTING_STAR", "HANGING_MAN"]:
+            # Patrones bajistas: alineados si la tendencia es alcista (reversión bajista esperada)
+            is_trend_aligned = trend_analysis.status in ["STRONG_BULLISH", "WEAK_BULLISH"]
+        elif pattern_detected in ["HAMMER", "INVERTED_HAMMER"]:
+            # Patrones alcistas: alineados si la tendencia es bajista (reversión alcista esperada)
+            is_trend_aligned = trend_analysis.status in ["STRONG_BEARISH", "WEAK_BEARISH"]
+        
+        logger.info(
+            f"\n{'═'*60}\n"
+            f"🎯 PATRÓN DETECTADO: {pattern_detected}\n"
+            f"{'═'*60}\n"
+            f"📊 Confianza: {pattern_confidence:.1%}\n"
+            f"📈 Tendencia: {trend_analysis.status} (Score: {trend_analysis.score:+d}/10)\n"
+            f"🔄 Alineación: {'✓ Alineado' if is_trend_aligned else '✗ No alineado'}\n"
+        )
+        
+        # Notificar al TelegramService con la información completa
+        # force_notification omite validación de confianza mínima (útil para testing/debug)
+        should_notify = pattern_confidence >= 0.70 or force_notification
         
         if should_notify:
             # Generar gráfico en Base64 (operación bloqueante en hilo separado)

@@ -385,15 +385,22 @@ El sistema clasifica alertas según la **relación entre patrón detectado y ten
 
 **Interpretación:** Patrón de reversión detectado CONTRA la tendencia actual → Mayor probabilidad de cambio de dirección.
 
-#### Nivel 2: ⚠️ AVISO (Debilitamiento)
+#### Nivel 2: ⚠️ AVISO (Debilitamiento - Requiere Cautela)
 
 **Condiciones:**
-- Inverted Hammer + Tendencia BULLISH → Posible debilitamiento alcista
-- Hanging Man + Tendencia BEARISH → Posible debilitamiento bajista
+- Inverted Hammer + Tendencia BULLISH → ⚠️ Posible operación a la baja
+- Hanging Man + Tendencia BEARISH → ⚠️ Posible operación al alza
 
-**Título:** "Posible debilitamiento alcista/bajista"
+**Título:**
+- "⚠️ AVISO | EURUSD | Posible operación a la baja"
+- "⚠️ AVISO | EURUSD | Posible operación al alza"
 
-**Interpretación:** Señales tempranas de agotamiento de tendencia.
+**Interpretación:**
+- ⚠️ **NO es una reversión confirmada**, es una señal de CAUTELA
+- El patrón sugiere **debilitamiento de la tendencia actual**
+- El trader debe analizar **manualmente** si la siguiente vela confirma el cambio
+- Estas alertas indican posibles movimientos contrarios, pero requieren validación adicional
+- **Recomendación:** Esperar confirmación en la siguiente vela antes de entrar
 
 #### Nivel 3: 📊 DETECCIÓN (Informativo)
 

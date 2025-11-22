@@ -133,12 +133,21 @@ El sistema clasifica las alertas en **3 niveles** según la relación patrón-te
 
 **Mensaje:** "Alta probabilidad de apertura BAJISTA/ALCISTA"
 
-### ⚠️ AVISO (Debilitamiento)
+### ⚠️ AVISO (Debilitamiento - Requiere Cautela)
 **Condiciones:**
-- Inverted Hammer + Tendencia BULLISH → Posible debilitamiento alcista
-- Hanging Man + Tendencia BEARISH → Posible debilitamiento bajista
+- Inverted Hammer + Tendencia BULLISH → Posible operación a la baja
+- Hanging Man + Tendencia BEARISH → Posible operación al alza
 
-**Mensaje:** "Posible debilitamiento alcista/bajista"
+**Mensaje:**
+- "⚠️ AVISO | EURUSD | Posible operación a la baja"
+- "⚠️ AVISO | EURUSD | Posible operación al alza"
+
+**⚠️ IMPORTANTE - Interpretación de AVISO:**
+- Estas alertas **NO son reversiones confirmadas**
+- Indican **señales de cautela** sobre posible debilitamiento de tendencia
+- El trader debe **validar manualmente** con la siguiente vela
+- Recomendación: Esperar confirmación antes de entrar (no es señal de alta probabilidad)
+- Útil para: Cerrar posiciones existentes o prepararse para posible cambio
 
 ### 📊 DETECCIÓN (Informativo)
 **Condiciones:**
