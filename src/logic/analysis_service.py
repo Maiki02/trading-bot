@@ -316,8 +316,48 @@ class AnalysisService:
             # ═════════════════════════════════════════════════════════════
             # PASO 1: CERRAR CICLO ANTERIOR (Si existe señal pendiente)
             # ═════════════════════════════════════════════════════════════
+            # CRÍTICO: Buscar la vela SIGUIENTE al trigger (trigger_timestamp + 60s)
+            # NO usar df.iloc[-1] porque es la vela del patrón, no el outcome
             if source_key in self.pending_signals:
-                await self._close_signal_cycle(source_key, candle)
+                pending_signal = self.pending_signals[source_key]
+                df = self.dataframes[source_key]
+                
+                # Buscar la primera vela DESPUÉS del trigger (outcome candle)
+                outcome_candidates = df[df['timestamp'] > pending_signal.timestamp]
+                
+                if len(outcome_candidates) > 0:
+                    # Tomar la primera vela disponible después del trigger
+                    outcome_row = outcome_candidates.iloc[0]
+                    
+                    # Calcular gap de timestamp
+                    timestamp_diff = int(outcome_row['timestamp']) - pending_signal.timestamp
+                    
+                    # LOG: Mostrar vela encontrada y gap
+                    logger.info(
+                        f"📊 OUTCOME CANDLE ENCONTRADA:\n"
+                        f"   Trigger: T={pending_signal.timestamp}\n"
+                        f"   Outcome: T={int(outcome_row['timestamp'])} "
+                        f"O={outcome_row['open']:.5f} H={outcome_row['high']:.5f} "
+                        f"L={outcome_row['low']:.5f} C={outcome_row['close']:.5f}\n"
+                        f"   Gap: {timestamp_diff}s {'✅' if timestamp_diff == 60 else '⚠️ (esperado: 60s)'}"
+                    )
+                    
+                    outcome_candle = CandleData(
+                        timestamp=int(outcome_row["timestamp"]),
+                        open=outcome_row["open"],
+                        high=outcome_row["high"],
+                        low=outcome_row["low"],
+                        close=outcome_row["close"],
+                        volume=outcome_row["volume"],
+                        source=candle.source,
+                        symbol=candle.symbol
+                    )
+                    await self._close_signal_cycle(source_key, outcome_candle)
+                else:
+                    logger.warning(
+                        f"⚠️  Señal pendiente pero no hay vela siguiente en DataFrame para {source_key}. "
+                        f"Esperando más datos..."
+                    )
             
             # ═════════════════════════════════════════════════════════════
             # PASO 2: AGREGAR NUEVA VELA Y CALCULAR INDICADORES
@@ -427,11 +467,12 @@ class AnalysisService:
         if len(df) == 0:
             return
         
+        indexToSearch = -2  # Última fila
         # Actualizar última fila
-        df.iloc[-1, df.columns.get_loc("high")] = max(df.iloc[-1]["high"], candle.high)
-        df.iloc[-1, df.columns.get_loc("low")] = min(df.iloc[-1]["low"], candle.low)
-        df.iloc[-1, df.columns.get_loc("close")] = candle.close
-        df.iloc[-1, df.columns.get_loc("volume")] += candle.volume
+        df.iloc[indexToSearch, df.columns.get_loc("high")] = max(df.iloc[indexToSearch]["high"], candle.high)
+        df.iloc[indexToSearch, df.columns.get_loc("low")] = min(df.iloc[indexToSearch]["low"], candle.low)
+        df.iloc[indexToSearch, df.columns.get_loc("close")] = candle.close
+        df.iloc[indexToSearch, df.columns.get_loc("volume")] += candle.volume
     
     def _update_indicators(self, source_key: str) -> None:
         """
@@ -486,6 +527,19 @@ class AnalysisService:
         
         pending_signal = self.pending_signals[source_key]
         
+        # Validar que el timestamp del outcome sea exactamente 60 segundos después
+        timestamp_diff = outcome_candle.timestamp - pending_signal.timestamp
+        expected_diff = 60  # 1 minuto (timeframe M1)
+        
+        if timestamp_diff != expected_diff:
+            logger.warning(
+                f"⚠️  ALERTA: GAP DE TIMESTAMP DETECTADO\n"
+                f"   Señal: {pending_signal.timestamp}\n"
+                f"   Resultado: {outcome_candle.timestamp}\n"
+                f"   Diferencia: {timestamp_diff}s (esperado: {expected_diff}s)\n"
+                f"   ❌ POSIBLE VELA SALTEADA - Dataset puede estar inconsistente\n"
+            )
+        
         logger.info(
             f"\n{'═'*60}\n"
             f"🔄 CERRANDO CICLO DE SEÑAL\n"
@@ -494,6 +548,7 @@ class AnalysisService:
             f"🎯 Patrón Previo: {pending_signal.pattern}\n"
             f"🕒 Timestamp Señal: {pending_signal.timestamp}\n"
             f"🕒 Timestamp Resultado: {outcome_candle.timestamp}\n"
+            f"⏱️  Diferencia: {timestamp_diff}s\n"
         )
         
         # Determinar dirección esperada según tipo de patrón
@@ -565,6 +620,11 @@ class AnalysisService:
                 "success": success,
                 "pnl_pips": round(pnl_pips, 1),
                 "outcome_timestamp": datetime.utcfromtimestamp(outcome_candle.timestamp).isoformat() + "Z"
+            },
+            "_metadata": {
+                "timestamp_gap_seconds": timestamp_diff,
+                "expected_gap_seconds": expected_diff,
+                "has_skipped_candles": timestamp_diff != expected_diff
             }
         }
         
