@@ -6,6 +6,8 @@ Este documento describe las fórmulas matemáticas y criterios de validación pa
 
 Todos los patrones utilizan umbrales configurables definidos en `config.py` mediante la clase `CandleConfig`.
 
+**Persistencia de Datos:** Tras detectar un patrón, el sistema almacena automáticamente la vela trigger y la vela outcome (siguiente) en un dataset JSONL para análisis futuro de probabilidad de éxito mediante Machine Learning. Ver `Docs/dataset.md` para detalles completos.
+
 ---
 
 ## 1. Métricas Base de la Vela

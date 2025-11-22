@@ -832,6 +832,9 @@ class AnalysisService:
                     )
                     
                     # CRITICAL: Ejecutar en hilo separado para no bloquear el Event Loop
+                    import time
+                    start_time = time.perf_counter()
+                    
                     chart_base64 = await asyncio.to_thread(
                         generate_chart_base64,
                         df,
@@ -839,9 +842,12 @@ class AnalysisService:
                         chart_title
                     )
                     
+                    elapsed_ms = (time.perf_counter() - start_time) * 1000
+                    
                     logger.info(
                         f"✅ GRÁFICO GENERADO | {source_key} | "
-                        f"Tamaño: {len(chart_base64)} bytes Base64 | Patrón: {pattern_detected}"
+                        f"Tamaño: {len(chart_base64)} bytes Base64 | "
+                        f"Tiempo: {elapsed_ms:.1f}ms | Patrón: {pattern_detected}"
                     )
                 else:
                     logger.warning(f"⚠️  No se pudo generar gráfico: {error_msg}")
