@@ -501,7 +501,7 @@ class ConnectionService:
             if len(candle_list) == 1 and chart_session_id in self.snapshot_completed:
                 # Si es UNA sola vela Y ya se completó el snapshot inicial, procesarla como tiempo real
                 logger.info(f"✅ Cargada 1 vela cerrada. Procesando como tiempo real...")
-                self.analysis_service.process_realtime_candle(candle_list[0])
+                await self.analysis_service.process_realtime_candle(candle_list[0])
             elif len(candle_list) == 1:
                 # Si es UNA vela pero es reconexión (sin snapshot previo), ignorarla
                 logger.info(f"🔄 Reconexión detectada. Ignorando vela de sincronización. Continuando con buffer existente.")
@@ -577,7 +577,7 @@ class ConnectionService:
                         
                         # Procesar vela en tiempo real - genera gráficos y alertas
                         if self.analysis_service:
-                            self.analysis_service.process_realtime_candle(candle)
+                            await self.analysis_service.process_realtime_candle(candle)
                     else:
                         logger.warning(f"⚠️  Valores de vela muy cortos: {len(candle_values)}")
         else:

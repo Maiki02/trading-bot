@@ -16,115 +16,27 @@ import sys
 from pathlib import Path
 
 # Agregar el directorio raíz al path
-sys.path.insert(0, str(Path(__file__).parent.parent))
+root_dir = Path(__file__).parent.parent
+sys.path.insert(0, str(root_dir))
 
-from config import Config
+# Importar directamente desde el archivo candle.py (evita import circular)
+import importlib.util
+spec = importlib.util.spec_from_file_location(
+    "candle_module",
+    root_dir / "src" / "logic" / "candle.py"
+)
+candle_module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(candle_module)
+
+# Asignar funciones importadas
+is_shooting_star = candle_module.is_shooting_star
+is_hanging_man = candle_module.is_hanging_man
+is_inverted_hammer = candle_module.is_inverted_hammer
+is_hammer = candle_module.is_hammer
+_calculate_candle_metrics = candle_module._calculate_candle_metrics
 
 # Tipos de vela válidos
 VALID_CANDLE_TYPES = ["shooting_star", "hanging_man", "inverted_hammer", "hammer"]
-
-
-def _calculate_candle_metrics(open_price: float, high: float, low: float, close: float):
-    """Copia de la función helper de candle.py para evitar imports circulares."""
-    total_range = high - low
-    
-    if total_range == 0:
-        return 0.0, 0.0, 0.0, 0.0, 0.0
-    
-    body_size = abs(close - open_price)
-    body_ratio = body_size / total_range
-    
-    if close > open_price:
-        upper_wick = high - close
-        lower_wick = open_price - low
-    else:
-        upper_wick = high - open_price
-        lower_wick = close - low
-    
-    return total_range, body_size, upper_wick, lower_wick, body_ratio
-
-
-def detect_pattern(open_price: float, high: float, low: float, close: float, 
-                   pattern_type: str, is_upper_wick: bool) -> tuple[bool, float]:
-    """
-    Detecta si una vela cumple con un patrón específico.
-    
-    Args:
-        pattern_type: Tipo de patrón a validar
-        is_upper_wick: True para SS/IH (mecha superior), False para HM/H (mecha inferior)
-    
-    Returns:
-        tuple[bool, float]: (patrón detectado, confianza)
-    """
-    total_range, body_size, upper_wick, lower_wick, body_ratio = _calculate_candle_metrics(
-        open_price, high, low, close
-    )
-    
-    if total_range == 0:
-        return False, 0.0
-    
-    upper_wick_ratio = upper_wick / total_range
-    lower_wick_ratio = lower_wick / total_range
-    
-    # Umbrales desde Config
-    long_wick_min = 0.60
-    small_body_max = 0.30
-    opposite_wick_max = 0.15
-    wick_to_body_min = 2.0
-    
-    if is_upper_wick:
-        long_wick_ratio = upper_wick_ratio
-        opposite_wick_ratio = lower_wick_ratio
-        long_wick_size = upper_wick
-    else:
-        long_wick_ratio = lower_wick_ratio
-        opposite_wick_ratio = upper_wick_ratio
-        long_wick_size = lower_wick
-    
-    # Validar condiciones
-    has_long_wick = long_wick_ratio >= long_wick_min
-    has_small_body = body_ratio <= small_body_max
-    has_small_opposite = opposite_wick_ratio <= opposite_wick_max
-    wick_to_body_ok = (long_wick_size / body_size) >= wick_to_body_min if body_size > 0 else False
-    
-    is_pattern = has_long_wick and has_small_body and has_small_opposite and wick_to_body_ok
-    
-    if not is_pattern:
-        return False, 0.0
-    
-    # Calcular confianza
-    confidence = 0.70  # Base
-    if long_wick_ratio >= 0.70: confidence += 0.10
-    if body_ratio <= 0.20: confidence += 0.10
-    if opposite_wick_ratio <= 0.10: confidence += 0.10
-    
-    # Bono adicional para Hammer si es alcista
-    if pattern_type == "hammer" and close > open_price:
-        confidence += 0.10
-    
-    confidence = min(confidence, 1.0)
-    
-    return True, confidence
-
-
-def test_shooting_star(apertura: float, maximo: float, minimo: float, cierre: float) -> tuple[bool, float]:
-    """Valida si la vela es Shooting Star."""
-    return detect_pattern(apertura, maximo, minimo, cierre, "shooting_star", True)
-
-
-def test_hanging_man(apertura: float, maximo: float, minimo: float, cierre: float) -> tuple[bool, float]:
-    """Valida si la vela es Hanging Man."""
-    return detect_pattern(apertura, maximo, minimo, cierre, "hanging_man", False)
-
-
-def test_inverted_hammer(apertura: float, maximo: float, minimo: float, cierre: float) -> tuple[bool, float]:
-    """Valida si la vela es Inverted Hammer."""
-    return detect_pattern(apertura, maximo, minimo, cierre, "inverted_hammer", True)
-
-
-def test_hammer(apertura: float, maximo: float, minimo: float, cierre: float) -> tuple[bool, float]:
-    """Valida si la vela es Hammer."""
-    return detect_pattern(apertura, maximo, minimo, cierre, "hammer", False)
 
 
 def test_candle(test_case: dict, case_number: int) -> bool:
@@ -187,13 +99,13 @@ def test_candle(test_case: dict, case_number: int) -> bool:
     
     # Switch para ejecutar la función correspondiente
     if tipo_esperado == "shooting_star":
-        is_detected, confidence = test_shooting_star(apertura, maximo, minimo, cierre)
+        is_detected, confidence = is_shooting_star(apertura, maximo, minimo, cierre)
     elif tipo_esperado == "hanging_man":
-        is_detected, confidence = test_hanging_man(apertura, maximo, minimo, cierre)
+        is_detected, confidence = is_hanging_man(apertura, maximo, minimo, cierre)
     elif tipo_esperado == "inverted_hammer":
-        is_detected, confidence = test_inverted_hammer(apertura, maximo, minimo, cierre)
+        is_detected, confidence = is_inverted_hammer(apertura, maximo, minimo, cierre)
     elif tipo_esperado == "hammer":
-        is_detected, confidence = test_hammer(apertura, maximo, minimo, cierre)
+        is_detected, confidence = is_hammer(apertura, maximo, minimo, cierre)
     else:
         is_detected = False
         confidence = 0.0

@@ -72,7 +72,7 @@ def is_shooting_star(
     - Cuerpo pequeño (< 30% del rango total)
     - Mecha inferior mínima (< 15% del rango total)
     - Mecha superior >= 2x el tamaño del cuerpo
-    - El color del cuerpo es irrelevante (puede ser verde o roja)
+    - DEBE SER VELA ROJA O NEUTRAL (close <= open) ⚠️ NUEVO
     
     INTERPRETACIÓN:
     Indica rechazo de precios altos. Válido en tendencia alcista
@@ -92,6 +92,11 @@ def is_shooting_star(
     )
     
     if total_range == 0:
+        return False, 0.0
+    
+    # ⚠️ VALIDACIÓN CRÍTICA: Shooting Star debe ser ROJO o neutral
+    # Si es vela VERDE (close > open), NO es Shooting Star
+    if close > open_price:
         return False, 0.0
     
     # Cálculo de ratios
@@ -144,6 +149,7 @@ def is_hanging_man(
     - Mecha superior mínima (< 15% del rango total)
     - Mecha inferior >= 2x el tamaño del cuerpo
     - Cuerpo ubicado en la parte superior de la vela
+    - DEBE SER VELA ROJA O NEUTRAL (close <= open) ⚠️ NUEVO
     
     INTERPRETACIÓN:
     Indica rechazo de precios bajos pero debilidad. Válido en tendencia
@@ -163,6 +169,11 @@ def is_hanging_man(
     )
     
     if total_range == 0:
+        return False, 0.0
+    
+    # ⚠️ VALIDACIÓN CRÍTICA: Hanging Man debe ser ROJO o neutral
+    # Si es vela VERDE (close > open), NO es Hanging Man
+    if close > open_price:
         return False, 0.0
     
     # Cálculo de ratios
@@ -284,7 +295,10 @@ def is_hammer(
     - Mecha superior mínima (< 15% del rango total)
     - Mecha inferior >= 2x el tamaño del cuerpo
     - Cuerpo ubicado en la parte superior de la vela
-    - Preferible que sea vela alcista (verde)
+    - PREFERIBLE vela alcista (verde) pero acepta roja con menor confianza
+    
+    NOTA: A diferencia del Hanging Man, el Hammer puede ser verde o rojo,
+    pero recibe bonificación de confianza si es verde (señal más fuerte).
     
     INTERPRETACIÓN:
     Indica rechazo fuerte de precios bajos por parte de compradores.
@@ -335,7 +349,8 @@ def is_hammer(
     if upper_wick_ratio <= 0.10:
         confidence += Config.CANDLE.BONUS_CONFIDENCE_PER_CONDITION
     
-    # Bono adicional si es vela alcista (cierre > apertura)
+    # ⚠️ Bono adicional SOLO si es vela alcista (cierre > apertura)
+    # Hammer verde = señal más fuerte de reversión alcista
     if close > open_price:
         confidence += Config.CANDLE.BONUS_CONFIDENCE_PER_CONDITION
     

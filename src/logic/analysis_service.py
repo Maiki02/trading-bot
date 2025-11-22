@@ -284,7 +284,7 @@ class AnalysisService:
         if candles:
             self.last_timestamps[source_key] = candles[-1].timestamp
     
-    def process_realtime_candle(self, candle: CandleData) -> None:
+    async def process_realtime_candle(self, candle: CandleData) -> None:
         """
         Procesa una vela en tiempo real del WebSocket.
         Implementa State Machine para cerrar ciclo anterior y abrir nuevo.
