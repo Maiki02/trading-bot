@@ -20,6 +20,7 @@ import numpy as np
 from config import Config
 from src.logic.analysis_service import PatternSignal
 from src.utils.logger import get_logger, log_exception
+from src.services.local_notification_storage import LocalNotificationStorage
 
 
 logger = get_logger(__name__)
@@ -79,13 +80,19 @@ class TelegramService:
         # Buffer de alertas pendientes (key: symbol_timestamp)
         self.pending_alerts: Dict[str, PendingAlert] = {}
         
+        # Servicio de almacenamiento local
+        self.local_storage: Optional[LocalNotificationStorage] = None
+        if Config.TELEGRAM.save_notifications_locally:
+            self.local_storage = LocalNotificationStorage()
+        
         # Tarea de limpieza de alertas expiradas
         self.cleanup_task: Optional[asyncio.Task] = None
         
         logger.info(
             f"📱 Telegram Service inicializado "
             f"(Suscripción: {self.subscription}, Ventana: {self.confirmation_window}s, "
-            f"Notificaciones: {'✅ Habilitadas' if Config.TELEGRAM.enable_notifications else '❌ Deshabilitadas'})"
+            f"Notificaciones HTTP: {'✅ Habilitadas' if Config.TELEGRAM.enable_notifications else '❌ Deshabilitadas'}, "
+            f"Guardado Local: {'✅ Habilitado' if Config.TELEGRAM.save_notifications_locally else '❌ Deshabilitado'})"
         )
     
     async def start(self) -> None:
@@ -109,6 +116,10 @@ class TelegramService:
         # Cerrar sesión HTTP
         if self.session and not self.session.closed:
             await self.session.close()
+        
+        # Cerrar servicio de almacenamiento local
+        if self.local_storage:
+            await self.local_storage.close()
         
         logger.info("✅ Telegram Service detenido")
     
@@ -405,15 +416,28 @@ class TelegramService:
     
     async def _send_to_telegram(self, message: AlertMessage, chart_base64: Optional[str] = None) -> None:
         """
-        Envía un mensaje a la API de Telegram usando el formato broadcast con imagen.
+        Procesa una notificación: siempre genera el mensaje/imagen, luego decide si:
+        1. Enviar vía HTTP a Telegram API (si ENABLE_NOTIFICATIONS=true)
+        2. Guardar localmente en PNG/JSON (si SAVE_NOTIFICATIONS_LOCALLY=true)
         
         Args:
             message: Mensaje a enviar
             chart_base64: Imagen del gráfico codificada en Base64 (opcional)
         """
-        # Verificar si las notificaciones están habilitadas
+        # PASO 1: Guardar localmente si está habilitado
+        if Config.TELEGRAM.save_notifications_locally and self.local_storage:
+            try:
+                await self.local_storage.save_notification(
+                    title=message.title,
+                    message=message.body,
+                    chart_base64=chart_base64
+                )
+            except Exception as e:
+                log_exception(logger, "Error guardando notificación localmente", e)
+        
+        # PASO 2: Enviar vía HTTP si las notificaciones están habilitadas
         if not Config.TELEGRAM.enable_notifications:
-            logger.debug("📵 Notificaciones deshabilitadas. Mensaje no enviado.")
+            logger.debug("📵 Notificaciones HTTP deshabilitadas. Mensaje no enviado a Telegram API.")
             return
         
         if not self.session:
