@@ -197,19 +197,23 @@ class AnalysisService:
     - Identificar patrones de velas japonesas
     - Filtrar señales por tendencia
     - Emitir señales validadas
+    - Gestionar ciclo de vida de señales para dataset de backtesting
     """
     
     def __init__(
         self,
-        on_pattern_detected: Callable[[PatternSignal], None]
+        on_pattern_detected: Callable[[PatternSignal], None],
+        storage_service: Optional[object] = None  # StorageService (evitamos import circular)
     ):
         """
         Inicializa el servicio de análisis.
         
         Args:
             on_pattern_detected: Callback invocado cuando se detecta un patrón válido
+            storage_service: Instancia de StorageService para persistencia de dataset
         """
         self.on_pattern_detected = on_pattern_detected
+        self.storage_service = storage_service
         
         # Buffers separados por fuente (OANDA, FX)
         self.dataframes: Dict[str, pd.DataFrame] = {}
@@ -220,12 +224,19 @@ class AnalysisService:
         # Estado de inicialización
         self.is_initialized: Dict[str, bool] = defaultdict(bool)
         
+        # State Machine: Señal pendiente esperando resolución
+        # Key: source_key, Value: PatternSignal
+        self.pending_signals: Dict[str, PatternSignal] = {}
+        
         # Configuración
         self.ema_period = Config.EMA_PERIOD
         self.min_candles_required = Config.EMA_PERIOD * 3
         self.chart_lookback = Config.CHART_LOOKBACK
         
-        logger.info(f"📊 Analysis Service inicializado (Período EMA: {self.ema_period})")
+        logger.info(
+            f"📊 Analysis Service inicializado "
+            f"(Período EMA: {self.ema_period}, Storage: {'✓' if storage_service else '✗'})"
+        )
     
     def load_historical_candles(self, candles: List[CandleData]) -> None:
         """
@@ -276,7 +287,13 @@ class AnalysisService:
     def process_realtime_candle(self, candle: CandleData) -> None:
         """
         Procesa una vela en tiempo real del WebSocket.
-        Genera gráficos y envía notificaciones a Telegram.
+        Implementa State Machine para cerrar ciclo anterior y abrir nuevo.
+        
+        Flujo Crítico (en orden):
+        1. Verificar si existe señal pendiente (del cierre anterior)
+        2. Si existe: Construir registro {Señal, Resultado} y guardar en dataset
+        3. Detectar si la vela actual es un cierre nuevo
+        4. Si es cierre: Analizar patrón y guardar como nueva señal pendiente
         
         Args:
             candle: Datos de la vela recibida del WebSocket
@@ -296,10 +313,16 @@ class AnalysisService:
             candle_time = datetime.fromtimestamp(candle.timestamp).strftime("%H:%M")
             logger.info(f"🕯️ VELA CERRADA | {source_key} | Hora: {candle_time}")
             
-            # Agregar la vela anterior al buffer antes de procesar la nueva
-            self._add_new_candle(source_key, candle)
+            # ═════════════════════════════════════════════════════════════
+            # PASO 1: CERRAR CICLO ANTERIOR (Si existe señal pendiente)
+            # ═════════════════════════════════════════════════════════════
+            if source_key in self.pending_signals:
+                await self._close_signal_cycle(source_key, candle)
             
-            # Calcular indicadores
+            # ═════════════════════════════════════════════════════════════
+            # PASO 2: AGREGAR NUEVA VELA Y CALCULAR INDICADORES
+            # ═════════════════════════════════════════════════════════════
+            self._add_new_candle(source_key, candle)
             self._update_indicators(source_key)
             
             # Verificar si hay suficientes datos para análisis
@@ -318,8 +341,9 @@ class AnalysisService:
                     )
                     return
             
-            # Analizar patrón en la vela cerrada (última completa)
-            # Solo envía notificación si detecta uno de los 4 patrones
+            # ═════════════════════════════════════════════════════════════
+            # PASO 3: ANALIZAR NUEVA VELA Y ABRIR NUEVO CICLO
+            # ═════════════════════════════════════════════════════════════
             asyncio.create_task(self._analyze_last_closed_candle(source_key, candle, force_notification=False))
         
         else:
@@ -438,6 +462,131 @@ class AnalysisService:
         # EMA 200 - La principal para detección de tendencia
         if len(df) >= self.ema_period:
             df["ema_200"] = calculate_ema(df["close"], self.ema_period)
+    
+    async def _close_signal_cycle(self, source_key: str, outcome_candle: CandleData) -> None:
+        """
+        Cierra el ciclo de una señal pendiente guardando el resultado en el dataset.
+        
+        Flujo:
+        1. Recuperar señal pendiente
+        2. Determinar dirección esperada según patrón
+        3. Calcular dirección actual de la vela de resultado
+        4. Determinar éxito/fracaso
+        5. Calcular PnL en pips
+        6. Construir registro completo
+        7. Guardar en StorageService
+        8. Limpiar señal pendiente
+        
+        Args:
+            source_key: Clave de la fuente (ej: "FX_EURUSD")
+            outcome_candle: Vela que cierra (resultado de la señal anterior)
+        """
+        if source_key not in self.pending_signals:
+            return
+        
+        pending_signal = self.pending_signals[source_key]
+        
+        logger.info(
+            f"\n{'═'*60}\n"
+            f"🔄 CERRANDO CICLO DE SEÑAL\n"
+            f"{'═'*60}\n"
+            f"📊 Fuente: {source_key}\n"
+            f"🎯 Patrón Previo: {pending_signal.pattern}\n"
+            f"🕒 Timestamp Señal: {pending_signal.timestamp}\n"
+            f"🕒 Timestamp Resultado: {outcome_candle.timestamp}\n"
+        )
+        
+        # Determinar dirección esperada según tipo de patrón
+        # BAJISTA (reversión bajista): Shooting Star, Hanging Man
+        # ALCISTA (reversión alcista): Hammer, Inverted Hammer
+        if pending_signal.pattern in ["SHOOTING_STAR", "HANGING_MAN"]:
+            expected_direction = "ROJO"  # Bajista
+        elif pending_signal.pattern in ["HAMMER", "INVERTED_HAMMER"]:
+            expected_direction = "VERDE"  # Alcista
+        else:
+            logger.warning(f"⚠️  Patrón desconocido: {pending_signal.pattern}")
+            expected_direction = "UNKNOWN"
+        
+        # Determinar dirección actual de la vela de resultado
+        if outcome_candle.close < outcome_candle.open:
+            actual_direction = "ROJO"  # Bajista
+        elif outcome_candle.close > outcome_candle.open:
+            actual_direction = "VERDE"  # Alcista
+        else:
+            actual_direction = "DOJI"  # Sin dirección clara
+        
+        # Determinar éxito
+        success = (expected_direction == actual_direction)
+        
+        # Calcular PnL en pips (asumiendo 4 decimales para EUR/USD)
+        # PnL = (Precio_Final - Precio_Inicial) * 10000
+        # Si esperábamos bajista (SHORT): PnL = (Precio_Inicial - Precio_Final) * 10000
+        # Si esperábamos alcista (LONG): PnL = (Precio_Final - Precio_Inicial) * 10000
+        
+        if expected_direction == "ROJO":  # SHORT position
+            pnl_pips = (pending_signal.candle.close - outcome_candle.close) * 10000
+        elif expected_direction == "VERDE":  # LONG position
+            pnl_pips = (outcome_candle.close - pending_signal.candle.close) * 10000
+        else:
+            pnl_pips = 0.0
+        
+        # Construir registro completo
+        from datetime import datetime
+        record = {
+            "timestamp": datetime.utcfromtimestamp(pending_signal.timestamp).isoformat() + "Z",
+            "signal": {
+                "pattern": pending_signal.pattern,
+                "source": pending_signal.source,
+                "symbol": pending_signal.symbol,
+                "confidence": pending_signal.confidence,
+                "trend": pending_signal.trend,
+                "trend_score": pending_signal.trend_score,
+                "is_trend_aligned": pending_signal.is_trend_aligned,
+            },
+            "trigger_candle": {
+                "timestamp": pending_signal.candle.timestamp,
+                "open": pending_signal.candle.open,
+                "high": pending_signal.candle.high,
+                "low": pending_signal.candle.low,
+                "close": pending_signal.candle.close,
+                "volume": pending_signal.candle.volume,
+            },
+            "outcome_candle": {
+                "timestamp": outcome_candle.timestamp,
+                "open": outcome_candle.open,
+                "high": outcome_candle.high,
+                "low": outcome_candle.low,
+                "close": outcome_candle.close,
+                "volume": outcome_candle.volume,
+            },
+            "outcome": {
+                "expected_direction": expected_direction,
+                "actual_direction": actual_direction,
+                "success": success,
+                "pnl_pips": round(pnl_pips, 1),
+                "outcome_timestamp": datetime.utcfromtimestamp(outcome_candle.timestamp).isoformat() + "Z"
+            }
+        }
+        
+        # Guardar en StorageService si está disponible
+        if self.storage_service:
+            try:
+                await self.storage_service.save_signal_outcome(record)
+            except Exception as e:
+                log_exception(logger, "Error guardando registro en StorageService", e)
+        else:
+            logger.warning("⚠️  StorageService no disponible - registro no guardado")
+        
+        # Limpiar señal pendiente
+        del self.pending_signals[source_key]
+        
+        logger.info(
+            f"✅ CICLO CERRADO | "
+            f"Éxito: {'✓' if success else '✗'} | "
+            f"PnL: {pnl_pips:+.1f} pips | "
+            f"Esperado: {expected_direction} | Actual: {actual_direction}\n"
+            f"{'═'*60}\n"
+        )
     
     async def _analyze_last_closed_candle(self, source_key: str, current_candle: CandleData, force_notification: bool = False) -> None:
         """
@@ -663,7 +812,17 @@ class AnalysisService:
                 f"✅ Señal de patrón emitida para {signal.source} | "
                 f"{signal.pattern} @ {signal.timestamp}"
             )
-            # Emitir señal
+            
+            # ═════════════════════════════════════════════════════════════
+            # GUARDAR SEÑAL COMO PENDIENTE (State Machine)
+            # ═════════════════════════════════════════════════════════════
+            self.pending_signals[source_key] = signal
+            logger.info(
+                f"⏳ SEÑAL GUARDADA COMO PENDIENTE | {source_key} | "
+                f"{signal.pattern} | Esperando próxima vela para cerrar ciclo"
+            )
+            
+            # Emitir señal a Telegram en tiempo real (notificación inmediata)
             if self.on_pattern_detected:
                 await self.on_pattern_detected(signal)
     

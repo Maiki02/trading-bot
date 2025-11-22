@@ -19,6 +19,7 @@ from typing import Optional
 
 from config import Config
 from src.services import ConnectionService, TelegramService
+from src.services.storage_service import StorageService
 from src.logic import AnalysisService
 from src.utils.logger import get_logger, log_startup_banner, log_shutdown, log_critical_auth_failure
 
@@ -45,6 +46,7 @@ class TradingBot:
         self.connection_service: Optional[ConnectionService] = None
         self.analysis_service: Optional[AnalysisService] = None
         self.telegram_service: Optional[TelegramService] = None
+        self.storage_service: Optional[StorageService] = None
         
         self.is_running: bool = False
         self.shutdown_event: asyncio.Event = asyncio.Event()
@@ -55,16 +57,23 @@ class TradingBot:
         """
         logger.info("🔧 Initializing services...")
         
-        # 1. Telegram Service (no tiene dependencias)
+        # 1. Storage Service (capa de persistencia - sin dependencias)
+        self.storage_service = StorageService(
+            data_dir="data",
+            filename="trading_signals_dataset.jsonl"
+        )
+        
+        # 2. Telegram Service (notificaciones - sin dependencias)
         self.telegram_service = TelegramService()
         await self.telegram_service.start()
         
-        # 2. Analysis Service (depende de Telegram para notificaciones)
+        # 3. Analysis Service (depende de Telegram y Storage)
         self.analysis_service = AnalysisService(
-            on_pattern_detected=self.telegram_service.handle_pattern_signal
+            on_pattern_detected=self.telegram_service.handle_pattern_signal,
+            storage_service=self.storage_service
         )
         
-        # 3. Connection Service (recibe AnalysisService completo, NO callback)
+        # 4. Connection Service (recibe AnalysisService completo)
         self.connection_service = ConnectionService(
             analysis_service=self.analysis_service,
             on_auth_failure_callback=self._handle_auth_failure
@@ -123,6 +132,9 @@ class TradingBot:
         
         if self.telegram_service:
             await self.telegram_service.stop()
+        
+        if self.storage_service:
+            await self.storage_service.close()
         
         log_shutdown(logger)
         self.shutdown_event.set()

@@ -1,44 +1,257 @@
-# Problema: Determinación de Tendencia con Múltiples EMAs
+# Sistema de Análisis de Tendencia con Score Ponderado
+
+## 🎉 PROBLEMA RESUELTO - Sistema Implementado
+
+El sistema ahora utiliza un **algoritmo de scoring ponderado** con múltiples EMAs para determinar la tendencia de forma robusta.
 
 ## Contexto del Proyecto
-Tengo un bot de trading que detecta patrones de velas japonesas en tiempo real (EUR/USD, temporalidad 1 minuto). Actualmente está en MVP funcional y detecta 4 patrones: Shooting Star, Hanging Man, Inverted Hammer y Hammer.
+Bot de trading que detecta patrones de velas japonesas en tiempo real (EUR/USD, temporalidad 1 minuto). Detecta 4 patrones: Shooting Star, Hanging Man, Inverted Hammer y Hammer.
 
-## Estado Actual: Cálculo de EMAs
-El sistema **ya está calculando múltiples EMAs** en `src/logic/analysis_service.py`:
-- **EMA 20** - Corto plazo
-- **EMA 30** - Corto plazo
-- **EMA 50** - Mediano plazo
-- **EMA 100** - Mediano plazo
-- **EMA 200** - Largo plazo (referencia principal actual)
+## ✅ Solución Implementada: Sistema de Trend Scoring
 
-Estas EMAs se calculan correctamente, están disponibles en el DataFrame de pandas y se envían en los mensajes de Telegram.
+### Arquitectura del Sistema
 
-## Problema: ¿Cómo Determinar la Tendencia?
+**Función Principal:** `analyze_trend(close, emas)` en `src/logic/analysis_service.py`
 
-### Implementación Actual (Simplista)
-La función `_determine_trend()` solo usa **EMA 200**:
+**Retorna:** Objeto `TrendAnalysis` con tres campos:
+- `status` (str): Clasificación de la tendencia
+- `score` (int): Puntuación de -10 a +10
+- `is_aligned` (bool): Si las EMAs están alineadas correctamente
 
+### Algoritmo de Scoring (5 Reglas Ponderadas)
+
+El sistema evalúa **5 relaciones diferentes** entre precio y EMAs, asignando puntos según cada comparación:
+
+#### 🔹 Regla 1: Precio vs EMA 200 (Macro Trend) - Peso: ±3 puntos
+**Importancia:** Máxima - Define la tendencia macro
 ```python
-def _determine_trend(self, close: float, ema_200: float) -> str:
-    threshold = 0.0001
-    
-    if close < ema_200 - threshold:
-        return "BEARISH"
-    elif close > ema_200 + threshold:
-        return "BULLISH"
-    else:
-        return "NEUTRAL"
+if close > ema_200:
+    score += 3  # Macro alcista
+elif close < ema_200:
+    score -= 3  # Macro bajista
 ```
 
-**Retorna:** Un string simple: "BEARISH", "BULLISH" o "NEUTRAL"
+#### 🔹 Regla 2: Precio vs EMA 100 (Mid-Term) - Peso: ±2 puntos
+**Importancia:** Alta - Confirma tendencia de mediano plazo
+```python
+if close > ema_100:
+    score += 2  # Medio plazo alcista
+elif close < ema_100:
+    score -= 2  # Medio plazo bajista
+```
 
-**Problema:** Esta lógica es **demasiado simplista** para un mercado de 1 minuto. No aprovecha las 5 EMAs disponibles.
+#### 🔹 Regla 3: EMA 50 vs EMA 200 (Alineación Macro) - Peso: ±2 puntos
+**Importancia:** Alta - Verifica alineación estructural
+```python
+if ema_50 > ema_200:
+    score += 2  # Estructura alcista
+elif ema_50 < ema_200:
+    score -= 2  # Estructura bajista
+```
+
+#### 🔹 Regla 4: Precio vs EMA 20 (Momentum) - Peso: ±2 puntos
+**Importancia:** Alta - Detecta momentum de corto plazo
+```python
+if close > ema_20:
+    score += 2  # Momentum alcista
+elif close < ema_20:
+    score -= 2  # Momentum bajista
+```
+
+#### 🔹 Regla 5: EMA 20 vs EMA 50 (Cruce Corto) - Peso: ±1 punto
+**Importancia:** Moderada - Confirma cruce de corto plazo
+```python
+if ema_20 > ema_50:
+    score += 1  # Cruce alcista
+elif ema_20 < ema_50:
+    score -= 1  # Cruce bajista
+```
+
+### Rango de Score Total
+
+**Máximo Alcista:** +10 puntos (todas las condiciones alcistas)
+- Precio > EMA 200: +3
+- Precio > EMA 100: +2
+- EMA 50 > EMA 200: +2
+- Precio > EMA 20: +2
+- EMA 20 > EMA 50: +1
+
+**Máximo Bajista:** -10 puntos (todas las condiciones bajistas)
+
+**Neutral:** 0 puntos (señales contradictorias se cancelan)
+
+### Clasificación de Tendencia
+
+El `score` se convierte en una clasificación textual:
+
+| Score Range | Status | Interpretación |
+|------------|--------|----------------|
+| ≥ 6 | `STRONG_BULLISH` | Tendencia alcista muy fuerte |
+| 1 a 5 | `WEAK_BULLISH` | Tendencia alcista débil |
+| -1 a 1 | `NEUTRAL` | Sin tendencia clara (mercado lateral) |
+| -5 a -1 | `WEAK_BEARISH` | Tendencia bajista débil |
+| ≤ -6 | `STRONG_BEARISH` | Tendencia bajista muy fuerte |
+
+### Detección de Alineación
+
+**Alineación Alcista Perfecta:**
+```
+EMA 20 > EMA 50 > EMA 200
+```
+Todas las medias móviles ordenadas de menor a mayor período.
+
+**Alineación Bajista Perfecta:**
+```
+EMA 20 < EMA 50 < EMA 200
+```
+Todas las medias móviles ordenadas de mayor a menor período.
+
+**`is_aligned = True`** solo cuando se cumple una de estas dos condiciones exactas.
+
+## 📊 EMAs Calculadas
+
+El sistema calcula **5 EMAs** con cálculo condicional:
+
+| EMA | Período | Velas Mínimas | Propósito |
+|-----|---------|---------------|-----------|
+| EMA 20 | 20 min | 20 | Momentum de muy corto plazo |
+| EMA 30 | 30 min | 30 | Momentum de corto plazo |
+| EMA 50 | 50 min | 50 | Tendencia de mediano plazo |
+| EMA 100 | 100 min | 100 | Tendencia de mediano-largo plazo |
+| EMA 200 | 200 min | 600* | Tendencia macro (3x para convergencia) |
+
+**Nota:** Si no hay suficientes velas, la EMA se marca como `NaN` y no participa en el scoring.
+
+## 🎯 Sistema de Alertas Inteligentes
+
+El sistema clasifica las alertas en **3 niveles** según la relación patrón-tendencia:
+
+### 🔴/🟢 ALERTA FUERTE (Alta Probabilidad)
+**Condiciones:**
+- Shooting Star + Tendencia BULLISH (fuerte o débil) → Reversión bajista probable
+- Hammer + Tendencia BEARISH (fuerte o débil) → Reversión alcista probable
+
+**Mensaje:** "Alta probabilidad de apertura BAJISTA/ALCISTA"
+
+### ⚠️ ADVERTENCIA (Debilitamiento)
+**Condiciones:**
+- Inverted Hammer + Tendencia BULLISH → Posible debilitamiento alcista
+- Hanging Man + Tendencia BEARISH → Posible debilitamiento bajista
+
+**Mensaje:** "Posible debilitamiento alcista/bajista"
+
+### 📊 DETECCIÓN (Informativo)
+**Condiciones:**
+- Cualquier otro caso (patrón sin alineación de tendencia clara)
+
+**Mensaje:** "Solo informativo - Requiere análisis adicional"
+
+## 🖼️ Visualización en Gráficos
+
+**EMAs Graficadas:** Solo 2 para evitar saturación visual
+- **EMA 200:** Línea cyan (#00D4FF), grosor 1.5 - Referencia macro
+- **EMA 20:** Línea amarilla (#FFD700), grosor 1.0 - Momentum
+
+**EMAs NO Graficadas:** EMA 30, 50, 100 (evita ruido visual en gráficos de 1 minuto)
+
+**Razón:** Gráficos pequeños de Telegram se saturan con 5 líneas. Se muestran solo extremos (corto vs largo).
+
+## 📱 Formato de Mensaje en Telegram
+
+Cada alerta incluye **3 secciones**:
+
+### Sección 1: Información de la Vela
+- Fuente, Patrón, Timestamp
+- OHLC (Open, High, Low, Close)
+- Confianza del patrón (70-100%)
+
+### Sección 2: Análisis de EMAs
+- Valores de las 5 EMAs (o "N/A" si no disponible)
+- Estructura interpretada (ej: "Precio > EMA20 > EMA200 (Alineación alcista)")
+- Estado de alineación: ✓ Confirmada o ✗ No confirmada
+
+### Sección 3: Análisis de Tendencia
+- **Estado:** STRONG_BULLISH, WEAK_BULLISH, NEUTRAL, etc.
+- **Score:** Valor de -10 a +10 (ej: "+7/10" o "-4/10")
+- **Interpretación:** Texto en español explicando el score
+
+**Ejemplo de interpretación:**
+- Score +8: "Tendencia alcista muy fuerte"
+- Score +3: "Tendencia alcista débil"
+- Score 0: "Sin tendencia clara (Mercado lateral)"
+- Score -5: "Tendencia bajista débil"
+- Score -9: "Tendencia bajista muy fuerte"
+
+## ⚙️ Configuración y Variables
+
+**Implementación Actual (MVP):**
+```python
+USE_TREND_FILTER = False  # Notifica todos los patrones sin filtro
+```
+
+**Modo Futuro (Producción):**
+```python
+USE_TREND_FILTER = True  # Solo notifica patrones alineados con tendencia
+```
+
+**Lógica cuando el filtro esté activo:**
+- Requiere `score >= 1` (al menos tendencia débil) para notificar
+- Valida que el patrón sea coherente con la tendencia detectada
+- Reduce falsos positivos significativamente
+
+## 🔬 Ejemplo de Cálculo Real
+
+**Escenario:**
+```
+Precio actual: 1.08650
+EMA 20: 1.08700 (precio DEBAJO)
+EMA 50: 1.08600 (precio ARRIBA)
+EMA 100: 1.08550 (precio ARRIBA)
+EMA 200: 1.08500 (precio ARRIBA)
+```
+
+**Cálculo del Score:**
+1. Precio > EMA 200 → +3 ✓
+2. Precio > EMA 100 → +2 ✓
+3. EMA 50 > EMA 200 → +2 ✓
+4. Precio < EMA 20 → -2 ✗ (momentum negativo)
+5. EMA 20 > EMA 50 → +1 ✓
+
+**Score Total:** +3 +2 +2 -2 +1 = **+6 puntos**
+
+**Clasificación:** `STRONG_BULLISH` (≥6)
+
+**Alineación:** ✗ No confirmada (EMA20 > precio, rompe la secuencia)
+
+**Interpretación:** "Tendencia alcista muy fuerte con momentum débil de corto plazo"
+
+## 📝 Estado del Sistema
+
+**✅ Completamente Implementado y Operativo**
+
+**Ubicación del código:**
+- `src/logic/analysis_service.py` - Función `analyze_trend()` (líneas 73-190)
+- `src/services/telegram_service.py` - Clasificación de alertas (líneas 248-276)
+- `src/utils/charting.py` - Visualización de EMAs en gráficos
+
+**⚠️ SUJETO A CAMBIOS:**
+Este sistema de scoring está en fase de validación. Los pesos de las reglas, los umbrales de clasificación y la lógica de alertas pueden ajustarse según los resultados en producción.
+
+**Próximos pasos sugeridos:**
+- Implementar tracking histórico de scores en `logs/trend_scores.jsonl`
+- Validar correlación entre score y movimiento real del precio 5 min después
+- Ajustar pesos si se detecta sesgo sistemático
+- Considerar añadir volumen como factor adicional
 
 ---
 
-## Preguntas Sin Resolver
+## 📚 Referencias de Documentación
 
-### 1. ¿Cómo construir una tendencia más robusta?
+Para entender el contexto completo del sistema:
+- **Arquitectura general:** Ver `Docs/resumen.md`
+- **Implementación técnica:** Ver `src/logic/analysis_service.py` (función `analyze_trend`)
+- **Mensajes de alerta:** Ver `src/services/telegram_service.py` (clasificación 3 niveles)
+- **Detección de patrones:** Ver `src/logic/candle.py` (validación matemática)
 
 **Opciones posibles:**
 

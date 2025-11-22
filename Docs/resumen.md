@@ -201,9 +201,238 @@ Sistema más agresivo que notifica CUALQUIER patrón detectado sin importar la t
 
 **El contenido del mensaje (entries.message) es IDÉNTICO en ambos modos**, solo cambia el título para diferenciar el nivel de validación.
 
-## 4. Arquitectura Tecnológica Modular
+## 4. Cálculos y Algoritmos de Detección ⚠️ SUJETO A CAMBIOS
 
-### 4.1. Estructura del Programa (main.py)
+**ADVERTENCIA:** Los algoritmos descritos en esta sección están en fase de validación en producción. Los criterios matemáticos, pesos, umbrales y lógica de clasificación pueden ajustarse según los resultados observados en operación real.
+
+### 4.1. Sistema de Trend Scoring (Análisis de Tendencia)
+
+El sistema utiliza un **algoritmo de scoring ponderado** que evalúa la relación entre el precio y 5 EMAs diferentes para determinar la fuerza y dirección de la tendencia.
+
+#### EMAs Calculadas
+
+| EMA | Período | Velas Mínimas | Propósito | Uso en Score |
+|-----|---------|---------------|-----------|--------------|
+| EMA 20 | 20 min | 20 | Momentum muy corto | ✓ Reglas 4 y 5 |
+| EMA 30 | 30 min | 30 | Momentum corto | ✗ Solo visualización |
+| EMA 50 | 50 min | 50 | Tendencia mediano plazo | ✓ Reglas 3 y 5 |
+| EMA 100 | 100 min | 100 | Tendencia mediano-largo | ✓ Regla 2 |
+| EMA 200 | 200 min | 600* | Tendencia macro | ✓ Reglas 1 y 3 |
+
+*EMA 200 requiere 3x el período (600 velas) para convergencia adecuada.
+
+**Cálculo Condicional:** Si no hay suficientes velas históricas, la EMA se marca como `NaN` y no participa en el scoring.
+
+#### Algoritmo de Scoring (5 Reglas Ponderadas)
+
+**Función:** `analyze_trend(close, emas)` en `src/logic/analysis_service.py`
+
+**Rango del Score:** -10 a +10 puntos
+
+**Reglas:**
+
+1. **Precio vs EMA 200 (Macro Trend)** - Peso: ±3 puntos
+   - Si `close > ema_200`: +3 (macro alcista)
+   - Si `close < ema_200`: -3 (macro bajista)
+   - Justificación: EMA 200 define la tendencia de largo plazo
+
+2. **Precio vs EMA 100 (Mid-Term)** - Peso: ±2 puntos
+   - Si `close > ema_100`: +2 (medio plazo alcista)
+   - Si `close < ema_100`: -2 (medio plazo bajista)
+   - Justificación: Confirma tendencia intermedia
+
+3. **EMA 50 vs EMA 200 (Alineación Macro)** - Peso: ±2 puntos
+   - Si `ema_50 > ema_200`: +2 (estructura alcista)
+   - Si `ema_50 < ema_200`: -2 (estructura bajista)
+   - Justificación: Verifica alineación estructural (Golden/Death Cross)
+
+4. **Precio vs EMA 20 (Momentum)** - Peso: ±2 puntos
+   - Si `close > ema_20`: +2 (momentum alcista)
+   - Si `close < ema_20`: -2 (momentum bajista)
+   - Justificación: Detecta momentum inmediato
+
+5. **EMA 20 vs EMA 50 (Cruce Corto)** - Peso: ±1 punto
+   - Si `ema_20 > ema_50`: +1 (cruce alcista)
+   - Si `ema_20 < ema_50`: -1 (cruce bajista)
+   - Justificación: Confirma dirección de corto plazo
+
+#### Clasificación del Score
+
+| Score Range | Status | Interpretación Español |
+|------------|--------|------------------------|
+| ≥ 6 | `STRONG_BULLISH` | Tendencia alcista muy fuerte |
+| 1 a 5 | `WEAK_BULLISH` | Tendencia alcista débil |
+| -1 a 1 | `NEUTRAL` | Sin tendencia clara (mercado lateral) |
+| -5 a -1 | `WEAK_BEARISH` | Tendencia bajista débil |
+| ≤ -6 | `STRONG_BEARISH` | Tendencia bajista muy fuerte |
+
+#### Detección de Alineación
+
+**Alineación Alcista Perfecta:** `EMA20 > EMA50 > EMA200`
+
+**Alineación Bajista Perfecta:** `EMA20 < EMA50 < EMA200`
+
+**Campo `is_aligned`:** `True` solo si se cumple una de las dos condiciones exactas.
+
+**Objeto Retornado:** `TrendAnalysis(status: str, score: int, is_aligned: bool)`
+
+### 4.2. Detección de Patrones de Velas Japonesas
+
+Los 4 patrones se detectan mediante **validación matemática estricta** con scoring de confianza (70-100%).
+
+**Archivo:** `src/logic/candle.py`
+
+#### Métricas Comunes Calculadas
+
+Para cada vela se calculan:
+- **Total Range:** `high - low` (rango total de la vela)
+- **Body Size:** `abs(close - open)` (tamaño del cuerpo)
+- **Body Ratio:** `body_size / total_range` (proporción del cuerpo)
+- **Upper Wick:** Mecha superior (depende si vela es alcista o bajista)
+- **Lower Wick:** Mecha inferior (depende si vela es alcista o bajista)
+
+#### Patrón 1: Shooting Star (Estrella Fugaz)
+
+**Tipo:** Reversión bajista
+
+**Criterios Matemáticos:**
+- Mecha superior ≥ 60% del rango total (`upper_wick_ratio >= 0.60`)
+- Cuerpo pequeño ≤ 30% del rango total (`body_ratio <= 0.30`)
+- Mecha inferior ≤ 15% del rango total (`lower_wick_ratio <= 0.15`)
+- Mecha superior ≥ 2x el cuerpo (`upper_wick / body_size >= 2.0`)
+
+**Scoring de Confianza:**
+- Base: 70%
+- +10% si mecha superior ≥ 70%
+- +10% si cuerpo ≤ 20%
+- +10% si mecha inferior ≤ 10%
+- Máximo: 100%
+
+**Color:** Irrelevante (puede ser verde o roja)
+
+#### Patrón 2: Hanging Man (Hombre Colgado)
+
+**Tipo:** Reversión bajista (en tendencia alcista)
+
+**Criterios Matemáticos:**
+- Mecha inferior ≥ 60% del rango total
+- Cuerpo pequeño ≤ 30% del rango total
+- Mecha superior ≤ 15% del rango total
+- Mecha inferior ≥ 2x el cuerpo
+- Cuerpo ubicado en parte superior de la vela
+
+**Scoring de Confianza:**
+- Base: 70%
+- +10% si mecha inferior ≥ 70%
+- +10% si cuerpo ≤ 20%
+- +10% si mecha superior ≤ 10%
+- Máximo: 100%
+
+#### Patrón 3: Inverted Hammer (Martillo Invertido)
+
+**Tipo:** Reversión alcista (en tendencia bajista)
+
+**Criterios Matemáticos:**
+- Mecha superior ≥ 60% del rango total
+- Cuerpo pequeño ≤ 30% del rango total
+- Mecha inferior ≤ 15% del rango total
+- Mecha superior ≥ 2x el cuerpo
+- Cuerpo ubicado en parte inferior de la vela
+
+**Scoring de Confianza:**
+- Base: 70%
+- +10% si mecha superior ≥ 70%
+- +10% si cuerpo ≤ 20%
+- +10% si mecha inferior ≤ 10%
+- Máximo: 100%
+
+#### Patrón 4: Hammer (Martillo)
+
+**Tipo:** Reversión alcista
+
+**Criterios Matemáticos:**
+- Mecha inferior ≥ 60% del rango total
+- Cuerpo pequeño ≤ 30% del rango total
+- Mecha superior ≤ 15% del rango total
+- Mecha inferior ≥ 2x el cuerpo
+
+**Scoring de Confianza:**
+- Base: 70%
+- +10% si mecha inferior ≥ 70%
+- +10% si cuerpo ≤ 20%
+- +10% si mecha superior ≤ 10%
+- Máximo: 100%
+
+**Color:** Irrelevante (puede ser verde o roja)
+
+### 4.3. Sistema de Alertas Inteligentes (3 Niveles)
+
+El sistema clasifica alertas según la **relación entre patrón detectado y tendencia** para priorizar señales de alta probabilidad.
+
+**Lógica:** `_format_standard_message()` en `src/services/telegram_service.py`
+
+#### Nivel 1: 🔴/🟢 ALERTA FUERTE (Alta Probabilidad)
+
+**Condiciones:**
+- Shooting Star + Tendencia BULLISH (fuerte o débil) → 🔴 Reversión bajista probable
+- Hammer + Tendencia BEARISH (fuerte o débil) → 🟢 Reversión alcista probable
+
+**Título:** "Alta probabilidad de apertura BAJISTA/ALCISTA"
+
+**Interpretación:** Patrón de reversión detectado CONTRA la tendencia actual → Mayor probabilidad de cambio de dirección.
+
+#### Nivel 2: ⚠️ ADVERTENCIA (Debilitamiento)
+
+**Condiciones:**
+- Inverted Hammer + Tendencia BULLISH → Posible debilitamiento alcista
+- Hanging Man + Tendencia BEARISH → Posible debilitamiento bajista
+
+**Título:** "Posible debilitamiento alcista/bajista"
+
+**Interpretación:** Señales tempranas de agotamiento de tendencia.
+
+#### Nivel 3: 📊 DETECCIÓN (Informativo)
+
+**Condiciones:**
+- Cualquier otro caso (patrón sin alineación clara de tendencia)
+
+**Título:** "Solo informativo - Requiere análisis adicional"
+
+**Interpretación:** Patrón matemáticamente válido pero sin contexto de tendencia claro.
+
+### 4.4. Visualización en Gráficos
+
+**Biblioteca:** `mplfinance==0.12.10b0`
+
+**EMAs Graficadas (Solo 2):**
+- EMA 200: Línea cyan (#00D4FF), grosor 1.5 - Referencia macro
+- EMA 20: Línea amarilla (#FFD700), grosor 1.0 - Momentum
+
+**EMAs NO Graficadas:** EMA 30, 50, 100 (para evitar saturación visual)
+
+**Razón:** Gráficos pequeños en Telegram (30 velas) se saturan con 5 líneas superpuestas. Se priorizan extremos (corto plazo vs largo plazo).
+
+### 4.5. Notas Importantes sobre Calibración
+
+⚠️ **TODOS los valores numéricos en esta sección están sujetos a cambios:**
+
+- **Pesos del scoring:** Actualmente ±3, ±2, ±2, ±2, ±1 → Pueden ajustarse
+- **Umbrales de clasificación:** ≥6 para STRONG, ≥1 para WEAK → Pueden modificarse
+- **Criterios de patrones:** 60%, 30%, 15%, 2.0x → Configurables en `config.py`
+- **Bonos de confianza:** +10% por condición excepcional → Ajustables
+
+**Proceso de validación:**
+1. Monitoreo en producción con datos reales (EUR/USD 1m)
+2. Tracking histórico de scores vs movimientos reales del precio
+3. Análisis de correlación patrón-tendencia-resultado
+4. Ajuste iterativo de pesos y umbrales
+5. Documentación de cambios en changelog
+
+**Referencia completa:** Ver `Docs/tendencia.md` para explicación detallada del sistema de scoring.
+
+## 5. Arquitectura Tecnológica Modular
+
+### 5.1. Estructura del Programa (main.py)
 
 **Módulo 1: Connection Service (WebSocket Público)**
 - Gestiona conexión WebSocket a `data.tradingview.com` en **modo público** (sin autenticación).
@@ -272,9 +501,9 @@ Sistema más agresivo que notifica CUALQUIER patrón detectado sin importar la t
   - `mplfinance==0.12.10b0` - Generación de gráficos financieros
   - `python-dotenv==1.0.0` - Gestión de variables de entorno
 
-## 5. Flujo de Lógica y Procesos Críticos
+## 6. Flujo de Lógica y Procesos Críticos
 
-### 5.1. Autenticación y Calidad de Datos
+### 6.1. Autenticación y Calidad de Datos
 
 **🎉 Cambio Crítico Implementado:**
 - **NO se requiere autenticación:** TradingView proporciona datos en tiempo real de Forex **sin login**.
@@ -287,7 +516,7 @@ Sistema más agresivo que notifica CUALQUIER patrón detectado sin importar la t
 - Reconexión automática ante errores de conexión.
 - Heartbeat pasivo previene errores `invalid_method`.
 
-### 5.2. Inicialización y Reconexión
+### 6.2. Inicialización y Reconexión
 
 **Flujo de Startup:**
 1. **Conexión WebSocket:** Se conecta a `wss://data.tradingview.com/socket.io/websocket`
@@ -305,7 +534,7 @@ Sistema más agresivo que notifica CUALQUIER patrón detectado sin importar la t
 - Logs detallados de cada intento
 - Reset de contador tras conexión exitosa
 
-### 5.3. Procesamiento de Velas
+### 6.3. Procesamiento de Velas
 
 **Separación de Responsabilidades (Crítico):**
 
@@ -336,7 +565,7 @@ Sistema más agresivo que notifica CUALQUIER patrón detectado sin importar la t
 - Lógica clara y mantenible
 - Buffer se inicializa correctamente (antes solo mostraba 18/600 velas)
 
-### 5.4. Gestión de Memoria y Recursos
+### 6.4. Gestión de Memoria y Recursos
 
 **Buffer Limitado:**
 - Configuración: `Config.CHART_LOOKBACK = 30` velas para gráficos
@@ -349,7 +578,7 @@ Sistema más agresivo que notifica CUALQUIER patrón detectado sin importar la t
 - WebSocket continúa procesando ticks durante generación
 - Timeout implícito: Si falla, continúa sin gráfico (no detiene alertas)
 
-### 5.5. Definiciones Técnicas Finales
+### 6.5. Definiciones Técnicas Finales
 
 **Simbología:**
 - **MVP Actual:** `FX:EURUSD` (fuente única, pública, sin auth)
@@ -376,51 +605,51 @@ Sistema más agresivo que notifica CUALQUIER patrón detectado sin importar la t
 
 ---
 
-## 6. Mejoras Implementadas Post-Especificación Inicial
+## 7. Mejoras Implementadas Post-Especificación Inicial
 
-### 6.1. Sistema de Gráficos Visuales
+### 7.1. Sistema de Gráficos Visuales
 - ✅ Generación automática con `mplfinance`
 - ✅ Codificación Base64 para envío por API
 - ✅ Guardado local en `logs/` para auditoría
 - ✅ Ejecución asíncrona (no bloquea WebSocket)
 - ✅ Control de costos con flag `SEND_CHARTS`
 
-### 6.2. Autenticación Simplificada
+### 7.2. Autenticación Simplificada
 - ✅ Modo público sin SessionID
 - ✅ Sin riesgo de baneos o expiración de tokens
 - ✅ Datos en tiempo real sin suscripción paga
 - ✅ Sistema completamente autónomo
 
-### 6.3. Protocolo WebSocket Optimizado
+### 7.3. Protocolo WebSocket Optimizado
 - ✅ Heartbeat pasivo (respuesta vs proactivo)
 - ✅ Graceful shutdown con comandos de limpieza
 - ✅ Logs truncados para mensajes grandes (>500 bytes)
 - ✅ Reconexión exponencial con límite de intentos
 
-### 6.4. Manejo de Race Conditions
+### 7.4. Manejo de Race Conditions
 - ✅ Verificación doble antes de eliminar alertas del buffer
 - ✅ Sincronización correcta entre cleanup task y wait tasks
 - ✅ Sin errores `KeyError` en Dual-Source logic
 
-### 6.5. Optimización de Costos API Gateway
+### 7.5. Optimización de Costos API Gateway
 - ✅ Control granular de envío de imágenes Base64
 - ✅ Documentación de impacto económico (10x diferencia)
 - ✅ Modo producción vs debugging claramente diferenciado
 
-### 6.6. Sistema de Testing Automatizado
+### 7.6. Sistema de Testing Automatizado
 - ✅ Test suite en `test/test_candles.py` con validación estricta de los 4 patrones
 - ✅ Base de datos de casos de prueba en `test/test_data.json`
 - ✅ Auto-guardado de velas detectadas en producción
 - ✅ Reporte de fidelidad matemática y diagnósticos detallados
 - ✅ Verificación de criterios: cuerpo, mechas, proporciones, direccionalidad
 
-### 6.7. Cálculo de EMAs Múltiples
+### 7.7. Cálculo de EMAs Múltiples
 - ✅ Implementación de EMAs 20, 30, 50, 100, 200 períodos
 - ✅ Cálculo condicional basado en disponibilidad de datos
 - ✅ Visualización de todas las EMAs en mensajes de Telegram
 - ✅ Integración completa en gráficos generados
 
-### 6.8. Modo Sin Filtro de Tendencia (MVP Actual)
+### 7.8. Modo Sin Filtro de Tendencia (MVP Actual)
 - ✅ Configuración `USE_TREND_FILTER=false` implementada
 - ✅ Sistema notifica todos los patrones detectados sin restricción de tendencia
 - ✅ Título diferenciado: "📈 PATRÓN DETECTADO" vs "⚠️ OPORTUNIDAD ALINEADA"
@@ -428,9 +657,9 @@ Sistema más agresivo que notifica CUALQUIER patrón detectado sin importar la t
 
 ---
 
-## 7. Estado Actual del MVP ✅
+## 8. Estado Actual del MVP ✅
 
-### 7.1. Funcionalidades Completadas
+### 8.1. Funcionalidades Completadas
 El MVP v0.0.2 está **100% operativo** con las siguientes características:
 
 ✅ **Detección de Patrones:**
@@ -484,7 +713,7 @@ USE_TREND_FILTER=false     # Notificar todos los patrones (MVP actual)
 EMA_PERIOD=200             # EMA principal para tendencia
 ```
 
-### 7.3. Próximas Mejoras Sugeridas
+### 8.3. Próximas Mejoras Sugeridas
 Basadas en la experiencia del MVP:
 
 **Optimización de Payloads:**
