@@ -65,14 +65,16 @@ def is_shooting_star(
     close: float
 ) -> Tuple[bool, float]:
     """
-    Detecta el patrón Shooting Star (Estrella Fugaz).
+    Detecta el patrón Shooting Star (Estrella Fugaz) con Sistema de Confianza por Niveles.
     
-    CARACTERÍSTICAS MATEMÁTICAS:
-    - Mecha superior larga (> 60% del rango total)
-    - Cuerpo pequeño (< 30% del rango total)
-    - Mecha inferior mínima (< 15% del rango total)
-    - Mecha superior >= 2x el tamaño del cuerpo
-    - DEBE SER VELA ROJA O NEUTRAL (close <= open) ⚠️ NUEVO
+    SISTEMA TIERED (Opciones Binarias 1m):
+    - SNIPER (100%): Rechazo >= 70%, Cuerpo <= 15%, Mecha contraria < 1%
+    - EXCELENTE (90%): Rechazo >= 60%, Cuerpo <= 20%, Mecha contraria < 5%
+    - ESTÁNDAR (80%): Rechazo >= 50%, Cuerpo <= 30%, Mecha contraria < 10%
+    
+    VALIDACIONES CRÍTICAS:
+    - DEBE SER VELA ROJA O NEUTRAL (close <= open)
+    - Mecha contraria es el filtro MÁS IMPORTANTE (causa #1 de falsos positivos)
     
     INTERPRETACIÓN:
     Indica rechazo de precios altos. Válido en tendencia alcista
@@ -95,7 +97,6 @@ def is_shooting_star(
         return False, 0.0
     
     # ⚠️ VALIDACIÓN CRÍTICA: Shooting Star debe ser ROJO o neutral
-    # Si es vela VERDE (close > open), NO es Shooting Star
     if close > open_price:
         return False, 0.0
     
@@ -103,35 +104,41 @@ def is_shooting_star(
     upper_wick_ratio = upper_wick / total_range
     lower_wick_ratio = lower_wick / total_range
     
-    # Condiciones del patrón
-    has_long_upper_wick = upper_wick_ratio >= Config.CANDLE.UPPER_WICK_RATIO_MIN
-    has_small_body = body_ratio <= Config.CANDLE.SMALL_BODY_RATIO
-    has_small_lower_wick = lower_wick_ratio <= Config.CANDLE.OPPOSITE_WICK_MAX
-    wick_to_body = (upper_wick / body_size) >= Config.CANDLE.WICK_TO_BODY_RATIO if body_size > 0 else False
+    # Safety check: Mecha debe ser >= 2x el cuerpo
+    if body_size > 0:
+        wick_to_body = upper_wick / body_size
+        if wick_to_body < Config.CANDLE.WICK_TO_BODY_RATIO:
+            return False, 0.0
     
-    # Validación del patrón
-    is_pattern = has_long_upper_wick and has_small_body and has_small_lower_wick and wick_to_body
+    # =========================================================================
+    # NIVEL SNIPER (100%) - Perfect Entry
+    # =========================================================================
+    if (upper_wick_ratio >= Config.CANDLE.SNIPER_REJECTION_WICK and
+        body_ratio <= Config.CANDLE.SNIPER_BODY_MAX and
+        lower_wick_ratio <= Config.CANDLE.SNIPER_OPPOSITE_WICK_MAX):
+        return True, 1.0
     
-    if not is_pattern:
+    # =========================================================================
+    # NIVEL EXCELENTE (90%) - High Probability
+    # =========================================================================
+    elif (upper_wick_ratio >= Config.CANDLE.EXCELLENT_REJECTION_WICK and
+          body_ratio <= Config.CANDLE.EXCELLENT_BODY_MAX and
+          lower_wick_ratio <= Config.CANDLE.EXCELLENT_OPPOSITE_WICK_MAX):
+        return True, 0.9
+    
+    # =========================================================================
+    # NIVEL ESTÁNDAR (80%) - Minimum Acceptable
+    # =========================================================================
+    elif (upper_wick_ratio >= Config.CANDLE.STANDARD_REJECTION_WICK and
+          body_ratio <= Config.CANDLE.STANDARD_BODY_MAX and
+          lower_wick_ratio <= Config.CANDLE.STANDARD_OPPOSITE_WICK_MAX):
+        return True, 0.8
+    
+    # =========================================================================
+    # NO CUMPLE NINGÚN NIVEL - Descartado
+    # =========================================================================
+    else:
         return False, 0.0
-    
-    # Cálculo de confianza (scoring)
-    confidence = Config.CANDLE.BASE_CONFIDENCE
-    
-    # Bonos por condiciones excepcionales
-    if upper_wick_ratio >= 0.70:  # Mecha superior muy larga
-        confidence += Config.CANDLE.BONUS_CONFIDENCE_PER_CONDITION
-    
-    if body_ratio <= 0.20:  # Cuerpo muy pequeño
-        confidence += Config.CANDLE.BONUS_CONFIDENCE_PER_CONDITION
-    
-    if lower_wick_ratio <= 0.10:  # Mecha inferior casi inexistente
-        confidence += Config.CANDLE.BONUS_CONFIDENCE_PER_CONDITION
-    
-    # Limitar confianza a 1.0
-    confidence = min(confidence, 1.0)
-    
-    return True, confidence
 
 
 def is_hanging_man(
@@ -141,15 +148,17 @@ def is_hanging_man(
     close: float
 ) -> Tuple[bool, float]:
     """
-    Detecta el patrón Hanging Man (Hombre Colgado).
+    Detecta el patrón Hanging Man (Hombre Colgado) con Sistema de Confianza por Niveles.
     
-    CARACTERÍSTICAS MATEMÁTICAS:
-    - Mecha inferior larga (> 60% del rango total)
-    - Cuerpo pequeño (< 30% del rango total)
-    - Mecha superior mínima (< 15% del rango total)
-    - Mecha inferior >= 2x el tamaño del cuerpo
-    - Cuerpo ubicado en la parte superior de la vela
-    - DEBE SER VELA ROJA O NEUTRAL (close <= open) ⚠️ NUEVO
+    SISTEMA TIERED (Opciones Binarias 1m):
+    - SNIPER (100%): Rechazo >= 70%, Cuerpo <= 15%, Mecha contraria < 1%
+    - EXCELENTE (90%): Rechazo >= 60%, Cuerpo <= 20%, Mecha contraria < 5%
+    - ESTÁNDAR (80%): Rechazo >= 50%, Cuerpo <= 30%, Mecha contraria < 10%
+    
+    VALIDACIONES CRÍTICAS:
+    - DEBE SER VELA ROJA O NEUTRAL (close <= open)
+    - Mecha contraria es el filtro MÁS IMPORTANTE
+    - Cuerpo debe estar en la parte superior de la vela
     
     INTERPRETACIÓN:
     Indica rechazo de precios bajos pero debilidad. Válido en tendencia
@@ -172,7 +181,6 @@ def is_hanging_man(
         return False, 0.0
     
     # ⚠️ VALIDACIÓN CRÍTICA: Hanging Man debe ser ROJO o neutral
-    # Si es vela VERDE (close > open), NO es Hanging Man
     if close > open_price:
         return False, 0.0
     
@@ -180,34 +188,41 @@ def is_hanging_man(
     upper_wick_ratio = upper_wick / total_range
     lower_wick_ratio = lower_wick / total_range
     
-    # Condiciones del patrón
-    has_long_lower_wick = lower_wick_ratio >= Config.CANDLE.LOWER_WICK_RATIO_MIN
-    has_small_body = body_ratio <= Config.CANDLE.SMALL_BODY_RATIO
-    has_small_upper_wick = upper_wick_ratio <= Config.CANDLE.OPPOSITE_WICK_MAX
-    wick_to_body = (lower_wick / body_size) >= Config.CANDLE.WICK_TO_BODY_RATIO if body_size > 0 else False
+    # Safety check: Mecha debe ser >= 2x el cuerpo
+    if body_size > 0:
+        wick_to_body = lower_wick / body_size
+        if wick_to_body < Config.CANDLE.WICK_TO_BODY_RATIO:
+            return False, 0.0
     
-    # Validación del patrón
-    is_pattern = has_long_lower_wick and has_small_body and has_small_upper_wick and wick_to_body
+    # =========================================================================
+    # NIVEL SNIPER (100%) - Perfect Entry
+    # =========================================================================
+    if (lower_wick_ratio >= Config.CANDLE.SNIPER_REJECTION_WICK and
+        body_ratio <= Config.CANDLE.SNIPER_BODY_MAX and
+        upper_wick_ratio <= Config.CANDLE.SNIPER_OPPOSITE_WICK_MAX):
+        return True, 1.0
     
-    if not is_pattern:
+    # =========================================================================
+    # NIVEL EXCELENTE (90%) - High Probability
+    # =========================================================================
+    elif (lower_wick_ratio >= Config.CANDLE.EXCELLENT_REJECTION_WICK and
+          body_ratio <= Config.CANDLE.EXCELLENT_BODY_MAX and
+          upper_wick_ratio <= Config.CANDLE.EXCELLENT_OPPOSITE_WICK_MAX):
+        return True, 0.9
+    
+    # =========================================================================
+    # NIVEL ESTÁNDAR (80%) - Minimum Acceptable
+    # =========================================================================
+    elif (lower_wick_ratio >= Config.CANDLE.STANDARD_REJECTION_WICK and
+          body_ratio <= Config.CANDLE.STANDARD_BODY_MAX and
+          upper_wick_ratio <= Config.CANDLE.STANDARD_OPPOSITE_WICK_MAX):
+        return True, 0.8
+    
+    # =========================================================================
+    # NO CUMPLE NINGÚN NIVEL - Descartado
+    # =========================================================================
+    else:
         return False, 0.0
-    
-    # Cálculo de confianza
-    confidence = Config.CANDLE.BASE_CONFIDENCE
-    
-    # Bonos por condiciones excepcionales
-    if lower_wick_ratio >= 0.70:
-        confidence += Config.CANDLE.BONUS_CONFIDENCE_PER_CONDITION
-    
-    if body_ratio <= 0.20:
-        confidence += Config.CANDLE.BONUS_CONFIDENCE_PER_CONDITION
-    
-    if upper_wick_ratio <= 0.10:
-        confidence += Config.CANDLE.BONUS_CONFIDENCE_PER_CONDITION
-    
-    confidence = min(confidence, 1.0)
-    
-    return True, confidence
 
 
 def is_inverted_hammer(
@@ -217,15 +232,17 @@ def is_inverted_hammer(
     close: float
 ) -> Tuple[bool, float]:
     """
-    Detecta el patrón Inverted Hammer (Martillo Invertido).
+    Detecta el patrón Inverted Hammer (Martillo Invertido) con Sistema de Confianza por Niveles.
     
-    CARACTERÍSTICAS MATEMÁTICAS:
-    - Mecha superior larga (> 60% del rango total)
-    - Cuerpo pequeño (< 30% del rango total)
-    - Mecha inferior mínima (< 15% del rango total)
-    - Mecha superior >= 2x el tamaño del cuerpo
+    SISTEMA TIERED (Opciones Binarias 1m):
+    - SNIPER (100%): Rechazo >= 70%, Cuerpo <= 15%, Mecha contraria < 1%
+    - EXCELENTE (90%): Rechazo >= 60%, Cuerpo <= 20%, Mecha contraria < 5%
+    - ESTÁNDAR (80%): Rechazo >= 50%, Cuerpo <= 30%, Mecha contraria < 10%
+    
+    VALIDACIONES CRÍTICAS:
+    - DEBE SER VELA VERDE (close > open)
+    - Mecha contraria es el filtro MÁS IMPORTANTE
     - Cuerpo ubicado en la parte inferior de la vela
-    - DEBE SER VELA VERDE (close > open) ⚠️ VALIDACIÓN CRÍTICA
     
     INTERPRETACIÓN:
     Indica que los compradores intentaron empujar el precio pero fueron rechazados.
@@ -249,7 +266,6 @@ def is_inverted_hammer(
         return False, 0.0
     
     # ⚠️ VALIDACIÓN CRÍTICA: Inverted Hammer debe ser VERDE
-    # Si es vela ROJA (close <= open), NO es Inverted Hammer (sería Shooting Star)
     if close <= open_price:
         return False, 0.0
     
@@ -257,34 +273,41 @@ def is_inverted_hammer(
     upper_wick_ratio = upper_wick / total_range
     lower_wick_ratio = lower_wick / total_range
     
-    # Condiciones del patrón
-    has_long_upper_wick = upper_wick_ratio >= Config.CANDLE.UPPER_WICK_RATIO_MIN
-    has_small_body = body_ratio <= Config.CANDLE.SMALL_BODY_RATIO
-    has_small_lower_wick = lower_wick_ratio <= Config.CANDLE.OPPOSITE_WICK_MAX
-    wick_to_body = (upper_wick / body_size) >= Config.CANDLE.WICK_TO_BODY_RATIO if body_size > 0 else False
+    # Safety check: Mecha debe ser >= 2x el cuerpo
+    if body_size > 0:
+        wick_to_body = upper_wick / body_size
+        if wick_to_body < Config.CANDLE.WICK_TO_BODY_RATIO:
+            return False, 0.0
     
-    # Validación del patrón
-    is_pattern = has_long_upper_wick and has_small_body and has_small_lower_wick and wick_to_body
+    # =========================================================================
+    # NIVEL SNIPER (100%) - Perfect Entry
+    # =========================================================================
+    if (upper_wick_ratio >= Config.CANDLE.SNIPER_REJECTION_WICK and
+        body_ratio <= Config.CANDLE.SNIPER_BODY_MAX and
+        lower_wick_ratio <= Config.CANDLE.SNIPER_OPPOSITE_WICK_MAX):
+        return True, 1.0
     
-    if not is_pattern:
+    # =========================================================================
+    # NIVEL EXCELENTE (90%) - High Probability
+    # =========================================================================
+    elif (upper_wick_ratio >= Config.CANDLE.EXCELLENT_REJECTION_WICK and
+          body_ratio <= Config.CANDLE.EXCELLENT_BODY_MAX and
+          lower_wick_ratio <= Config.CANDLE.EXCELLENT_OPPOSITE_WICK_MAX):
+        return True, 0.9
+    
+    # =========================================================================
+    # NIVEL ESTÁNDAR (80%) - Minimum Acceptable
+    # =========================================================================
+    elif (upper_wick_ratio >= Config.CANDLE.STANDARD_REJECTION_WICK and
+          body_ratio <= Config.CANDLE.STANDARD_BODY_MAX and
+          lower_wick_ratio <= Config.CANDLE.STANDARD_OPPOSITE_WICK_MAX):
+        return True, 0.8
+    
+    # =========================================================================
+    # NO CUMPLE NINGÚN NIVEL - Descartado
+    # =========================================================================
+    else:
         return False, 0.0
-    
-    # Cálculo de confianza
-    confidence = Config.CANDLE.BASE_CONFIDENCE
-    
-    # Bonos
-    if upper_wick_ratio >= 0.70:
-        confidence += Config.CANDLE.BONUS_CONFIDENCE_PER_CONDITION
-    
-    if body_ratio <= 0.20:
-        confidence += Config.CANDLE.BONUS_CONFIDENCE_PER_CONDITION
-    
-    if lower_wick_ratio <= 0.10:
-        confidence += Config.CANDLE.BONUS_CONFIDENCE_PER_CONDITION
-    
-    confidence = min(confidence, 1.0)
-    
-    return True, confidence
 
 
 def is_hammer(
@@ -294,15 +317,17 @@ def is_hammer(
     close: float
 ) -> Tuple[bool, float]:
     """
-    Detecta el patrón Hammer (Martillo).
+    Detecta el patrón Hammer (Martillo) con Sistema de Confianza por Niveles.
     
-    CARACTERÍSTICAS MATEMÁTICAS:
-    - Mecha inferior larga (> 60% del rango total)
-    - Cuerpo pequeño (< 30% del rango total)
-    - Mecha superior mínima (< 15% del rango total)
-    - Mecha inferior >= 2x el tamaño del cuerpo
+    SISTEMA TIERED (Opciones Binarias 1m):
+    - SNIPER (100%): Rechazo >= 70%, Cuerpo <= 15%, Mecha contraria < 1%
+    - EXCELENTE (90%): Rechazo >= 60%, Cuerpo <= 20%, Mecha contraria < 5%
+    - ESTÁNDAR (80%): Rechazo >= 50%, Cuerpo <= 30%, Mecha contraria < 10%
+    
+    VALIDACIONES CRÍTICAS:
+    - DEBE SER VELA VERDE (close > open)
+    - Mecha contraria es el filtro MÁS IMPORTANTE
     - Cuerpo ubicado en la parte superior de la vela
-    - DEBE SER VELA VERDE (close > open) ⚠️ VALIDACIÓN CRÍTICA
     
     NOTA: A diferencia del Hanging Man, el Hammer DEBE ser verde (cierre > apertura).
     La diferencia entre Hammer y Hanging Man es:
@@ -330,7 +355,6 @@ def is_hammer(
         return False, 0.0
     
     # ⚠️ VALIDACIÓN CRÍTICA: Hammer debe ser VERDE
-    # Si es vela ROJA (close <= open), NO es Hammer (sería Hanging Man)
     if close <= open_price:
         return False, 0.0
     
@@ -338,34 +362,38 @@ def is_hammer(
     upper_wick_ratio = upper_wick / total_range
     lower_wick_ratio = lower_wick / total_range
     
-    # Condiciones del patrón
-    has_long_lower_wick = lower_wick_ratio >= Config.CANDLE.LOWER_WICK_RATIO_MIN
-    has_small_body = body_ratio <= Config.CANDLE.SMALL_BODY_RATIO
-    has_small_upper_wick = upper_wick_ratio <= Config.CANDLE.OPPOSITE_WICK_MAX
-    wick_to_body = (lower_wick / body_size) >= Config.CANDLE.WICK_TO_BODY_RATIO if body_size > 0 else False
+    # Safety check: Mecha debe ser >= 2x el cuerpo
+    if body_size > 0:
+        wick_to_body = lower_wick / body_size
+        if wick_to_body < Config.CANDLE.WICK_TO_BODY_RATIO:
+            return False, 0.0
     
-    # Validación del patrón
-    is_pattern = has_long_lower_wick and has_small_body and has_small_upper_wick and wick_to_body
+    # =========================================================================
+    # NIVEL SNIPER (100%) - Perfect Entry
+    # =========================================================================
+    if (lower_wick_ratio >= Config.CANDLE.SNIPER_REJECTION_WICK and
+        body_ratio <= Config.CANDLE.SNIPER_BODY_MAX and
+        upper_wick_ratio <= Config.CANDLE.SNIPER_OPPOSITE_WICK_MAX):
+        return True, 1.0
     
-    if not is_pattern:
+    # =========================================================================
+    # NIVEL EXCELENTE (90%) - High Probability
+    # =========================================================================
+    elif (lower_wick_ratio >= Config.CANDLE.EXCELLENT_REJECTION_WICK and
+          body_ratio <= Config.CANDLE.EXCELLENT_BODY_MAX and
+          upper_wick_ratio <= Config.CANDLE.EXCELLENT_OPPOSITE_WICK_MAX):
+        return True, 0.9
+    
+    # =========================================================================
+    # NIVEL ESTÁNDAR (80%) - Minimum Acceptable
+    # =========================================================================
+    elif (lower_wick_ratio >= Config.CANDLE.STANDARD_REJECTION_WICK and
+          body_ratio <= Config.CANDLE.STANDARD_BODY_MAX and
+          upper_wick_ratio <= Config.CANDLE.STANDARD_OPPOSITE_WICK_MAX):
+        return True, 0.8
+    
+    # =========================================================================
+    # NO CUMPLE NINGÚN NIVEL - Descartado
+    # =========================================================================
+    else:
         return False, 0.0
-    
-    # Cálculo de confianza
-    confidence = Config.CANDLE.BASE_CONFIDENCE
-    
-    # Bonos
-    if lower_wick_ratio >= 0.70:
-        confidence += Config.CANDLE.BONUS_CONFIDENCE_PER_CONDITION
-    
-    if body_ratio <= 0.20:
-        confidence += Config.CANDLE.BONUS_CONFIDENCE_PER_CONDITION
-    
-    if upper_wick_ratio <= 0.10:
-        confidence += Config.CANDLE.BONUS_CONFIDENCE_PER_CONDITION
-    
-    # Nota: NO hay bono adicional por color verde porque ES OBLIGATORIO
-    # (ya fue validado al inicio de la función)
-    
-    confidence = min(confidence, 1.0)
-    
-    return True, confidence
