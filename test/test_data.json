@@ -1650,5 +1650,12 @@
     "maximo": 86010.88,
     "minimo": 85958.74,
     "tipo_vela": "hanging_man"
+  },
+  {
+    "apertura": 86308.54,
+    "cierre": 86316.0,
+    "maximo": 86404.58,
+    "minimo": 86308.54,
+    "tipo_vela": "inverted_hammer"
   }
 ]

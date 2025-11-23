@@ -243,5 +243,12 @@
     "title": "⚠️ AVISO | BTCUSDT\nPosible operación al alza\n",
     "message": "━━━━━━━━━━━━━━━━━━━━━━━━\n📊 INFORMACIÓN DE LA VELA\n━━━━━━━━━━━━━━━━━━━━━━━━\n🔹 Fuente: BINANCE\n🔹 Patrón: HANGING_MAN\n🔹 Timestamp: 2025-11-22 23:59:00\n🔹 Apertura: 86010.88000\n🔹 Máximo: 86010.88000\n🔹 Mínimo: 85958.74000\n🔹 Cierre: 86000.34000\n🔹 Confianza del Patrón: 90%\n\n━━━━━━━━━━━━━━━━━━━━━━━━\n📉 ANÁLISIS DE EMAS\n━━━━━━━━━━━━━━━━━━━━━━━━\n° EMA 20: 86122.28521\n° EMA 30: 86112.80383\n° EMA 50: 86054.23510\n° EMA 200: 85568.13715\n🔹 Estructura: EMAs mixtas (Sin alineación clara)\n🔹 Alineación: ✓ Confirmada\n\n━━━━━━━━━━━━━━━━━━━━━━━━\n🎯 ANÁLISIS DE TENDENCIA\n━━━━━━━━━━━━━━━━━━━━━━━━\n🔹 Estado: WEAK_BEARISH\n🔹 Score: -2/10\n🔹 Interpretación: Tendencia bajista débil\n\n⚡ IMPORTANTE: Verificar gráfico y contexto de mercado antes de operar.",
     "image_name": "chart_20251123_000015_849502.png"
+  },
+  {
+    "timestamp": "20251123_010103_402555",
+    "datetime": "2025-11-23T01:01:03.405846",
+    "title": "⚠️ AVISO | BTCUSDT\nPosible operación a la baja\n",
+    "message": "━━━━━━━━━━━━━━━━━━━━━━━━\n📊 INFORMACIÓN DE LA VELA\n━━━━━━━━━━━━━━━━━━━━━━━━\n🔹 Fuente: BINANCE\n🔹 Patrón: INVERTED_HAMMER\n🔹 Timestamp: 2025-11-23 01:00:00\n🔹 Apertura: 86308.54000\n🔹 Máximo: 86404.58000\n🔹 Mínimo: 86308.54000\n🔹 Cierre: 86316.00000\n🔹 Confianza del Patrón: 100%\n\n━━━━━━━━━━━━━━━━━━━━━━━━\n📉 ANÁLISIS DE EMAS\n━━━━━━━━━━━━━━━━━━━━━━━━\n° EMA 20: 86148.58711\n° EMA 30: 86113.27111\n° EMA 50: 86073.50939\n° EMA 200: 85779.52379\n🔹 Estructura: Precio > EMA20 > EMA200 (Alineación alcista)\n🔹 Alineación: ✓ Confirmada\n\n━━━━━━━━━━━━━━━━━━━━━━━━\n🎯 ANÁLISIS DE TENDENCIA\n━━━━━━━━━━━━━━━━━━━━━━━━\n🔹 Estado: STRONG_BULLISH\n🔹 Score: +10/10\n🔹 Interpretación: Tendencia alcista muy fuerte\n\n⚡ IMPORTANTE: Verificar gráfico y contexto de mercado antes de operar.",
+    "image_name": "chart_20251123_010103_402555.png"
   }
 ]

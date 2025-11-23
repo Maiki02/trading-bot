@@ -5,6 +5,7 @@ from .telegram_service import TelegramService
 from .storage_service import StorageService
 from .local_notification_storage import LocalNotificationStorage
 from .statistics_service import StatisticsService
+from .tradingview_service import TradingViewService, HistoricalCandle
 
 __all__ = [
     "ConnectionService",
@@ -12,5 +13,7 @@ __all__ = [
     "TelegramService",
     "StorageService",
     "LocalNotificationStorage",
-    "StatisticsService"
+    "StatisticsService",
+    "TradingViewService",
+    "HistoricalCandle"
 ]

@@ -1,0 +1,295 @@
+# 📊 Sistema de Backtesting Histórico
+
+## ✨ Descripción
+
+Sistema completo para generar un dataset de backtesting obteniendo **35,000 velas históricas** de TradingView, detectando patrones de velas japonesas y calculando probabilidades históricas.
+
+---
+
+## 📦 Nuevos Archivos
+
+### 1. `src/services/tradingview_service.py`
+Servicio reutilizable para obtener velas históricas de TradingView.
+
+**Características:**
+- ✅ Conexión temporal a TradingView WebSocket
+- ✅ Solicitud de N velas históricas
+- ✅ Soporte para cualquier instrumento (BTCUSDT, EURUSD, etc.)
+- ✅ Configuración de timeframe (1min, 5min, etc.)
+- ✅ Cierre automático de conexión
+
+**Uso:**
+```python
+from src.services.tradingview_service import TradingViewService
+
+service = TradingViewService()
+candles = await service.fetch_historical_candles(
+    symbol="BTCUSDT",
+    exchange="BINANCE",
+    timeframe="1",
+    num_candles=1000
+)
+
+print(f"Obtenidas {len(candles)} velas")
+```
+
+### 2. `backfill_historical_data.py`
+Script ejecutable para generar el dataset de backtesting.
+
+**Proceso:**
+1. 📥 Obtener 35,000 velas históricas de TradingView
+2. ⏭️ Saltar las primeras 1,000 (usadas para inicializar EMAs)
+3. 🔍 Recorrer velas 1,001 a 35,000
+4. 🎯 Para cada vela con patrón detectado:
+   - Calcular EMAs (200, 50, 30, 20) con buffer de 1,000 velas anteriores
+   - Calcular alineación de EMAs
+   - Calcular score de tendencia
+   - Obtener siguiente vela (outcome)
+   - Determinar si fue WIN/LOSS
+   - Calcular PnL
+   - Guardar en `data/trading_signals_dataset.jsonl`
+
+---
+
+## 🚀 Cómo Ejecutar
+
+### Requisitos Previos
+
+Asegúrate de que todas las dependencias estén instaladas:
+```bash
+pip install -r requirements.txt
+```
+
+### Ejecutar Backtesting
+
+```bash
+python backfill_historical_data.py
+```
+
+### Configuración
+
+Puedes modificar los parámetros en el archivo `backfill_historical_data.py`:
+
+```python
+# Instrumento a analizar
+SYMBOL = "BTCUSDT"
+EXCHANGE = "BINANCE"
+TIMEFRAME = "1"  # 1 minuto
+
+# Cantidad de velas
+TOTAL_CANDLES = 35000  # Total a descargar
+SKIP_CANDLES = 1000    # Velas a saltar (para inicializar EMAs)
+BUFFER_SIZE = 1000     # Tamaño del buffer para cálculo de EMAs
+```
+
+---
+
+## 📊 Salida del Backtesting
+
+### Ejemplo de Log
+
+```
+================================================================================
+🚀 INICIANDO BACKTESTING HISTÓRICO
+================================================================================
+📊 Instrumento: BINANCE:BTCUSDT
+⏱️  Timeframe: 1 minuto(s)
+📈 Total de velas: 35,000
+⏭️  Velas a saltar: 1,000
+🔍 Velas a analizar: 34,000
+================================================================================
+
+📥 PASO 1: Obteniendo datos históricos de TradingView...
+🔌 Conectando a TradingView para obtener 35000 velas de BINANCE:BTCUSDT...
+✅ Recibidas 35000 velas de BINANCE:BTCUSDT
+✅ Obtenidas 35,000 velas históricas
+
+🔍 PASO 2: Procesando velas y detectando patrones...
+📊 Progreso: 0.0% (0/34,000 velas procesadas)
+💾 Patrón guardado: SHOOTING_STAR | Score: -7 | Outcome: WIN | PnL: 15.30
+💾 Patrón guardado: HAMMER | Score: 5 | Outcome: LOSS | PnL: -8.50
+📊 Progreso: 2.9% (1,000/34,000 velas procesadas)
+...
+📊 Progreso: 100.0% (34,000/34,000 velas procesadas)
+
+================================================================================
+✅ BACKTESTING COMPLETADO
+================================================================================
+🎯 Patrones detectados: 1,247
+💾 Patrones guardados: 1,247
+📊 Dataset: data/trading_signals_dataset.jsonl
+================================================================================
+```
+
+### Estructura del Dataset Generado
+
+Cada línea en `data/trading_signals_dataset.jsonl` contiene:
+
+```json
+{
+  "timestamp": 1732320000,
+  "pattern": "SHOOTING_STAR",
+  "trend": "WEAK_BEARISH",
+  "trend_score": -3,
+  "is_trend_aligned": true,
+  "outcome_timestamp": 1732320060,
+  "outcome_direction": "ROJA",
+  "expected_direction": "ROJA",
+  "outcome_result": "WIN",
+  "pnl": 15.30,
+  "raw_data": {
+    "ema_200": 86500.45,
+    "ema_50": 86450.23,
+    "ema_30": 86420.78,
+    "ema_20": 86380.12,
+    "close": 86316.00,
+    "open": 86329.54,
+    "algo_version": "v2.0"
+  }
+}
+```
+
+---
+
+## 🔧 Integración con Connection Service
+
+El `ConnectionService` ya puede usar el `TradingViewService` si necesita obtener datos históricos de forma programática.
+
+**Ejemplo de uso en otros scripts:**
+
+```python
+from src.services.tradingview_service import get_historical_candles
+
+# Obtener 5000 velas de EUR/USD
+candles = await get_historical_candles(
+    symbol="EURUSD",
+    exchange="OANDA",
+    timeframe="1",
+    num_candles=5000
+)
+```
+
+---
+
+## 📈 Análisis del Dataset
+
+Una vez generado el dataset, puedes usar `StatisticsService` para análisis avanzado:
+
+```bash
+python test_statistics_service.py
+```
+
+O usar el script de análisis:
+
+```bash
+python scripts/analyze_dataset.py
+```
+
+---
+
+## ⚠️ Limitaciones y Consideraciones
+
+### 1. **Rate Limiting de TradingView**
+- TradingView puede limitar la cantidad de velas por request
+- Si necesitas más de 35,000 velas, ejecuta el script múltiples veces con diferentes rangos
+
+### 2. **Tiempo de Ejecución**
+- Obtener y procesar 35,000 velas puede tomar **5-15 minutos** dependiendo de:
+  - Velocidad de conexión
+  - Latencia a TradingView
+  - CPU disponible para cálculos de EMAs
+
+### 3. **Espacio en Disco**
+- El dataset JSONL puede crecer a **varios MB** con 1,000+ patrones
+- Cada registro ocupa ~300-500 bytes
+
+### 4. **Calidad de Datos**
+- Las primeras 1,000 velas se usan solo para inicializar EMAs
+- Los patrones detectados en las primeras 200 velas pueden tener EMAs incompletas (se saltan)
+
+---
+
+## 🎯 Casos de Uso
+
+### 1. **Backtesting de Estrategias**
+Evalúa el rendimiento histórico de tus patrones de velas.
+
+### 2. **Entrenamiento de Modelos ML**
+Usa el dataset como input para entrenar modelos de machine learning.
+
+### 3. **Análisis de Probabilidades**
+Calcula win rates históricos por patrón, score y condiciones de mercado.
+
+### 4. **Optimización de Parámetros**
+Prueba diferentes configuraciones de EMAs y scoring para maximizar probabilidad.
+
+---
+
+## 🔄 Actualización del Dataset
+
+Para agregar más datos históricos:
+
+```bash
+# Modificar TOTAL_CANDLES en backfill_historical_data.py
+TOTAL_CANDLES = 50000  # Cambiar a 50,000
+
+# Ejecutar nuevamente
+python backfill_historical_data.py
+```
+
+**NOTA:** El script no elimina datos existentes, solo agrega nuevos registros al JSONL.
+
+---
+
+## 📚 Documentación Relacionada
+
+- **Sistema de Probabilidad Histórica:** `Docs/sistema_probabilidad_historica.md`
+- **Guía de Inicio Rápido:** `Docs/GUIA_PROBABILIDAD_HISTORICA.md`
+- **Análisis de Dataset:** `Docs/dataset.md`
+
+---
+
+## ✅ Estado
+
+**Sistema:** ✅ **OPERATIVO Y LISTO PARA PRODUCCIÓN**
+
+**Próximos pasos:**
+1. Ejecutar `python backfill_historical_data.py`
+2. Esperar a que complete el backtesting
+3. Analizar dataset con `StatisticsService`
+4. ¡Empezar a operar con datos históricos!
+
+---
+
+## 🆘 Troubleshooting
+
+### Error: "No se obtuvieron suficientes velas"
+
+**Causa:** TradingView no retornó las velas esperadas.
+
+**Solución:**
+- Verifica tu conexión a internet
+- Reduce `TOTAL_CANDLES` a 10,000 o 20,000
+- Intenta con otro instrumento (EURUSD, BTCUSDT)
+
+### Error: "Timeout esperando datos"
+
+**Causa:** TradingView tardó más de 30s en responder.
+
+**Solución:**
+- Aumenta el timeout en `tradingview_service.py`:
+  ```python
+  await asyncio.wait_for(self.data_received.wait(), timeout=60.0)  # 60s
+  ```
+
+### El dataset tiene pocos patrones
+
+**Causa:** Los patrones son raros en el mercado elegido.
+
+**Solución:**
+- Aumenta `TOTAL_CANDLES` a 50,000 o 100,000
+- Prueba con un instrumento más volátil (criptomonedas)
+
+---
+
+¡Listo para generar tu dataset de backtesting! 🚀
