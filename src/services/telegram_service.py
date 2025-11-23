@@ -426,7 +426,7 @@ class TelegramService:
                 logger.info("✅ Construyendo bloque de estadísticas completo")
                 statistics_block = (
                     f"━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                    f"📊 PROBABILIDADES HISTÓRICAS (30 días)\n"
+                    f"📊 PROBABILIDADES (30 días)\n"
                     f"━━━━━━━━━━━━━━━━━━━━━━━━\n"
                     f"{expected_emoji} Dirección esperada: {expected_dir}\n\n"
                     f"{exact_line}"
@@ -443,7 +443,7 @@ class TelegramService:
                 )
                 statistics_block = (
                     f"━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                    f"📊 PROBABILIDADES HISTÓRICAS\n"
+                    f"📊 PROBABILIDADES\n"
                     f"━━━━━━━━━━━━━━━━━━━━━━━━\n"
                     f"⚠️  No hay suficientes casos para mostrar estadísticas\n"
                     f"   (Necesario: mínimo 3 casos | Actual: {by_score_cases} casos)\n\n"
@@ -454,7 +454,7 @@ class TelegramService:
         # Cuerpo del mensaje estructurado (reducido para cumplir límite Telegram)
         body = (
             f"━━━━━━━━━━━━━━━━━━━━━━━━\n"
-            f"📊 INFORMACIÓN DE LA VELA\n"
+            f"📊 INFO DE VELA\n"
             f"━━━━━━━━━━━━━━━━━━━━━━━━\n"
             f"🔹 Fuente: {signal.source}\n"
             f"🔹 Patrón: {signal.pattern}\n"
