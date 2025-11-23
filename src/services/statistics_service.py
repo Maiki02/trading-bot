@@ -17,7 +17,7 @@ import json
 import pandas as pd
 import numpy as np
 from typing import Dict, Optional, List, Tuple
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from src.utils.logger import get_logger
@@ -220,22 +220,38 @@ class StatisticsService:
             }
         """
         if self.df is None or self.df.empty:
+            logger.warning(
+                f"⚠️  Dataset vacío | "
+                f"Buscando: pattern={pattern}, score={current_score}, "
+                f"alignment={current_alignment}, ema_order={current_ema_order}"
+            )
             return self._empty_stats_response()
         
-        # Filtrar por ventana de tiempo
-        cutoff_date = datetime.utcnow() - timedelta(days=lookback_days)
+        # Filtrar por ventana de tiempo (usar UTC con timezone para comparación correcta)
+        cutoff_date = datetime.now(timezone.utc) - timedelta(days=lookback_days)
         
-        # Convertir timestamp a datetime si es string
+        # Convertir timestamp a datetime (timestamp está en SEGUNDOS Unix)
         try:
-            self.df['timestamp_dt'] = pd.to_datetime(self.df['timestamp'])
-        except Exception:
-            logger.warning("⚠️  No se pudo parsear columna 'timestamp'")
+            self.df['timestamp_dt'] = pd.to_datetime(self.df['timestamp'], unit='s', utc=True)
+        except Exception as e:
+            logger.warning(f"⚠️  No se pudo parsear columna 'timestamp': {e}")
             return self._empty_stats_response()
         
         df_filtered = self.df[self.df['timestamp_dt'] >= cutoff_date].copy()
         
+        logger.info(
+            f"📊 Iniciando búsqueda de estadísticas | "
+            f"Pattern: {pattern} | Score: {current_score} | "
+            f"Alignment: {current_alignment} | EMA Order: {current_ema_order} | "
+            f"Lookback: {lookback_days} días | Registros disponibles: {len(self.df)}"
+        )
+        
         if df_filtered.empty:
-            logger.info(f"📊 No hay datos en ventana de {lookback_days} días")
+            logger.warning(
+                f"⚠️  No hay datos en ventana de {lookback_days} días | "
+                f"Total registros en dataset: {len(self.df)} | "
+                f"Fecha de corte: {cutoff_date.isoformat()}"
+            )
             return self._empty_stats_response()
         
         # Filtrar por patrón exacto (nueva estructura V2)

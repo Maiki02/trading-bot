@@ -478,6 +478,7 @@ class TelegramService:
             f"━━━━━━━━━━━━━━━━━━━━━━━━\n"
             f"🔹 Estado: {signal.trend}\n"
             f"🔹 Score: {signal.trend_score:+d}/10\n"
+            f"🔹 Nota: Se sigue buscando la mejor forma de calcular el score.\n"
             f"🔹 Interpretación: {trend_interpretation}\n\n"
             f"{statistics_block}"
             f"⚡ IMPORTANTE: Verificar gráfico y contexto de mercado antes de operar."

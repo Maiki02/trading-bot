@@ -1664,5 +1664,19 @@
     "maximo": 86082.0,
     "minimo": 86042.07,
     "tipo_vela": "inverted_hammer"
+  },
+  {
+    "apertura": 86468.84,
+    "cierre": 86460.01,
+    "maximo": 86500.0,
+    "minimo": 86455.56,
+    "tipo_vela": "shooting_star"
+  },
+  {
+    "apertura": 86150.24,
+    "cierre": 86145.6,
+    "maximo": 86169.72,
+    "minimo": 86145.59,
+    "tipo_vela": "shooting_star"
   }
 ]
