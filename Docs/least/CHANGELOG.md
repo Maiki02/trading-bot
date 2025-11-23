@@ -1,6 +1,111 @@
 # Actualización del Sistema - Respuesta a Consultas
 
-## 📝 Cambios Realizados
+## 📝 Cambios Más Recientes (22 Nov 2025)
+
+### 1. ✅ Notificaciones de Resultado (Outcome Notifications)
+
+**Archivos modificados:**
+- ✅ `.env` - Agregado `TELEGRAM_OUTCOME_SUBSCRIPTION`
+- ✅ `config.py` - `TelegramConfig` ahora incluye `outcome_subscription`
+- ✅ `src/services/telegram_service.py` - Nueva función `send_outcome_notification()`
+- ✅ `src/logic/analysis_service.py` - Envío de notificación en `_close_signal_cycle()`
+- ✅ `src/logic/candle.py` - Nueva función `get_candle_direction()`
+- ✅ `main.py` - Paso de `telegram_service` al constructor de `AnalysisService`
+
+**Funcionalidad:**
+El sistema ahora envía **dos notificaciones separadas**:
+1. **Notificación de Patrón** (inmediata): Cuando se detecta un patrón (Shooting Star, Hammer, etc.)
+2. **Notificación de Resultado** (después de 1 min): Cuando cierra la vela siguiente, informando si fue VERDE, ROJA o DOJI
+
+**Nuevo campo en .env:**
+```env
+# Subscription para notificaciones de resultados (puede ser igual o diferente a la de patrones)
+TELEGRAM_OUTCOME_SUBSCRIPTION=trade:alert
+```
+
+**Nueva función pública en TelegramService:**
+```python
+async def send_outcome_notification(
+    self,
+    source: str,
+    symbol: str,
+    direction: str,  # "VERDE", "ROJA", o "DOJI"
+    chart_base64: Optional[str] = None
+) -> None:
+    """Envía notificación del resultado de la vela."""
+```
+
+**Refactorización interna:**
+- `_send_telegram_notification()`: Nueva función base reutilizable
+- `_send_to_telegram()`: Ahora llama a la función base
+- `send_outcome_notification()`: Nueva función para resultados
+
+**Utilidad añadida:**
+```python
+def get_candle_direction(open_price: float, close: float) -> str:
+    """Retorna 'VERDE', 'ROJA', o 'DOJI'"""
+```
+
+---
+
+### 2. ✅ Script de Visualización de Patrones
+
+**Archivo nuevo:**
+- ✅ `test/visualize_patterns.py` - Herramienta de análisis visual de patrones detectados
+
+**Funcionalidad:**
+- Genera gráficos normalizados (porcentajes) de todas las velas en `test_data.json`
+- Valida cada vela contra las reglas oficiales de `candle.py`
+- Colorea según validez: 🟦 AZUL (válida) | 🟥 ROJO (inválida)
+- Filtra por tipo de patrón específico
+- Guarda imágenes en `test/images_patterns/`
+
+**Uso:**
+```bash
+# Todos los patrones
+python test/visualize_patterns.py
+
+# Filtro por patrón específico
+python test/visualize_patterns.py --pattern shooting_star
+python test/visualize_patterns.py --pattern hammer
+python test/visualize_patterns.py --pattern hanging_man
+python test/visualize_patterns.py --pattern inverted_hammer
+```
+
+**Métricas reportadas:**
+- Precisión de detección por patrón
+- Distribución de velas válidas/inválidas
+- Estadísticas de normalización (rango, volatilidad)
+
+**Implementación técnica:**
+- Importa funciones de `candle.py` usando `importlib.util` (evita imports circulares)
+- Normalización: Cada vela usa su apertura como 0%, calcula el resto como % de cambio
+- Valida con las mismas funciones que usa el bot en producción
+
+---
+
+### 3. ✅ Limpieza de Referencias Residuales
+
+**Contexto:**
+Después del git revert del sistema de confianza por niveles, quedaron referencias a `ema_100` que causaban `AttributeError` en runtime.
+
+**Archivos limpiados:**
+- ✅ `src/services/telegram_service.py` - Removido `ema_100_str` de formateo
+- ✅ `src/logic/analysis_service.py` - Removidas 5 referencias a `ema_100`:
+  - Variable `ema_100_val`
+  - Formateo `ema_100_str`
+  - Log output
+  - Diccionario `emas_dict`
+  - Constructor de `PatternSignal`
+
+**Estado final:**
+Sistema funciona solo con EMAs: 20, 30, 50, 200 (como estaba antes del revert).
+
+---
+
+## 📝 Cambios Anteriores
+
+## Cambios Realizados
 
 ### 1. ✅ Eliminación de TELEGRAM_CHAT_ID
 

@@ -1,7 +1,7 @@
 # Resumen
 
 ## 1. Objetivo del Proyecto
-Integrar un monitor automatizado 24/7 que capture datos de mercado en tiempo real de TradingView mediante ingeniería inversa de WebSocket. El sistema identificará patrones de velas japonesas en temporalidad de 1 minuto y, al detectar una configuración válida alineada con la tendencia, enviará una alerta inmediata vía Telegram con gráfico visual adjunto.
+Integrar un monitor automatizado 24/7 que capture datos de mercado en tiempo real de TradingView mediante ingeniería inversa de WebSocket. El sistema identificará patrones de velas japonesas en temporalidad de 1 minuto y, al detectar una configuración válida alineada con la tendencia, enviará alertas inmediatas vía Telegram con gráfico visual adjunto. **Adicionalmente, envía notificaciones de resultado** cuando cierra la vela siguiente, informando si el patrón tuvo éxito (VERDE/ROJA/DOJI).
 
 ### 1.1. Objetivo Versión 0.0.2 (MVP Completado) ✅
 El MVP ha sido completado exitosamente con todas las funcionalidades core implementadas:
@@ -13,7 +13,12 @@ El MVP ha sido completado exitosamente con todas las funcionalidades core implem
   - ✅ Inverted Hammer (Martillo Invertido)
   - ✅ Hammer (Martillo)
 - **Testing:** Sistema de pruebas automatizado implementado en `test/test_candles.py` con validación estricta de los 4 patrones, reporte de fidelidad matemática y mensajes de diagnóstico detallados.
-- **Visualización:** Generación automática de gráficos con `mplfinance` codificados en Base64, con cantidad de velas parametrizable (`CHART_LOOKBACK`), enviados automáticamente vía Telegram.
+- **Visualización:** 
+  - Generación automática de gráficos con `mplfinance` codificados en Base64
+  - **Nueva herramienta:** `test/visualize_patterns.py` para análisis visual de patrones detectados con validación de precisión
+- **Notificaciones Duales:**
+  - **Patrón detectado** (inmediato): Al identificar Shooting Star, Hammer, etc.
+  - **Resultado de vela** (1 min después): Informa si fue VERDE, ROJA o DOJI
 - **Modo de Operación:** Sistema configurado con `USE_TREND_FILTER=false`, notifica **cualquier patrón detectado sin filtro de tendencia**, delegando la decisión final al trader.
 - **Estado:** ✅ **MVP OPERATIVO** - Sistema probado, estable y listo para monitoreo 24/7.
 
@@ -30,9 +35,8 @@ El MVP ha sido completado exitosamente con todas las funcionalidades core implem
 - **Implementación:**
   - Biblioteca: `mplfinance==0.12.10b0` para generación profesional de gráficos financieros.
   - Estilo: Tema claro con fondo blanco, velas verdes (alcistas) y rojas (bajistas).
-  - **EMAs Visualizadas:** Las 5 EMAs calculadas se muestran en el gráfico con colores diferenciados:
+  - **EMAs Visualizadas:** Las 4 EMAs calculadas se muestran en el gráfico con colores diferenciados:
     * **EMA 200** (Cyan #00D4FF, grosor 2.0) - Tendencia macro
-    * **EMA 100** (Azul #0080FF, grosor 1.8) - Tendencia media
     * **EMA 50** (Verde #00FF80, grosor 1.5) - Corto plazo
     * **EMA 30** (Amarillo #FFFF00, grosor 1.2) - Momentum medio
     * **EMA 20** (Naranja #FF8000, grosor 1.0) - Momentum corto
@@ -40,7 +44,7 @@ El MVP ha sido completado exitosamente con todas las funcionalidades core implem
   - Lookback: **Cantidad de velas parametrizable** vía `CHART_LOOKBACK` (default: 30, recomendado: 20-30).
   - **Performance de Generación:**
     * Preparación de datos: 5-10 ms
-    * Render matplotlib: 150-300 ms (con 5 EMAs)
+    * Render matplotlib: 150-300 ms (con 4 EMAs)
     * Encoding Base64: 50-100 ms
     * **Tiempo total: ~220 ms** (ejecutado en hilo separado con `asyncio.to_thread()`)
   - Ejecución: Generación en **hilo separado** para no bloquear WebSocket.
@@ -48,6 +52,45 @@ El MVP ha sido completado exitosamente con todas las funcionalidades core implem
   - Envío: Integrado en notificaciones de Telegram como `image_base64` en el payload.
 - **Control de Costos:** Variable `SEND_CHARTS` permite deshabilitar envío de imágenes en producción.
 - **Optimización:** Se recomienda `CHART_LOOKBACK=30` o menor para mantener payloads <200KB.
+
+#### 📊 **Visualización de Patrones (Testing)**
+- **Nueva Herramienta:** `test/visualize_patterns.py` para análisis de calidad de detección.
+- **Funcionalidad:**
+  - Genera gráficos de todas las velas guardadas en `test_data.json`
+  - Normalización porcentual (apertura = 0%, resto como % de cambio)
+  - **Validación automática:** Cada vela se valida contra las reglas oficiales de `candle.py`
+  - **Código de colores:**
+    * 🟦 AZUL: Vela válida que pasó el test
+    * 🟥 ROJO: Vela inválida que NO pasó el test
+  - **Filtros por patrón:** `--pattern shooting_star`, `--pattern hammer`, etc.
+  - **Métricas reportadas:** Precisión de detección, distribución válidas/inválidas, estadísticas de normalización
+  - **Imágenes guardadas en:** `test/images_patterns/`
+- **Implementación Técnica:**
+  - Importa funciones de `candle.py` usando `importlib.util` (evita imports circulares)
+  - Usa las mismas funciones que el bot en producción (fuente única de verdad)
+- **Uso:**
+  ```bash
+  python test/visualize_patterns.py                    # Todos los patrones
+  python test/visualize_patterns.py --pattern hammer   # Solo Hammer
+  ```
+
+#### 📢 **Sistema de Notificaciones Duales**
+- **Nueva Funcionalidad:** Envío de notificaciones en dos momentos:
+  1. **Detección de Patrón** (inmediato): Cuando se identifica Shooting Star, Hammer, etc.
+  2. **Resultado de Vela** (1 minuto después): Cuando cierra la vela siguiente, informa dirección (VERDE/ROJA/DOJI)
+- **Configuración:**
+  - Variable `.env`: `TELEGRAM_OUTCOME_SUBSCRIPTION` (puede ser diferente a la subscription principal)
+  - Refactorización: Nueva función base `_send_telegram_notification()` reutilizable
+  - Nueva función pública: `send_outcome_notification(source, symbol, direction, chart_base64)`
+- **Utilidad añadida:**
+  - `get_candle_direction(open_price, close)` en `candle.py`: Retorna "VERDE", "ROJA" o "DOJI"
+- **Flujo:**
+  ```
+  Vela cierra → Detecta patrón → Notificación 1 (alerta)
+  ↓
+  Espera 60s → Vela siguiente cierra → Notificación 2 (resultado)
+  ```
+- **Beneficio:** El trader recibe confirmación inmediata del resultado sin tener que monitorear manualmente.
 
 #### 📁 **Dataset de Señales para Machine Learning**
 - **Propósito:** Almacenar historial de señales detectadas y sus resultados para análisis futuro.
