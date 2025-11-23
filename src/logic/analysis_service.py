@@ -913,15 +913,20 @@ class AnalysisService:
             bb_lower
         )
         
+        # Formatear Bollinger Bands para logging (manejar NaN)
+        bb_upper_str = f"{bb_upper:.5f}" if not pd.isna(bb_upper) else "N/A"
+        bb_middle_str = f"{bb_middle:.5f}" if not pd.isna(bb_middle) else "N/A"
+        bb_lower_str = f"{bb_lower:.5f}" if not pd.isna(bb_lower) else "N/A"
+        
         logger.info(
             f"📈 Análisis de Tendencia: {trend_analysis}\n"
             f"   • Status: {trend_analysis.status}\n"
             f"   • Score: {trend_analysis.score:+d}/10\n"
             f"   • Alineación EMAs: {'✓' if trend_analysis.is_aligned else '✗'}\n"
             f"📊 Bollinger Bands:\n"
-            f"   • Superior: {bb_upper:.5f if not pd.isna(bb_upper) else 'N/A'}\n"
-            f"   • Media: {bb_middle:.5f if not pd.isna(bb_middle) else 'N/A'}\n"
-            f"   • Inferior: {bb_lower:.5f if not pd.isna(bb_lower) else 'N/A'}\n"
+            f"   • Superior: {bb_upper_str}\n"
+            f"   • Media: {bb_middle_str}\n"
+            f"   • Inferior: {bb_lower_str}\n"
             f"   • Zona de Agotamiento: {exhaustion_type}\n"
         )
         
@@ -1237,9 +1242,6 @@ class AnalysisService:
                 f"🎯 PATTERN DETECTED | {signal.source} | {signal.pattern} | "
                 f"Trend={trend_analysis.status} (Score: {trend_analysis.score:+d}) | "
                 f"Strength={signal_strength} | Exhaustion={exhaustion_type} | "
-                f"Close={signal.candle.close:.5f} | Confidence={signal.confidence:.2f} | "
-                f"Chart={'✓' if chart_base64 else '✗'}"
-            )
                 f"Close={signal.candle.close:.5f} | Confidence={signal.confidence:.2f} | "
                 f"Chart={'✓' if chart_base64 else '✗'}"
             )
