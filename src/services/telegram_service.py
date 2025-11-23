@@ -252,7 +252,7 @@ class TelegramService:
     
     def _format_standard_message(self, signal: PatternSignal) -> AlertMessage:
         """
-        Formatea un mensaje de alerta estándar.
+        Formatea un mensaje de alerta estándar con sistema de clasificación de fuerza.
         
         Args:
             signal: Señal de patrón
@@ -262,35 +262,35 @@ class TelegramService:
         """
         timestamp_str = datetime.fromtimestamp(signal.timestamp).strftime("%Y-%m-%d %H:%M:%S")
         
-        # Determinar tipo de alerta basado en tendencia y patrón
-        # ALERTA FUERTE: Patrón de reversión alineado con tendencia fuerte
-        # ADVERTENCIA: Patrón de reversión en tendencia débil/neutral
-        # DETECCIÓN: Solo informativo
+        # ═════════════════════════════════════════════════════════════════════
+        # TÍTULO BASADO EN SIGNAL_STRENGTH (Nuevo Sistema)
+        # ═════════════════════════════════════════════════════════════════════
         
-        is_strong_bullish = signal.trend in ["STRONG_BULLISH", "WEAK_BULLISH"]
-        is_strong_bearish = signal.trend in ["STRONG_BEARISH", "WEAK_BEARISH"]
-        
-        # Caso 1: ALERTA FUERTE - Reversión bajista en tendencia alcista
-        if is_strong_bullish and signal.pattern == "SHOOTING_STAR":
-            title = f"🔴 ALERTA FUERTE | {signal.symbol}\nAlta probabilidad de apertura BAJISTA\n"
-        # Caso 2: ALERTA FUERTE - Reversión alcista en tendencia bajista
-        elif is_strong_bearish and signal.pattern == "HAMMER":
-            title = f"🟢 ALERTA FUERTE | {signal.symbol}\nAlta probabilidad de apertura ALCISTA\n"
-        # Caso 3: AVISO - Martillo invertido en tendencia alcista (debilitamiento)
-        elif is_strong_bullish and signal.pattern == "INVERTED_HAMMER":
-            title = f"⚠️ AVISO | {signal.symbol}\nPosible operación a la baja\n"
-        # Caso 4: AVISO - Hombre colgado en tendencia bajista (debilitamiento)
-        elif is_strong_bearish and signal.pattern == "HANGING_MAN":
-            title = f"⚠️ AVISO | {signal.symbol}\nPosible operación al alza\n"
-        # Caso 5: DETECCIÓN - Resto de casos (informativo)
-        else:
-            title = f"📊 PATRÓN DETECTADO | {signal.symbol}\nSolo informativo\n"
+        if signal.signal_strength == "HIGH":
+            # 🚨 ALERTA FUERTE - Patrón en zona de agotamiento (Cúspide o Base)
+            if signal.pattern in ["SHOOTING_STAR", "HANGING_MAN"]:
+                title = f"🚨 ALERTA FUERTE | {signal.symbol}\nAgotamiento ALCISTA confirmado (Cúspide)\n"
+            else:  # HAMMER, INVERTED_HAMMER
+                title = f"🚨 ALERTA FUERTE | {signal.symbol}\nAgotamiento BAJISTA confirmado (Base)\n"
+        elif signal.signal_strength == "MEDIUM":
+            # ⚠️ AVISO - Posible debilitamiento
+            if signal.pattern in ["SHOOTING_STAR", "INVERTED_HAMMER"]:
+                title = f"⚠️ AVISO | {signal.symbol}\nPosible debilitamiento alcista\n"
+            else:  # HAMMER, HANGING_MAN
+                title = f"⚠️ AVISO | {signal.symbol}\nPosible debilitamiento bajista\n"
+        else:  # LOW
+            # ℹ️ INFORMATIVO - Sin agotamiento claro
+            title = f"ℹ️ PATRÓN DETECTADO | {signal.symbol}\nSolo informativo - Requiere análisis adicional\n"
         
         # Formatear EMAs (mostrar N/A si no están disponibles)
         import math
         ema_20_str = f"{signal.ema_20:.5f}" if not math.isnan(signal.ema_20) else "N/A"
         ema_30_str = f"{signal.ema_30:.5f}" if not math.isnan(signal.ema_30) else "N/A"
         ema_50_str = f"{signal.ema_50:.5f}" if not math.isnan(signal.ema_50) else "N/A"
+        
+        # Formatear Bollinger Bands
+        bb_upper_str = f"{signal.bb_upper:.5f}" if signal.bb_upper is not None else "N/A"
+        bb_lower_str = f"{signal.bb_lower:.5f}" if signal.bb_lower is not None else "N/A"
         
         # Determinar estructura de EMAs para mensaje
         if not math.isnan(signal.ema_20) and not math.isnan(signal.ema_200):
@@ -315,139 +315,23 @@ class TelegramService:
         else:
             trend_interpretation = "Tendencia bajista muy fuerte"
         
+        # Emoji de zona de agotamiento
+        exhaustion_emoji = ""
+        exhaustion_text = ""
+        if signal.exhaustion_type == "PEAK":
+            exhaustion_emoji = "🔺"
+            exhaustion_text = "Cúspide de Bollinger"
+        elif signal.exhaustion_type == "BOTTOM":
+            exhaustion_emoji = "🔻"
+            exhaustion_text = "Base de Bollinger"
+        else:
+            exhaustion_emoji = "➖"
+            exhaustion_text = "Zona Neutra"
+        
         # Construir bloque de estadísticas si hay datos suficientes
         statistics_block = ""
         if signal.statistics:
-            logger.info(f"📊 Procesando estadísticas para mensaje | signal.statistics existe: True")
-            
-            exact = signal.statistics.get('exact', {})
-            by_alignment = signal.statistics.get('by_alignment', {})
-            by_score = signal.statistics.get('by_score', {})
-            
-            logger.info(
-                f"📊 Estadísticas recibidas | "
-                f"exact: {exact.get('total_cases', 0)} casos | "
-                f"by_alignment: {by_alignment.get('total_cases', 0)} casos | "
-                f"by_score: {by_score.get('total_cases', 0)} casos"
-            )
-            
-            # Solo mostrar si hay al menos 3 casos en by_score
-            by_score_cases = by_score.get('total_cases', 0)
-            if by_score_cases >= 3:
-                logger.info(f"✅ Suficientes casos ({by_score_cases}) para mostrar estadísticas")
-                # Dirección esperada del patrón
-                expected_dir = by_score.get('expected_direction', 'UNKNOWN')
-                expected_emoji = "🔴" if expected_dir == "ROJA" else "🟢" if expected_dir == "VERDE" else "⚪"
-                
-                # Racha reciente
-                streak = signal.statistics.get('streak', [])
-                streak_emojis = []
-                for direction in streak[:5]:
-                    if direction == "VERDE":
-                        streak_emojis.append("🟢")
-                    elif direction == "ROJA":
-                        streak_emojis.append("🔴")
-                    else:
-                        streak_emojis.append("⚪")
-                streak_str = " ".join(streak_emojis) if streak_emojis else "N/A"
-                
-                logger.info(f"📊 Racha construida: {streak_str}")
-                
-                # ═══════════════════════════════════════════════════════════════════════════════
-                # 1. MÁXIMA PRECISIÓN (exact)
-                # ═══════════════════════════════════════════════════════════════════════════════
-                exact_cases = exact.get('total_cases', 0)
-                exact_line = ""
-                
-                logger.debug(f"🎯 Procesando EXACT: {exact_cases} casos")
-                
-                if exact_cases > 0:
-                    exact_verde_pct = exact.get('verde_pct', 0.0) * 100
-                    exact_roja_pct = exact.get('roja_pct', 0.0) * 100
-                    
-                    logger.info(f"🎯 EXACT válido | Verde: {exact_verde_pct:.1f}% | Roja: {exact_roja_pct:.1f}%")
-                    
-                    exact_line = (
-                        f"🎯 MÁXIMA PRECISIÓN — {exact_cases} casos\n"
-                        f"   Score={signal.trend_score:+d} + ema_order exacto\n"
-                        f"   🟢 Verde: {exact_verde_pct:.1f}%  |  🔴 Roja: {exact_roja_pct:.1f}%\n\n"
-                    )
-                else:
-                    logger.debug("🎯 EXACT sin datos")
-                    exact_line = f"🎯 MÁXIMA PRECISIÓN — Sin datos\n\n"
-                
-                # ═══════════════════════════════════════════════════════════════════════════════
-                # 2. PRECISIÓN MEDIA (by_alignment)
-                # ═══════════════════════════════════════════════════════════════════════════════
-                by_alignment_cases = by_alignment.get('total_cases', 0)
-                by_alignment_line = ""
-                score_range_align = by_alignment.get('score_range', (0, 0))
-                
-                logger.debug(f"📊 Procesando BY_ALIGNMENT: {by_alignment_cases} casos | range: {score_range_align}")
-                
-                if by_alignment_cases > 0:
-                    by_alignment_verde_pct = by_alignment.get('verde_pct', 0.0) * 100
-                    by_alignment_roja_pct = by_alignment.get('roja_pct', 0.0) * 100
-                    
-                    logger.info(f"📊 BY_ALIGNMENT válido | Verde: {by_alignment_verde_pct:.1f}% | Roja: {by_alignment_roja_pct:.1f}%")
-                    
-                    by_alignment_line = (
-                        f"📊 PRECISIÓN MEDIA — {by_alignment_cases} casos\n"
-                        f"   Score [{score_range_align[0]}, {score_range_align[1]}] + mismo alignment\n"
-                        f"   🟢 Verde: {by_alignment_verde_pct:.1f}%  |  🔴 Roja: {by_alignment_roja_pct:.1f}%\n\n"
-                    )
-                else:
-                    logger.debug("📊 BY_ALIGNMENT sin datos")
-                    by_alignment_line = f"📊 PRECISIÓN MEDIA — Sin datos\n\n"
-                
-                # ═══════════════════════════════════════════════════════════════════════════════
-                # 3. MÁXIMA MUESTRA (by_score)
-                # ═══════════════════════════════════════════════════════════════════════════════
-                by_score_cases = by_score.get('total_cases', 0)
-                by_score_verde_pct = by_score.get('verde_pct', 0.0) * 100
-                by_score_roja_pct = by_score.get('roja_pct', 0.0) * 100
-                score_range_score = by_score.get('score_range', (0, 0))
-                
-                logger.info(
-                    f"📈 BY_SCORE | "
-                    f"Casos: {by_score_cases} | "
-                    f"Range: {score_range_score} | "
-                    f"Verde: {by_score_verde_pct:.1f}% | "
-                    f"Roja: {by_score_roja_pct:.1f}%"
-                )
-                
-                by_score_line = (
-                    f"📈 MÁXIMA MUESTRA — {by_score_cases} casos\n"
-                    f"   Score [{score_range_score[0]}, {score_range_score[1]}] sin filtros\n"
-                    f"   🟢 Verde: {by_score_verde_pct:.1f}%  |  🔴 Roja: {by_score_roja_pct:.1f}%\n"
-                )
-                
-                # Mensaje final
-                logger.info("✅ Construyendo bloque de estadísticas completo")
-                statistics_block = (
-                    f"━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                    f"📊 PROBABILIDADES (30 días)\n"
-                    f"━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                    f"{expected_emoji} Dirección esperada: {expected_dir}\n\n"
-                    f"{exact_line}"
-                    f"{by_alignment_line}"
-                    f"{by_score_line}\n"
-                    f"\n📈 Últimas 5 velas: {streak_str}\n\n"
-                )
-                logger.info(f"✅ statistics_block construido | Longitud: {len(statistics_block)} caracteres")
-            else:
-                # No hay suficientes casos para mostrar estadísticas
-                logger.warning(
-                    f"⚠️  No hay suficientes casos para estadísticas | "
-                    f"by_score: {by_score_cases} casos (mínimo: 3)"
-                )
-                statistics_block = (
-                    f"━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                    f"📊 PROBABILIDADES\n"
-                    f"━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                    f"⚠️  No hay suficientes casos para mostrar estadísticas\n"
-                    f"   (Necesario: mínimo 3 casos | Actual: {by_score_cases} casos)\n\n"
-                )
+            statistics_block = self._format_statistics_block(signal)
         else:
             logger.warning("⚠️  signal.statistics es None o no existe")
         
@@ -460,14 +344,29 @@ class TelegramService:
             f"🔹 Patrón: {signal.pattern}\n"
             f"🔹 Timestamp: {timestamp_str}\n"
             f"🔹 OHLC: O={signal.candle.open:.2f} | H={signal.candle.high:.2f} | L={signal.candle.low:.2f} | C={signal.candle.close:.2f}\n"
-            f"🔹 Confianza: {signal.confidence:.0%}\n\n"
+            f"🔹 Confianza Técnica: {signal.confidence:.0%}\n"
+            f"🔹 Fuerza de Señal: {signal.signal_strength}\n\n"
             f"━━━━━━━━━━━━━━━━━━━━━━━━\n"
             f"🎯 TENDENCIA\n"
             f"━━━━━━━━━━━━━━━━━━━━━━━━\n"
             f"🔹 Estado: {signal.trend} (Score: {signal.trend_score:+d}/10)\n"
-            f"🔹 Alineación: {'✓ Confirmada' if signal.is_trend_aligned else '✗ No confirmada'}\n"
-            f"🔹 {trend_interpretation}\n\n"
+            f"🔹 Interpretación: {trend_interpretation}\n"
+            f"🔹 Estructura: {estructura}\n\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"📉 BOLLINGER BANDS\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"{exhaustion_emoji} Zona: {exhaustion_text}\n"
+            f"🔹 Banda Superior: {bb_upper_str}\n"
+            f"🔹 Banda Inferior: {bb_lower_str}\n\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"📈 INDICADORES\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"🔹 EMA 200: {signal.ema_200:.5f}\n"
+            f"🔹 EMA 50: {ema_50_str}\n"
+            f"🔹 EMA 30: {ema_30_str}\n"
+            f"🔹 EMA 20: {ema_20_str}\n\n"
             f"{statistics_block}"
+            f"⚡ *Verificar gráfico manualmente antes de operar.*\n"
         )
         
         return AlertMessage(
@@ -476,6 +375,106 @@ class TelegramService:
             alert_type="STANDARD",
             timestamp=datetime.now()
         )
+    
+    def _format_statistics_block(self, signal: PatternSignal) -> str:
+        """
+        Formatea el bloque de estadísticas con diseño jerárquico y limpio.
+        
+        NUEVA LÓGICA:
+        - Filtrado estricto por exhaustion_type (PEAK/BOTTOM/NONE)
+        - 3 niveles de precisión: EXACT, BY_SCORE, BY_RANGE
+        - Rachas independientes por subgrupo
+        - Visualización condicional (solo muestra lo que aporta valor)
+        
+        Args:
+            signal: Señal de patrón con estadísticas
+            
+        Returns:
+            Bloque de estadísticas formateado o cadena vacía
+        """
+        if not signal.statistics:
+            return ""
+        
+        stats = signal.statistics
+        exhaustion_type = stats.get('exhaustion_type', 'NONE')
+        exact = stats.get('exact', {})
+        by_score = stats.get('by_score', {})
+        by_range = stats.get('by_range', {})
+        
+        # Emoji de zona
+        zone_emoji = "🔺" if exhaustion_type == "PEAK" else "🔻" if exhaustion_type == "BOTTOM" else "➖"
+        
+        # Verificar si hay datos mínimos (al menos 1 caso en by_range)
+        if by_range.get('total_cases', 0) == 0:
+            return (
+                f"━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                f"📊 PROBABILIDAD (30d) | {signal.pattern}\n"
+                f"{zone_emoji} Zona: {exhaustion_type}\n"
+                f"━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                f"⚠️  Sin datos históricos\n\n"
+            )
+        
+        # Helper: Convierte lista de direcciones en emojis
+        def streak_to_emojis(streak: list) -> str:
+            emojis = []
+            for direction in streak[:5]:
+                if direction == "VERDE":
+                    emojis.append("🟢")
+                elif direction == "ROJA":
+                    emojis.append("🔴")
+                else:
+                    emojis.append("⚪")
+            return "".join(emojis) if emojis else "N/A"
+        
+        # Construir líneas de cada nivel
+        lines = []
+        
+        # 1. EXACT (GEMELO) - Solo si tiene datos
+        exact_cases = exact.get('total_cases', 0)
+        if exact_cases > 0:
+            exact_verde_pct = int(exact.get('verde_pct', 0.0) * 100)
+            exact_roja_pct = int(exact.get('roja_pct', 0.0) * 100)
+            exact_streak = streak_to_emojis(exact.get('streak', []))
+            lines.append(
+                f"🎯 EXACTO ({exact_cases}): {exact_verde_pct}%🟢 {exact_roja_pct}%🔴\n"
+                f"   Racha: {exact_streak}"
+            )
+        
+        # 2. BY_SCORE (PRECISIÓN MEDIA) - Solo si tiene datos
+        by_score_cases = by_score.get('total_cases', 0)
+        if by_score_cases > 0:
+            by_score_verde_pct = int(by_score.get('verde_pct', 0.0) * 100)
+            by_score_roja_pct = int(by_score.get('roja_pct', 0.0) * 100)
+            by_score_streak = streak_to_emojis(by_score.get('streak', []))
+            lines.append(
+                f"⚖️ SCORE ({by_score_cases}): {by_score_verde_pct}%🟢 {by_score_roja_pct}%🔴\n"
+                f"   Racha: {by_score_streak}"
+            )
+        
+        # 3. BY_RANGE (MÁXIMA MUESTRA) - Solo si tiene MÁS casos que BY_SCORE
+        by_range_cases = by_range.get('total_cases', 0)
+        if by_range_cases > by_score_cases:
+            by_range_verde_pct = int(by_range.get('verde_pct', 0.0) * 100)
+            by_range_roja_pct = int(by_range.get('roja_pct', 0.0) * 100)
+            by_range_streak = streak_to_emojis(by_range.get('streak', []))
+            score_range = by_range.get('score_range', (0, 0))
+            lines.append(
+                f"📉 ZONA ({by_range_cases}): {by_range_verde_pct}%🟢 {by_range_roja_pct}%🔴\n"
+                f"   Racha: {by_range_streak}"
+            )
+        
+        # Ensamblar bloque final
+        if not lines:
+            return ""
+        
+        header = (
+            f"━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"📊 PROBABILIDAD (30d) | {signal.pattern}\n"
+            f"{zone_emoji} Zona: {exhaustion_type} (Estricto)\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        )
+        
+        return header + "\n".join(lines) + "\n\n"
     
     def _format_strong_message(
         self,

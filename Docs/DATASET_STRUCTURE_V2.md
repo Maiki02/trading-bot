@@ -1,10 +1,10 @@
-# Dataset Structure V2 - Datos Crudos Optimizados
+# Dataset Structure V2 - Datos Crudos Optimizados con Bollinger Bands
 
 ## 📋 Overview
 
-Esta versión optimiza la estructura del dataset para almacenar **datos crudos** en lugar de datos derivados, facilitando el análisis posterior sin perder información.
+Esta versión optimiza la estructura del dataset para almacenar **datos crudos** en lugar de datos derivados, facilitando el análisis posterior sin perder información. **Incluye nuevos campos para el sistema de Bollinger Bands y clasificación de fuerza de señal.**
 
-## 🎯 Cambios Principales (V1 → V2)
+## 🎯 Cambios Principales (V1 → V2 → V2.1)
 
 ### ❌ Eliminado (Datos Derivados)
 - `pnl_pips` - Calculable desde outcome_candle
@@ -18,9 +18,18 @@ Esta versión optimiza la estructura del dataset para almacenar **datos crudos**
 - `symbol` (nivel raíz) - Instrumento (ej: "BTCUSDT", "EURUSD")
 - `pattern_candle.confidence` - Confianza **real** del patrón detectado
 - `emas.alignment` - Alineación en formato string (ej: "BULLISH_ALIGNED")
+- `emas.ema_order` - Orden explícito de Precio y EMAs (ej: "P>20>30>50>200")
 - `emas.trend_score` - Score numérico (-10 a +10)
 - `outcome_candle.direction` - Dirección de la vela ("VERDE", "ROJA", "DOJI")
 - `metadata` - Metadatos organizados (versión, fecha de creación)
+
+### 🆕 V2.1 - Sistema de Bollinger Bands (Nuevo)
+- `bollinger` - Bloque completo con Bandas de Bollinger
+- `bollinger.bb_upper` - Banda superior de Bollinger
+- `bollinger.bb_lower` - Banda inferior de Bollinger
+- `bollinger.exhaustion_type` - Tipo de agotamiento (PEAK, BOTTOM, NONE)
+- `bollinger.signal_strength` - Fuerza de la señal (HIGH, MEDIUM, LOW)
+- `bollinger.is_counter_trend` - Si el patrón va contra la tendencia principal
 
 ### 🔄 Reestructurado
 - `signal` + `trigger_candle` → `pattern_candle` (unificado)
@@ -51,7 +60,16 @@ Esta versión optimiza la estructura del dataset para almacenar **datos crudos**
     "ema_30": 35370.0,
     "ema_20": 35390.0,
     "alignment": "BULLISH_ALIGNED",
+    "ema_order": "P>20>30>50>200",
     "trend_score": 7
+  },
+  
+  "bollinger": {
+    "bb_upper": 35500.5,
+    "bb_lower": 35200.8,
+    "exhaustion_type": "PEAK",
+    "signal_strength": "HIGH",
+    "is_counter_trend": false
   },
   
   "outcome_candle": {
@@ -72,7 +90,10 @@ Esta versión optimiza la estructura del dataset para almacenar **datos crudos**
   
   "metadata": {
     "algo_version": "v2.0",
-    "created_at": "2024-11-23T12:00:00Z"
+    "created_at": "2024-11-23T12:00:00Z",
+    "timestamp_gap_seconds": 60,
+    "expected_gap_seconds": 60,
+    "has_skipped_candles": false
   },
   
   "_storage_metadata": {
@@ -115,6 +136,7 @@ Indicadores técnicos y análisis de tendencia.
 | `ema_30` | float | EMA de 30 periodos |
 | `ema_20` | float | EMA de 20 periodos |
 | `alignment` | string | Alineación de EMAs (ver tabla abajo) |
+| `ema_order` | string | Orden explícito (ej: "P>20>30>50>200") |
 | `trend_score` | int | Score de tendencia (-10 a +10) |
 
 #### Valores de `alignment`
@@ -126,6 +148,31 @@ Indicadores técnicos y análisis de tendencia.
 | `BEARISH_PARTIAL` | Alineación bajista parcial | EMA20 < EMA50 < EMA200 |
 | `MIXED` | Sin alineación clara | Otras combinaciones |
 | `INCOMPLETE` | EMAs incompletas | Alguna EMA es NaN |
+
+### 📊 bollinger (🆕 Nuevo en V2.1)
+Datos de Bollinger Bands y clasificación de fuerza de señal.
+
+| Campo | Tipo | Descripción |
+|-------|------|-------------|
+| `bb_upper` | float \| null | Banda superior de Bollinger (SMA + 2.5σ) |
+| `bb_lower` | float \| null | Banda inferior de Bollinger (SMA - 2.5σ) |
+| `exhaustion_type` | string | Tipo de agotamiento (ver tabla abajo) |
+| `signal_strength` | string | Fuerza de la señal (HIGH, MEDIUM, LOW) |
+| `is_counter_trend` | boolean | Si el patrón va contra la tendencia |
+
+#### Valores de `exhaustion_type`
+| Valor | Descripción | Condición |
+|-------|-------------|-----------|
+| `PEAK` | Cúspide (agotamiento alcista) | High o Close ≥ bb_upper |
+| `BOTTOM` | Base (agotamiento bajista) | Low o Close ≤ bb_lower |
+| `NONE` | Zona neutra | Entre bandas |
+
+#### Valores de `signal_strength`
+| Valor | Emoji | Descripción | Cuándo se asigna |
+|-------|-------|-------------|------------------|
+| `HIGH` | 🚨 | Alerta Fuerte | Patrón en zona de agotamiento (PEAK/BOTTOM) |
+| `MEDIUM` | ⚠️ | Aviso | Patrón secundario en zona de agotamiento |
+| `LOW` | ℹ️ | Informativo | Patrón en zona neutra o contra-tendencia |
 
 ### 🎯 outcome_candle
 Información de la vela siguiente (resultado de la predicción).

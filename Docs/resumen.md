@@ -3,7 +3,30 @@
 ## 1. Objetivo del Proyecto
 Integrar un monitor automatizado 24/7 que capture datos de mercado en tiempo real de TradingView mediante ingeniería inversa de WebSocket. El sistema identificará patrones de velas japonesas en temporalidad de 1 minuto y, al detectar una configuración válida alineada con la tendencia, enviará alertas inmediatas vía Telegram con gráfico visual adjunto. **Adicionalmente, envía notificaciones de resultado** cuando cierra la vela siguiente, informando si el patrón tuvo éxito (VERDE/ROJA/DOJI).
 
-### 1.1. Objetivo Versión 0.0.2 (MVP Completado) ✅
+### 1.1. Objetivo Versión 0.0.3 (Sistema de Agotamiento de Volatilidad) 🆕
+**Nueva Funcionalidad:** Sistema de **Clasificación de Fuerza de Señal** basado en **Bollinger Bands** para filtrar señales de alta calidad.
+
+**Cambios principales:**
+- ✅ **Bollinger Bands (BB_PERIOD=20, BB_STD_DEV=2.5)** - Detección de agotamiento de tendencia
+- ✅ **Signal Strength Classification** - HIGH (🚨), MEDIUM (⚠️), LOW (ℹ️)
+- ✅ **Exhaustion Type Detection** - PEAK (Cúspide), BOTTOM (Base), NONE (Zona Neutra)
+- ✅ **Counter-Trend Filtering** - Patrones contra-tendencia clasificados como LOW
+- ✅ **Dataset Enrichment** - Nuevos campos `bollinger` en JSONL para ML
+- ✅ **Enhanced Notifications** - Alertas Telegram con zona de Bollinger
+
+**Filosofía:** No todos los patrones tienen la misma probabilidad de éxito. Los patrones detectados en zonas de agotamiento extremo (Cúspide o Base de Bollinger) tienen mayor fidelidad que los detectados en zona neutra.
+
+**Matriz de Clasificación:**
+- **SHOOTING_STAR en PEAK (tendencia alcista):** `signal_strength = HIGH` 🚨🚨
+- **HAMMER en BOTTOM (tendencia bajista):** `signal_strength = HIGH` 🚨🚨
+- **INVERTED_HAMMER en PEAK:** `signal_strength = MEDIUM` ⚠️
+- **HANGING_MAN en BOTTOM:** `signal_strength = MEDIUM` ⚠️
+- **Patrones en zona neutra:** `signal_strength = LOW` ℹ️
+- **Patrones contra-tendencia:** `signal_strength = LOW` ℹ️
+
+Ver documentación completa en: `Docs/BOLLINGER_EXHAUSTION_SYSTEM.md`
+
+### 1.2. Objetivo Versión 0.0.2 (MVP Completado) ✅
 El MVP ha sido completado exitosamente con todas las funcionalidades core implementadas:
 - **Par:** EUR/USD monitoreado en tiempo real.
 - **Fuente de Datos:** FX:EURUSD (Feed público de TradingView - **NO requiere autenticación**).
@@ -22,7 +45,7 @@ El MVP ha sido completado exitosamente con todas las funcionalidades core implem
 - **Modo de Operación:** Sistema configurado con `USE_TREND_FILTER=false`, notifica **cualquier patrón detectado sin filtro de tendencia**, delegando la decisión final al trader.
 - **Estado:** ✅ **MVP OPERATIVO** - Sistema probado, estable y listo para monitoreo 24/7.
 
-### 1.2. Cambios Críticos Implementados vs Plan Original
+### 1.3. Cambios Críticos Implementados vs Plan Original
 
 #### ✅ **Autenticación No Requerida (Cuenta Gratuita)**
 - **Plan Original:** Usar `sessionid` de cuenta TradingView autenticada.

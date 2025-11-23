@@ -169,53 +169,59 @@ class StatisticsService:
         self,
         pattern: str,
         current_score: int,
+        current_exhaustion_type: str,
         current_alignment: Optional[str] = None,
         current_ema_order: Optional[str] = None,
         lookback_days: int = 30,
-        score_tolerance: int = 1
+        score_tolerance: int = 2
     ) -> Dict[str, any]:
         """
-        Calcula probabilidades con estadísticas completas para alertas.
-        Retorna estructura compatible con telegram_service y analysis_service.
+        Calcula probabilidades con filtrado contextual estricto por zona de volatilidad.
+        
+        CAMBIO CRÍTICO: exhaustion_type es ahora un FILTRO OBLIGATORIO (Hard Filter).
+        Nunca mezcla estadísticas de PEAK con BOTTOM o NONE.
         
         Args:
             pattern: Tipo de patrón (ej: "SHOOTING_STAR", "HAMMER")
             current_score: Score de tendencia actual
+            current_exhaustion_type: Zona de volatilidad actual ("PEAK", "BOTTOM", "NONE")
             current_alignment: Alineación actual (ej: "BULLISH_ALIGNED")
             current_ema_order: Orden explícito actual (ej: "P>20>30>50>200")
             lookback_days: Ventana de tiempo en días (default: 30)
-            score_tolerance: Tolerancia para fuzzy matching (default: ±1)
+            score_tolerance: Tolerancia para fuzzy matching (default: ±2)
             
         Returns:
             Dict con estructura:
             {
-                "exact": {                # 🎯 MÁXIMA PRECISIÓN: Score exacto + EMA order exacto
-                    "total_cases": int,
-                    "verde_count": int,
-                    "roja_count": int,
-                    "verde_pct": float,
-                    "roja_pct": float,
-                    "expected_direction": str  # "VERDE" o "ROJA"
-                },
-                "by_alignment": {         # 📊 PRECISIÓN MEDIA: Score similar + mismo alignment
+                "exact": {                # 🎯 GEMELO: Patrón + Exhaustion + Score + Alignment
                     "total_cases": int,
                     "verde_count": int,
                     "roja_count": int,
                     "verde_pct": float,
                     "roja_pct": float,
                     "expected_direction": str,
-                    "score_range": tuple
+                    "streak": list  # Racha específica de este subgrupo
                 },
-                "by_score": {             # 📈 MÁXIMA MUESTRA: Solo score similar
+                "by_score": {             # ⚖️ PRECISIÓN MEDIA: Patrón + Exhaustion + Score Exacto
                     "total_cases": int,
                     "verde_count": int,
                     "roja_count": int,
                     "verde_pct": float,
                     "roja_pct": float,
                     "expected_direction": str,
-                    "score_range": tuple
+                    "streak": list
                 },
-                "streak": list,           # ["VERDE", "ROJA", "VERDE", ...]
+                "by_range": {             # 📉 MÁXIMA MUESTRA: Patrón + Exhaustion + Score ±tolerance
+                    "total_cases": int,
+                    "verde_count": int,
+                    "roja_count": int,
+                    "verde_pct": float,
+                    "roja_pct": float,
+                    "expected_direction": str,
+                    "score_range": tuple,
+                    "streak": list
+                },
+                "exhaustion_type": str,   # Zona de volatilidad filtrada
                 "lookback_days": int
             }
         """
@@ -223,9 +229,9 @@ class StatisticsService:
             logger.warning(
                 f"⚠️  Dataset vacío | "
                 f"Buscando: pattern={pattern}, score={current_score}, "
-                f"alignment={current_alignment}, ema_order={current_ema_order}"
+                f"exhaustion={current_exhaustion_type}"
             )
-            return self._empty_stats_response()
+            return self._empty_stats_response(current_exhaustion_type)
         
         # Filtrar por ventana de tiempo (usar UTC con timezone para comparación correcta)
         cutoff_date = datetime.now(timezone.utc) - timedelta(days=lookback_days)
@@ -235,14 +241,14 @@ class StatisticsService:
             self.df['timestamp_dt'] = pd.to_datetime(self.df['timestamp'], unit='s', utc=True)
         except Exception as e:
             logger.warning(f"⚠️  No se pudo parsear columna 'timestamp': {e}")
-            return self._empty_stats_response()
+            return self._empty_stats_response(current_exhaustion_type)
         
         df_filtered = self.df[self.df['timestamp_dt'] >= cutoff_date].copy()
         
         logger.info(
             f"📊 Iniciando búsqueda de estadísticas | "
             f"Pattern: {pattern} | Score: {current_score} | "
-            f"Alignment: {current_alignment} | EMA Order: {current_ema_order} | "
+            f"Exhaustion: {current_exhaustion_type} | "
             f"Lookback: {lookback_days} días | Registros disponibles: {len(self.df)}"
         )
         
@@ -252,12 +258,12 @@ class StatisticsService:
                 f"Total registros en dataset: {len(self.df)} | "
                 f"Fecha de corte: {cutoff_date.isoformat()}"
             )
-            return self._empty_stats_response()
+            return self._empty_stats_response(current_exhaustion_type)
         
         # Filtrar por patrón exacto (nueva estructura V2)
         if 'pattern_candle' not in df_filtered.columns:
             logger.warning("⚠️  Columna 'pattern_candle' no existe")
-            return self._empty_stats_response()
+            return self._empty_stats_response(current_exhaustion_type)
         
         # Extraer patrón del objeto pattern_candle
         df_filtered['pattern'] = df_filtered['pattern_candle'].apply(
@@ -268,7 +274,24 @@ class StatisticsService:
         
         if df_filtered.empty:
             logger.info(f"📊 No hay datos para patrón {pattern}")
-            return self._empty_stats_response()
+            return self._empty_stats_response(current_exhaustion_type)
+        
+        # ═════════════════════════════════════════════════════════
+        # FILTRO CRÍTICO: EXHAUSTION_TYPE (Hard Filter)
+        # ═════════════════════════════════════════════════════════
+        # Extraer exhaustion_type del bloque bollinger
+        df_filtered['exhaustion_type'] = df_filtered['bollinger'].apply(
+            lambda x: x.get('exhaustion_type') if isinstance(x, dict) else None
+        )
+        
+        # Aplicar filtro obligatorio por zona de volatilidad
+        df_filtered = df_filtered[df_filtered['exhaustion_type'] == current_exhaustion_type]
+        
+        if df_filtered.empty:
+            logger.info(
+                f"📊 No hay datos para patrón {pattern} en zona {current_exhaustion_type}"
+            )
+            return self._empty_stats_response(current_exhaustion_type)
         
         # Extraer columnas necesarias de la estructura V2
         df_filtered['success'] = df_filtered['outcome'].apply(
@@ -280,89 +303,76 @@ class StatisticsService:
         df_filtered['actual_direction'] = df_filtered['outcome'].apply(
             lambda x: x.get('actual_direction') if isinstance(x, dict) else None
         )
-        df_filtered['ema_order'] = df_filtered['emas'].apply(
-            lambda x: x.get('ema_order') if isinstance(x, dict) else None
-        )
         df_filtered['alignment'] = df_filtered['emas'].apply(
             lambda x: x.get('alignment') if isinstance(x, dict) else None
         )
         
         # ═════════════════════════════════════════════════════════
-        # 1. EXACTO: Score exacto + EMA order exacto
+        # 1. EXACT (GEMELO): Patrón + Exhaustion + Score + Alignment
         # ═════════════════════════════════════════════════════════
         exact_stats = self._empty_single_stats()
         
-        if current_ema_order:
-            df_exact_order = df_filtered[
+        if current_alignment:
+            df_exact = df_filtered[
                 (df_filtered['calculated_score'] == current_score) &
-                (df_filtered['ema_order'] == current_ema_order)
+                (df_filtered['alignment'] == current_alignment)
             ]
             
-            if not df_exact_order.empty:
-                exact_stats = self._calculate_direction_stats(df_exact_order, pattern)
+            if not df_exact.empty:
+                exact_stats = self._calculate_direction_stats(df_exact, pattern)
+                # Racha específica de este subgrupo (últimos 5)
+                exact_stats['streak'] = self._get_streak(df_exact, max_items=5)
         
         # ═════════════════════════════════════════════════════════
-        # 2. BY_ALIGNMENT: Score similar + mismo alignment
+        # 2. BY_SCORE (PRECISIÓN MEDIA): Patrón + Exhaustion + Score Exacto
+        # ═════════════════════════════════════════════════════════
+        df_by_score = df_filtered[df_filtered['calculated_score'] == current_score]
+        
+        by_score_stats = self._empty_single_stats()
+        
+        if not df_by_score.empty:
+            by_score_stats = self._calculate_direction_stats(df_by_score, pattern)
+            # Racha específica de este subgrupo (últimos 5)
+            by_score_stats['streak'] = self._get_streak(df_by_score, max_items=5)
+        
+        # ═════════════════════════════════════════════════════════
+        # 3. BY_RANGE (MÁXIMA MUESTRA): Patrón + Exhaustion + Score ±tolerance
         # ═════════════════════════════════════════════════════════
         score_min = current_score - score_tolerance
         score_max = current_score + score_tolerance
         
-        by_alignment_stats = self._empty_single_stats()
-        by_alignment_stats['score_range'] = (int(score_min), int(score_max))
-        
-        if current_alignment:
-            df_by_alignment = df_filtered[
-                (df_filtered['calculated_score'] >= score_min) &
-                (df_filtered['calculated_score'] <= score_max) &
-                (df_filtered['alignment'] == current_alignment)
-            ]
-            
-            if not df_by_alignment.empty:
-                by_alignment_stats = self._calculate_direction_stats(df_by_alignment, pattern)
-                by_alignment_stats['score_range'] = (int(score_min), int(score_max))
-        
-        # ═════════════════════════════════════════════════════════
-        # 3. BY_SCORE: Solo score similar (máxima muestra)
-        # ═════════════════════════════════════════════════════════
-        df_by_score = df_filtered[
+        df_by_range = df_filtered[
             (df_filtered['calculated_score'] >= score_min) &
             (df_filtered['calculated_score'] <= score_max)
         ]
         
-        by_score_stats = self._empty_single_stats()
-        by_score_stats['score_range'] = (int(score_min), int(score_max))
+        by_range_stats = self._empty_single_stats()
+        by_range_stats['score_range'] = (int(score_min), int(score_max))
         
-        if not df_by_score.empty:
-            by_score_stats = self._calculate_direction_stats(df_by_score, pattern)
-            by_score_stats['score_range'] = (int(score_min), int(score_max))
-        
-        # ═════════════════════════════════════════════════════════
-        # RACHA RECIENTE (basada en by_score para mayor muestra)
-        # ═════════════════════════════════════════════════════════
-        recent_directions = []
-        if not df_by_score.empty:
-            # Obtener últimas 5 direcciones actuales (más recientes primero)
-            recent_df = df_by_score.nlargest(5, 'timestamp_dt')
-            recent_directions = recent_df['actual_direction'].tolist()
+        if not df_by_range.empty:
+            by_range_stats = self._calculate_direction_stats(df_by_range, pattern)
+            by_range_stats['score_range'] = (int(score_min), int(score_max))
+            # Racha específica de este subgrupo (últimos 5)
+            by_range_stats['streak'] = self._get_streak(df_by_range, max_items=5)
         
         # ═════════════════════════════════════════════════════════
         # RESULTADO FINAL (3 niveles de precisión)
         # ═════════════════════════════════════════════════════════
         stats = {
             "exact": exact_stats,
-            "by_alignment": by_alignment_stats,
             "by_score": by_score_stats,
-            "streak": recent_directions,
+            "by_range": by_range_stats,
+            "exhaustion_type": current_exhaustion_type,
             "lookback_days": lookback_days
         }
         
         logger.debug(
-            f"📊 Estadísticas | "
+            f"📊 Estadísticas (Zona: {current_exhaustion_type}) | "
             f"Patrón: {pattern} | "
             f"Score: {current_score} | "
-            f"Exacto: {exact_stats['total_cases']} casos | "
-            f"By Alignment: {by_alignment_stats['total_cases']} casos | "
-            f"By Score: {by_score_stats['total_cases']} casos"
+            f"Exact: {exact_stats['total_cases']} casos | "
+            f"By Score: {by_score_stats['total_cases']} casos | "
+            f"By Range: {by_range_stats['total_cases']} casos"
         )
         
         return stats
@@ -376,7 +386,7 @@ class StatisticsService:
             pattern: Tipo de patrón para determinar dirección esperada
             
         Returns:
-            Dict con estadísticas completas
+            Dict con estadísticas completas (sin streak, se agrega luego)
         """
         total_cases = len(df)
         
@@ -407,6 +417,26 @@ class StatisticsService:
             "expected_direction": expected_direction
         }
     
+    def _get_streak(self, df: pd.DataFrame, max_items: int = 5) -> List[str]:
+        """
+        Obtiene la racha de direcciones más recientes de un DataFrame.
+        
+        Args:
+            df: DataFrame filtrado con columna 'actual_direction' y 'timestamp_dt'
+            max_items: Número máximo de elementos a retornar
+            
+        Returns:
+            Lista de direcciones (ej: ["VERDE", "ROJA", "VERDE"])
+        """
+        if df.empty or 'actual_direction' not in df.columns or 'timestamp_dt' not in df.columns:
+            return []
+        
+        # Ordenar por timestamp descendente (más reciente primero)
+        recent_df = df.nlargest(max_items, 'timestamp_dt')
+        
+        # Retornar lista de direcciones
+        return recent_df['actual_direction'].tolist()
+    
     def _empty_single_stats(self) -> Dict[str, any]:
         """
         Retorna estructura de estadísticas vacía para un nivel.
@@ -417,24 +447,24 @@ class StatisticsService:
             "roja_count": 0,
             "verde_pct": 0.0,
             "roja_pct": 0.0,
-            "expected_direction": "UNKNOWN"
+            "expected_direction": "UNKNOWN",
+            "streak": []
         }
     
-    def _empty_stats_response(self) -> Dict[str, any]:
+    def _empty_stats_response(self, exhaustion_type: str = "NONE") -> Dict[str, any]:
         """
         Retorna respuesta vacía cuando no hay datos disponibles.
         """
         exact_empty = self._empty_single_stats()
-        by_alignment_empty = self._empty_single_stats()
-        by_alignment_empty['score_range'] = (0, 0)
         by_score_empty = self._empty_single_stats()
-        by_score_empty['score_range'] = (0, 0)
+        by_range_empty = self._empty_single_stats()
+        by_range_empty['score_range'] = (0, 0)
         
         return {
             "exact": exact_empty,
-            "by_alignment": by_alignment_empty,
             "by_score": by_score_empty,
-            "streak": [],
+            "by_range": by_range_empty,
+            "exhaustion_type": exhaustion_type,
             "lookback_days": 0
         }
     

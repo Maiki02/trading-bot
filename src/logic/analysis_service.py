@@ -537,7 +537,8 @@ class AnalysisService:
         """
         self.dataframes[source_key] = pd.DataFrame(columns=[
             "timestamp", "open", "high", "low", "close", "volume", 
-            "ema_200", "ema_50", "ema_30", "ema_20"
+            "ema_200", "ema_50", "ema_30", "ema_20",
+            "bb_middle", "bb_upper", "bb_lower"
         ])
         logger.debug(f"📋 DataFrame inicializado para {source_key}")
     
@@ -575,7 +576,10 @@ class AnalysisService:
             "ema_200": np.nan,  # Se calculará después
             "ema_50": np.nan,
             "ema_30": np.nan,
-            "ema_20": np.nan
+            "ema_20": np.nan,
+            "bb_middle": np.nan,
+            "bb_upper": np.nan,
+            "bb_lower": np.nan
         }])
         
         self.dataframes[source_key] = pd.concat(
@@ -610,7 +614,7 @@ class AnalysisService:
     
     def _update_indicators(self, source_key: str) -> None:
         """
-        Recalcula los indicadores técnicos (EMAs: 200, 100, 50, 30, 20).
+        Recalcula los indicadores técnicos (EMAs: 200, 100, 50, 30, 20) y Bollinger Bands.
         
         Args:
             source_key: Clave de la fuente
@@ -633,6 +637,20 @@ class AnalysisService:
         # EMA 200 - La principal para detección de tendencia
         if len(df) >= self.ema_period:
             df["ema_200"] = calculate_ema(df["close"], self.ema_period)
+        
+        # Calcular Bollinger Bands (requiere al menos BB_PERIOD velas)
+        bb_period = Config.CANDLE.BB_PERIOD
+        bb_std_dev = Config.CANDLE.BB_STD_DEV
+        
+        if len(df) >= bb_period:
+            bb_middle, bb_upper, bb_lower = calculate_bollinger_bands(
+                df["close"], 
+                period=bb_period, 
+                std_dev=bb_std_dev
+            )
+            df["bb_middle"] = bb_middle
+            df["bb_upper"] = bb_upper
+            df["bb_lower"] = bb_lower
     
     async def _close_signal_cycle(self, source_key: str, outcome_candle: CandleData) -> None:
         """
@@ -746,6 +764,15 @@ class AnalysisService:
                 "alignment": ema_alignment,
                 "ema_order": ema_order,
                 "trend_score": pending_signal.trend_score
+            },
+            "bollinger": {
+                "upper": pending_signal.bb_upper,
+                "lower": pending_signal.bb_lower,
+                "middle": None,  # Calculado en backfill, aquí no disponible
+                "std_dev": Config.CANDLE.BB_STD_DEV,
+                "exhaustion_type": pending_signal.exhaustion_type,
+                "signal_strength": pending_signal.signal_strength,
+                "is_counter_trend": pending_signal.is_counter_trend
             },
             "outcome_candle": {
                 "timestamp": outcome_candle.timestamp,
@@ -872,11 +899,30 @@ class AnalysisService:
         }
         trend_analysis = analyze_trend(last_closed["close"], emas_dict)
         
+        # Obtener Bollinger Bands para detección de agotamiento
+        bb_upper = last_closed.get('bb_upper', np.nan)
+        bb_lower = last_closed.get('bb_lower', np.nan)
+        bb_middle = last_closed.get('bb_middle', np.nan)
+        
+        # Detectar si está en zona de agotamiento (Cúspide o Base)
+        exhaustion_type = detect_exhaustion(
+            last_closed["high"],
+            last_closed["low"],
+            last_closed["close"],
+            bb_upper,
+            bb_lower
+        )
+        
         logger.info(
             f"📈 Análisis de Tendencia: {trend_analysis}\n"
             f"   • Status: {trend_analysis.status}\n"
             f"   • Score: {trend_analysis.score:+d}/10\n"
             f"   • Alineación EMAs: {'✓' if trend_analysis.is_aligned else '✗'}\n"
+            f"📊 Bollinger Bands:\n"
+            f"   • Superior: {bb_upper:.5f if not pd.isna(bb_upper) else 'N/A'}\n"
+            f"   • Media: {bb_middle:.5f if not pd.isna(bb_middle) else 'N/A'}\n"
+            f"   • Inferior: {bb_lower:.5f if not pd.isna(bb_lower) else 'N/A'}\n"
+            f"   • Zona de Agotamiento: {exhaustion_type}\n"
         )
         
         # Detectar los 4 patrones de velas japonesas
@@ -958,22 +1004,113 @@ class AnalysisService:
             logger.info("ℹ️  No se detectó ningún patrón relevante en esta vela.")
             return
         
-        # Determinar si el patrón está alineado con la tendencia (para el sistema de alertas)
+        # ═════════════════════════════════════════════════════════════════════
+        # CLASIFICACIÓN DE FUERZA DE SEÑAL (Signal Strength)
+        # ═════════════════════════════════════════════════════════════════════
+        
+        # Determinar si el patrón está alineado con la tendencia
+        current_status = trend_analysis.status
+        is_bearish_trend = "BEARISH" in current_status
+        is_bullish_trend = "BULLISH" in current_status
+        
+        # Patrones bajistas: SHOOTING_STAR, HANGING_MAN
+        # Patrones alcistas: HAMMER, INVERTED_HAMMER
+        pattern_is_bearish = pattern_detected in ["SHOOTING_STAR", "HANGING_MAN"]
+        pattern_is_bullish = pattern_detected in ["HAMMER", "INVERTED_HAMMER"]
+        
+        # Determinar si el patrón va contra la tendencia principal
+        is_counter_trend = False
+        if pattern_is_bearish and is_bearish_trend:
+            is_counter_trend = True  # Patrón bajista en tendencia bajista
+        elif pattern_is_bullish and is_bullish_trend:
+            is_counter_trend = True  # Patrón alcista en tendencia alcista
+        
+        # Determinar alineación tradicional (para compatibilidad con código existente)
         is_trend_aligned = False
-        if pattern_detected in ["SHOOTING_STAR", "HANGING_MAN"]:
+        if pattern_is_bearish:
             # Patrones bajistas: alineados si la tendencia es alcista (reversión bajista esperada)
-            is_trend_aligned = trend_analysis.status in ["STRONG_BULLISH", "WEAK_BULLISH"]
-        elif pattern_detected in ["HAMMER", "INVERTED_HAMMER"]:
+            is_trend_aligned = is_bullish_trend
+        elif pattern_is_bullish:
             # Patrones alcistas: alineados si la tendencia es bajista (reversión alcista esperada)
-            is_trend_aligned = trend_analysis.status in ["STRONG_BEARISH", "WEAK_BEARISH"]
+            is_trend_aligned = is_bearish_trend
+        
+        # ═════════════════════════════════════════════════════════════════════
+        # MATRIZ DE CLASIFICACIÓN DE FUERZA
+        # ═════════════════════════════════════════════════════════════════════
+        
+        signal_strength = "LOW"  # Default
+        
+        if is_counter_trend:
+            # CONTEXTO: Patrón va contra la tendencia (no operar)
+            signal_strength = "LOW"
+            logger.info(
+                f"⚠️  PATRÓN CONTRA-TENDENCIA DETECTADO | "
+                f"{pattern_detected} en tendencia {current_status} | "
+                f"Clasificado como LOW (no operar)"
+            )
+        elif is_bullish_trend:
+            # CONTEXTO A: TENDENCIA ALCISTA (Bullish)
+            if pattern_detected == "SHOOTING_STAR":
+                if exhaustion_type == "PEAK":
+                    signal_strength = "HIGH"  # 🔴🔴 Alerta Fuerte
+                    logger.info(
+                        f"🚨 ALERTA FUERTE | SHOOTING_STAR en CÚSPIDE | "
+                        f"Agotamiento alcista confirmado | Strength: HIGH"
+                    )
+                else:
+                    signal_strength = "LOW"  # 🔵 Informativo
+                    logger.info(
+                        f"ℹ️  SHOOTING_STAR en Zona Neutra | Strength: LOW"
+                    )
+            elif pattern_detected == "INVERTED_HAMMER":
+                if exhaustion_type == "PEAK":
+                    signal_strength = "MEDIUM"  # 🟠 Aviso
+                    logger.info(
+                        f"⚠️  AVISO | INVERTED_HAMMER en CÚSPIDE | "
+                        f"Posible debilitamiento | Strength: MEDIUM"
+                    )
+                else:
+                    signal_strength = "LOW"  # 🔵 Informativo
+                    logger.info(
+                        f"ℹ️  INVERTED_HAMMER en Zona Neutra | Strength: LOW"
+                    )
+        elif is_bearish_trend:
+            # CONTEXTO B: TENDENCIA BAJISTA (Bearish)
+            if pattern_detected == "HAMMER":
+                if exhaustion_type == "BOTTOM":
+                    signal_strength = "HIGH"  # 🟢🟢 Alerta Fuerte
+                    logger.info(
+                        f"🚨 ALERTA FUERTE | HAMMER en BASE | "
+                        f"Agotamiento bajista confirmado | Strength: HIGH"
+                    )
+                else:
+                    signal_strength = "LOW"  # 🔵 Informativo
+                    logger.info(
+                        f"ℹ️  HAMMER en Zona Neutra | Strength: LOW"
+                    )
+            elif pattern_detected == "HANGING_MAN":
+                if exhaustion_type == "BOTTOM":
+                    signal_strength = "MEDIUM"  # 🟠 Aviso
+                    logger.info(
+                        f"⚠️  AVISO | HANGING_MAN en BASE | "
+                        f"Posible debilitamiento | Strength: MEDIUM"
+                    )
+                else:
+                    signal_strength = "LOW"  # 🔵 Informativo
+                    logger.info(
+                        f"ℹ️  HANGING_MAN en Zona Neutra | Strength: LOW"
+                    )
         
         logger.info(
             f"\n{'═'*60}\n"
             f"🎯 PATRÓN DETECTADO: {pattern_detected}\n"
             f"{'═'*60}\n"
-            f"📊 Confianza: {pattern_confidence:.1%}\n"
+            f"📊 Confianza Técnica: {pattern_confidence:.1%}\n"
             f"📈 Tendencia: {trend_analysis.status} (Score: {trend_analysis.score:+d}/10)\n"
             f"🔄 Alineación: {'✓ Alineado' if is_trend_aligned else '✗ No alineado'}\n"
+            f"🎚️  Fuerza de Señal: {signal_strength}\n"
+            f"📍 Zona Bollinger: {exhaustion_type}\n"
+            f"⚠️  Contra-Tendencia: {'SÍ' if is_counter_trend else 'NO'}\n"
         )
         
         # Notificar al TelegramService con la información completa
@@ -1042,21 +1179,22 @@ class AnalysisService:
                     statistics = self.statistics_service.get_probability(
                         pattern=pattern_detected,
                         current_score=trend_analysis.score,
+                        current_exhaustion_type=exhaustion_type,
                         current_alignment=current_alignment,
                         current_ema_order=current_ema_order,
                         lookback_days=30,
-                        score_tolerance=1
+                        score_tolerance=2
                     )
                     
                     exact_cases = statistics.get('exact', {}).get('total_cases', 0)
-                    by_alignment_cases = statistics.get('by_alignment', {}).get('total_cases', 0)
                     by_score_cases = statistics.get('by_score', {}).get('total_cases', 0)
+                    by_range_cases = statistics.get('by_range', {}).get('total_cases', 0)
                     
                     logger.debug(
-                        f"📊 Estadísticas obtenidas | "
+                        f"📊 Estadísticas obtenidas (Zona: {exhaustion_type}) | "
                         f"Exact: {exact_cases} | "
-                        f"By Alignment: {by_alignment_cases} | "
-                        f"By Score: {by_score_cases}"
+                        f"By Score: {by_score_cases} | "
+                        f"By Range: {by_range_cases}"
                     )
                 except Exception as e:
                     logger.warning(f"⚠️  Error obteniendo estadísticas: {e}")
@@ -1086,12 +1224,22 @@ class AnalysisService:
                 confidence=pattern_confidence,
                 trend_filtered=Config.USE_TREND_FILTER,
                 chart_base64=chart_base64,
-                statistics=statistics
+                statistics=statistics,
+                # Nuevos campos de Bollinger Bands
+                signal_strength=signal_strength,
+                exhaustion_type=exhaustion_type,
+                is_counter_trend=is_counter_trend,
+                bb_upper=float(bb_upper) if not pd.isna(bb_upper) else None,
+                bb_lower=float(bb_lower) if not pd.isna(bb_lower) else None
             )
             
             logger.info(
                 f"🎯 PATTERN DETECTED | {signal.source} | {signal.pattern} | "
                 f"Trend={trend_analysis.status} (Score: {trend_analysis.score:+d}) | "
+                f"Strength={signal_strength} | Exhaustion={exhaustion_type} | "
+                f"Close={signal.candle.close:.5f} | Confidence={signal.confidence:.2f} | "
+                f"Chart={'✓' if chart_base64 else '✗'}"
+            )
                 f"Close={signal.candle.close:.5f} | Confidence={signal.confidence:.2f} | "
                 f"Chart={'✓' if chart_base64 else '✗'}"
             )

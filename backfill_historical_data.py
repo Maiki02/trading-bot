@@ -41,7 +41,7 @@ from src.logic.candle import (
     is_hammer,
     get_candle_direction
 )
-from src.logic.analysis_service import analyze_trend, calculate_ema
+from src.logic.analysis_service import analyze_trend, calculate_ema, calculate_bollinger_bands, detect_exhaustion
 from src.utils.logger import get_logger
 
 
@@ -166,6 +166,50 @@ def calculate_emas_from_buffer(buffer: List[HistoricalCandle]) -> Dict[str, floa
         'ema_30': ema_30,
         'ema_20': ema_20
     }
+
+
+def calculate_bollinger_bands_from_buffer(buffer: List[HistoricalCandle]) -> Dict[str, float]:
+    """
+    Calcula las Bollinger Bands desde un buffer de velas.
+    
+    Args:
+        buffer: Lista de velas (debe tener al menos BB_PERIOD velas)
+        
+    Returns:
+        Dict con upper, lower, middle
+    """
+    if len(buffer) < Config.CANDLE.BB_PERIOD:
+        return {
+            'upper': np.nan,
+            'lower': np.nan,
+            'middle': np.nan
+        }
+    
+    # Crear Series con precios de cierre
+    df = pd.DataFrame([{
+        'close': c.close
+    } for c in buffer])
+    
+    # Calcular Bollinger Bands
+    try:
+        bb_middle, bb_upper, bb_lower = calculate_bollinger_bands(
+            df['close'],
+            period=Config.CANDLE.BB_PERIOD,
+            std_dev=Config.CANDLE.BB_STD_DEV
+        )
+        
+        return {
+            'upper': float(bb_upper.iloc[-1]),
+            'lower': float(bb_lower.iloc[-1]),
+            'middle': float(bb_middle.iloc[-1])
+        }
+    except Exception as e:
+        logger.warning(f"⚠️ Error calculando Bollinger Bands: {e}")
+        return {
+            'upper': np.nan,
+            'lower': np.nan,
+            'middle': np.nan
+        }
 
 
 # =============================================================================
@@ -345,6 +389,21 @@ class BacktestingEngine:
                 if np.isnan(emas['ema_200']):
                     continue
                 
+                # Calcular Bollinger Bands
+                bollinger_bands = calculate_bollinger_bands_from_buffer(buffer)
+                
+                # Detectar zona de agotamiento
+                if not np.isnan(bollinger_bands['upper']) and not np.isnan(bollinger_bands['lower']):
+                    exhaustion_type = detect_exhaustion(
+                        current_candle.high,
+                        current_candle.low,
+                        current_candle.close,
+                        bollinger_bands['upper'],
+                        bollinger_bands['lower']
+                    )
+                else:
+                    exhaustion_type = "NONE"
+                
                 # Calcular trend analysis
                 trend = analyze_trend(
                     close=current_candle.close,
@@ -389,6 +448,15 @@ class BacktestingEngine:
                         "alignment": ema_alignment,
                         "ema_order": ema_order,
                         "trend_score": trend.score
+                    },
+                    "bollinger": {
+                        "upper": bollinger_bands['upper'],
+                        "lower": bollinger_bands['lower'],
+                        "middle": bollinger_bands['middle'],
+                        "std_dev": Config.CANDLE.BB_STD_DEV,
+                        "exhaustion_type": exhaustion_type,
+                        "signal_strength": self._calculate_signal_strength(pattern, exhaustion_type, trend.status),
+                        "is_counter_trend": self._is_counter_trend(pattern, trend.status)
                     },
                     "outcome_candle": {
                         "timestamp": next_candle.timestamp,
@@ -440,6 +508,58 @@ class BacktestingEngine:
             return "VERDE"  # Patrones alcistas
         else:
             return "DOJI"  # Fallback
+    
+    def _calculate_signal_strength(self, pattern: str, exhaustion_type: str, trend_status: str) -> str:
+        """
+        Calcula la fuerza de la señal basándose en Bollinger Bands y tendencia.
+        
+        Args:
+            pattern: Nombre del patrón
+            exhaustion_type: Tipo de agotamiento (PEAK, BOTTOM, NONE)
+            trend_status: Estado de la tendencia
+            
+        Returns:
+            "HIGH", "MEDIUM", o "LOW"
+        """
+        is_bullish_pattern = pattern in ["HAMMER", "INVERTED_HAMMER"]
+        is_bearish_pattern = pattern in ["SHOOTING_STAR", "HANGING_MAN"]
+        is_bullish_trend = "BULLISH" in trend_status
+        is_bearish_trend = "BEARISH" in trend_status
+        
+        # HIGH: Patrón en zona de agotamiento alineado con tendencia
+        if exhaustion_type == "PEAK" and is_bearish_pattern and is_bullish_trend:
+            return "HIGH"
+        elif exhaustion_type == "BOTTOM" and is_bullish_pattern and is_bearish_trend:
+            return "HIGH"
+        
+        # MEDIUM: Patrón secundario en zona de agotamiento
+        elif exhaustion_type == "PEAK" and is_bullish_pattern:
+            return "MEDIUM"
+        elif exhaustion_type == "BOTTOM" and is_bearish_pattern:
+            return "MEDIUM"
+        
+        # LOW: Zona neutra o patrón contratrend
+        else:
+            return "LOW"
+    
+    def _is_counter_trend(self, pattern: str, trend_status: str) -> bool:
+        """
+        Determina si el patrón es contratrend.
+        
+        Args:
+            pattern: Nombre del patrón
+            trend_status: Estado de la tendencia
+            
+        Returns:
+            True si es contratrend
+        """
+        is_bullish_pattern = pattern in ["HAMMER", "INVERTED_HAMMER"]
+        is_bearish_pattern = pattern in ["SHOOTING_STAR", "HANGING_MAN"]
+        is_bullish_trend = "BULLISH" in trend_status
+        is_bearish_trend = "BEARISH" in trend_status
+        
+        # Contratrend: Patrón alcista en tendencia alcista o bajista en tendencia bajista
+        return (is_bullish_pattern and is_bullish_trend) or (is_bearish_pattern and is_bearish_trend)
     
     def _get_ema_alignment(self, emas: Dict[str, float]) -> str:
         """
