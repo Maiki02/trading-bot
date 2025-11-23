@@ -1181,10 +1181,15 @@ class AnalysisService:
                     current_alignment = get_ema_alignment_string(emas_dict)
                     current_ema_order = get_ema_order_string(last_closed["close"], emas_dict)
                     
+                    # Extraer source y symbol del source_key (formato: "SOURCE_SYMBOL")
+                    source, symbol = source_key.split("_", 1) if "_" in source_key else (source_key, "UNKNOWN")
+                    
                     statistics = self.statistics_service.get_probability(
                         pattern=pattern_detected,
                         current_score=trend_analysis.score,
                         current_exhaustion_type=exhaustion_type,
+                        source=source,
+                        symbol=symbol,
                         current_alignment=current_alignment,
                         current_ema_order=current_ema_order,
                         lookback_days=30,

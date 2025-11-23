@@ -170,6 +170,8 @@ class StatisticsService:
         pattern: str,
         current_score: int,
         current_exhaustion_type: str,
+        source: str,
+        symbol: str,
         current_alignment: Optional[str] = None,
         current_ema_order: Optional[str] = None,
         lookback_days: int = 30,
@@ -181,10 +183,15 @@ class StatisticsService:
         CAMBIO CRÍTICO: exhaustion_type es ahora un FILTRO OBLIGATORIO (Hard Filter).
         Nunca mezcla estadísticas de PEAK con BOTTOM o NONE.
         
+        FILTRADO POR INSTRUMENTO: Solo usa datos del mismo source+symbol para evitar
+        mezclar estadísticas de diferentes instrumentos con características distintas.
+        
         Args:
             pattern: Tipo de patrón (ej: "SHOOTING_STAR", "HAMMER")
             current_score: Score de tendencia actual
             current_exhaustion_type: Zona de volatilidad actual ("PEAK", "BOTTOM", "NONE")
+            source: Fuente del dato (ej: "BINANCE", "OANDA")
+            symbol: Símbolo del instrumento (ej: "BTCUSDT", "EURUSD")
             current_alignment: Alineación actual (ej: "BULLISH_ALIGNED")
             current_ema_order: Orden explícito actual (ej: "P>20>30>50>200")
             lookback_days: Ventana de tiempo en días (default: 30)
@@ -228,8 +235,8 @@ class StatisticsService:
         if self.df is None or self.df.empty:
             logger.warning(
                 f"⚠️  Dataset vacío | "
-                f"Buscando: pattern={pattern}, score={current_score}, "
-                f"exhaustion={current_exhaustion_type}"
+                f"Buscando: source={source}, symbol={symbol}, pattern={pattern}, "
+                f"score={current_score}, exhaustion={current_exhaustion_type}"
             )
             return self._empty_stats_response(current_exhaustion_type)
         
@@ -247,6 +254,7 @@ class StatisticsService:
         
         logger.info(
             f"📊 Iniciando búsqueda de estadísticas | "
+            f"Source: {source} | Symbol: {symbol} | "
             f"Pattern: {pattern} | Score: {current_score} | "
             f"Exhaustion: {current_exhaustion_type} | "
             f"Lookback: {lookback_days} días | Registros disponibles: {len(self.df)}"
@@ -257,6 +265,21 @@ class StatisticsService:
                 f"⚠️  No hay datos en ventana de {lookback_days} días | "
                 f"Total registros en dataset: {len(self.df)} | "
                 f"Fecha de corte: {cutoff_date.isoformat()}"
+            )
+            return self._empty_stats_response(current_exhaustion_type)
+        
+        # ═════════════════════════════════════════════════════════
+        # FILTRO CRÍTICO: SOURCE Y SYMBOL (Hard Filter)
+        # ═════════════════════════════════════════════════════════
+        # Filtrar por source y symbol exactos
+        df_filtered = df_filtered[
+            (df_filtered['source'] == source) &
+            (df_filtered['symbol'] == symbol)
+        ]
+        
+        if df_filtered.empty:
+            logger.info(
+                f"📊 No hay datos para el instrumento {source}:{symbol} en ventana de {lookback_days} días"
             )
             return self._empty_stats_response(current_exhaustion_type)
         
@@ -273,7 +296,7 @@ class StatisticsService:
         df_filtered = df_filtered[df_filtered['pattern'] == pattern]
         
         if df_filtered.empty:
-            logger.info(f"📊 No hay datos para patrón {pattern}")
+            logger.info(f"📊 No hay datos para {source}:{symbol} con patrón {pattern}")
             return self._empty_stats_response(current_exhaustion_type)
         
         # ═════════════════════════════════════════════════════════
@@ -289,7 +312,7 @@ class StatisticsService:
         
         if df_filtered.empty:
             logger.info(
-                f"📊 No hay datos para patrón {pattern} en zona {current_exhaustion_type}"
+                f"📊 No hay datos para {source}:{symbol} con patrón {pattern} en zona {current_exhaustion_type}"
             )
             return self._empty_stats_response(current_exhaustion_type)
         
@@ -367,7 +390,7 @@ class StatisticsService:
         }
         
         logger.debug(
-            f"📊 Estadísticas (Zona: {current_exhaustion_type}) | "
+            f"📊 Estadísticas ({source}:{symbol} | Zona: {current_exhaustion_type}) | "
             f"Patrón: {pattern} | "
             f"Score: {current_score} | "
             f"Exact: {exact_stats['total_cases']} casos | "

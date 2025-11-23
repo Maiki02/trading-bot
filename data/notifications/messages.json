@@ -964,5 +964,75 @@
     "title": "ℹ️ PATRÓN DETECTADO | BTCUSDT\nSolo informativo - Requiere análisis adicional\n",
     "message": "━━━━━━━━━━━━━━━━━━━━━━━━\n📊 INFO DE VELA\n━━━━━━━━━━━━━━━━━━━━━━━━\n🔹 Fuente: BINANCE\n🔹 Patrón: INVERTED_HAMMER\n🔹 Timestamp: 2025-11-23 19:41:00\n🔹 OHLC: O=87750.87 | H=87804.36 | L=87750.87 | C=87751.00\n🔹 Confianza Técnica: 100%\n🔹 Fuerza de Señal: LOW\n\n━━━━━━━━━━━━━━━━━━━━━━━━\n🎯 TENDENCIA\n━━━━━━━━━━━━━━━━━━━━━━━━\n🔹 Estado: WEAK_BEARISH (Score: -2/10)\n🔹 Interpretación: Tendencia bajista débil\n🔹 Estructura: EMAs mixtas (Sin alineación clara)\n\n━━━━━━━━━━━━━━━━━━━━━━━━\n📉 BOLLINGER BANDS\n━━━━━━━━━━━━━━━━━━━━━━━━\n➖ Zona: Zona Neutra\n🔹 Banda Superior: 87986.41368\n🔹 Banda Inferior: 87611.46632\n\n━━━━━━━━━━━━━━━━━━━━━━━━\n📈 INDICADORES\n━━━━━━━━━━━━━━━━━━━━━━━━\n🔹 EMA 200: 87561.65403\n🔹 EMA 50: 87761.16119\n🔹 EMA 30: 87771.74950\n🔹 EMA 20: 87766.84107\n\n━━━━━━━━━━━━━━━━━━━━━━━━\n📊 PROBABILIDAD (30d)\n🕯️ Vela: INVERTED_HAMMER\n➖ Zona: NONE (Estricto)\n━━━━━━━━━━━━━━━━━━━━━━━━\n🎯 EXACTO (5): 80%🟢 20%🔴\n   Racha: 🟢🟢🟢🟢🔴\n⚖️ SCORE (15): 73%🟢 26%🔴\n   Racha: 🟢🟢🟢🟢🟢\n📉 ZONA (23): 78%🟢 21%🔴\n   Racha: 🟢🟢🟢🟢🟢\n\n⚡ *Verificar gráfico manualmente antes de operar.*\n",
     "image_name": "chart_20251123_194202_518662.png"
+  },
+  {
+    "timestamp": "20251123_194701_699573",
+    "datetime": "2025-11-23T19:47:01.703023",
+    "title": "ℹ️ PATRÓN DETECTADO | BTCUSDT\nSolo informativo - Requiere análisis adicional\n",
+    "message": "━━━━━━━━━━━━━━━━━━━━━━\n📊 INFO DE VELA\n━━━━━━━━━━━━━━━━━━━━━━\n🔹 Fuente: BINANCE\n🔹 Patrón: HANGING_MAN\n🔹 Timestamp: 2025-11-23 19:46:00\n🔹 OHLC: O=87812.61 | H=87812.62 | L=87752.28 | C=87796.30\n🔹 Confianza Técnica: 90%\n🔹 Fuerza de Señal: LOW\n\n━━━━━━━━━━━━━━━━━━━━━━\n🎯 TENDENCIA\n━━━━━━━━━━━━━━━━━━━━━━\n🔹 Estado: STRONG_BULLISH (Score: +10/10)\n🔹 Interpretación: Tendencia alcista muy fuerte\n🔹 Estructura: Precio > EMA20 > EMA200 (Alineación alcista)\n\n━━━━━━━━━━━━━━━━━━━━━━\n📉 BOLLINGER BANDS\n━━━━━━━━━━━━━━━━━━━━━━\n➖ Zona: Zona Neutra\n🔹 Banda Superior: 87928.67758\n🔹 Banda Inferior: 87639.92742\n\n━━━━━━━━━━━━━━━━━━━━━━\n📊 PROBABILIDAD (30d)\n━━━━━━━━━━━━━━━━━━━━━━\n🎯 EXACTO (33): 48%🟢 51%🔴\n   Racha: 🟢🟢🟢🔴🔴\n⚖️ SCORE (44): 43%🟢 56%🔴\n   Racha: 🟢🟢🟢🔴🔴\n📉 ZONA (49): 44%🟢 55%🔴\n   Racha: 🟢🟢🟢🔴🔴\n\n",
+    "image_name": "chart_20251123_194701_699573.png"
+  },
+  {
+    "timestamp": "20251123_195702_154526",
+    "datetime": "2025-11-23T19:57:02.160550",
+    "title": "ℹ️ PATRÓN DETECTADO | BTCUSDT\nSolo informativo - Requiere análisis adicional\n",
+    "message": "━━━━━━━━━━━━━━━━━━━━━━\n📊 INFO DE VELA\n━━━━━━━━━━━━━━━━━━━━━━\n🔹 Fuente: BINANCE\n🔹 Patrón: INVERTED_HAMMER\n🔹 Timestamp: 2025-11-23 19:56:00\n🔹 OHLC: O=87935.72 | H=87991.00 | L=87935.72 | C=87951.67\n🔹 Confianza Técnica: 90%\n🔹 Fuerza de Señal: LOW\n\n━━━━━━━━━━━━━━━━━━━━━━\n🎯 TENDENCIA\n━━━━━━━━━━━━━━━━━━━━━━\n🔹 Estado: STRONG_BULLISH (Score: +10/10)\n🔹 Interpretación: Tendencia alcista muy fuerte\n🔹 Estructura: Precio > EMA20 > EMA200 (Alineación alcista)\n\n━━━━━━━━━━━━━━━━━━━━━━\n📉 BOLLINGER BANDS\n━━━━━━━━━━━━━━━━━━━━━━\n🔺 Zona: Cúspide de Bollinger\n🔹 Banda Superior: 87983.40124\n🔹 Banda Inferior: 87644.02176\n\n━━━━━━━━━━━━━━━━━━━━━━\n📊 PROBABILIDAD (30d)\n━━━━━━━━━━━━━━━━━━━━━━\n🎯 EXACTO (6): 16%🟢 83%🔴\n   Racha: 🔴🔴🟢🔴🔴\n⚖️ SCORE (9): 33%🟢 66%🔴\n   Racha: 🔴🔴🔴🟢🔴\n\n",
+    "image_name": "chart_20251123_195702_154526.png"
+  },
+  {
+    "timestamp": "20251123_200001_544142",
+    "datetime": "2025-11-23T20:00:01.551533",
+    "title": "ℹ️ PATRÓN DETECTADO | ETHUSDT\nSolo informativo - Requiere análisis adicional\n",
+    "message": "━━━━━━━━━━━━━━━━━━━━━━\n📊 INFO DE VELA\n━━━━━━━━━━━━━━━━━━━━━━\n🔹 Fuente: BINANCE\n🔹 Patrón: HANGING_MAN\n🔹 Timestamp: 2025-11-23 19:59:00\n🔹 OHLC: O=2839.61 | H=2840.00 | L=2836.53 | C=2838.70\n🔹 Confianza Técnica: 70%\n🔹 Fuerza de Señal: LOW\n\n━━━━━━━━━━━━━━━━━━━━━━\n🎯 TENDENCIA\n━━━━━━━━━━━━━━━━━━━━━━\n🔹 Estado: STRONG_BULLISH (Score: +10/10)\n🔹 Interpretación: Tendencia alcista muy fuerte\n🔹 Estructura: Precio > EMA20 > EMA200 (Alineación alcista)\n\n━━━━━━━━━━━━━━━━━━━━━━\n📉 BOLLINGER BANDS\n━━━━━━━━━━━━━━━━━━━━━━\n➖ Zona: Zona Neutra\n🔹 Banda Superior: 2841.10186\n🔹 Banda Inferior: 2828.39114\n\n━━━━━━━━━━━━━━━━━━━━━━\n📊 PROBABILIDAD (30d)\n━━━━━━━━━━━━━━━━━━━━━━\n🎯 EXACTO (34): 50%🟢 50%🔴\n   Racha: 🟢🟢🟢🟢🔴\n⚖️ SCORE (45): 44%🟢 55%🔴\n   Racha: 🟢🟢🟢🟢🔴\n📉 ZONA (50): 46%🟢 54%🔴\n   Racha: 🟢🟢🟢🟢🔴\n\n",
+    "image_name": "chart_20251123_200001_544142.png"
+  },
+  {
+    "timestamp": "20251123_200306_818478",
+    "datetime": "2025-11-23T20:03:06.825799",
+    "title": "ℹ️ PATRÓN DETECTADO | EURUSD\nSolo informativo - Requiere análisis adicional\n",
+    "message": "━━━━━━━━━━━━━━━━━━━━━━\n📊 INFO DE VELA\n━━━━━━━━━━━━━━━━━━━━━━\n🔹 Fuente: OANDA\n🔹 Patrón: INVERTED_HAMMER\n🔹 Timestamp: 2025-11-23 20:02:00\n🔹 OHLC: O=1.15 | H=1.15 | L=1.15 | C=1.15\n🔹 Confianza Técnica: 90%\n🔹 Fuerza de Señal: LOW\n\n━━━━━━━━━━━━━━━━━━━━━━\n🎯 TENDENCIA\n━━━━━━━━━━━━━━━━━━━━━━\n🔹 Estado: STRONG_BEARISH (Score: -10/10)\n🔹 Interpretación: Tendencia bajista muy fuerte\n🔹 Estructura: EMAs mixtas (Sin alineación clara)\n\n━━━━━━━━━━━━━━━━━━━━━━\n📉 BOLLINGER BANDS\n━━━━━━━━━━━━━━━━━━━━━━\n🔻 Zona: Base de Bollinger\n🔹 Banda Superior: 1.15149\n🔹 Banda Inferior: 1.15128\n\n━━━━━━━━━━━━━━━━━━━━━━\n📊 PROBABILIDAD (30d)\n━━━━━━━━━━━━━━━━━━━━━━\n⚖️ SCORE (1): 100%🟢 0%🔴\n   Racha: 🟢\n\n",
+    "image_name": "chart_20251123_200306_818478.png"
+  },
+  {
+    "timestamp": "20251123_200601_839662",
+    "datetime": "2025-11-23T20:06:01.844866",
+    "title": "ℹ️ PATRÓN DETECTADO | ETHUSDT\nSolo informativo - Requiere análisis adicional\n",
+    "message": "━━━━━━━━━━━━━━━━━━━━━━\n📊 INFO DE VELA\n━━━━━━━━━━━━━━━━━━━━━━\n🔹 Fuente: BINANCE\n🔹 Patrón: HANGING_MAN\n🔹 Timestamp: 2025-11-23 20:05:00\n🔹 OHLC: O=2824.70 | H=2825.02 | L=2817.28 | C=2822.72\n🔹 Confianza Técnica: 90%\n🔹 Fuerza de Señal: LOW\n\n━━━━━━━━━━━━━━━━━━━━━━\n🎯 TENDENCIA\n━━━━━━━━━━━━━━━━━━━━━━\n🔹 Estado: STRONG_BEARISH (Score: -10/10)\n🔹 Interpretación: Tendencia bajista muy fuerte\n🔹 Estructura: EMAs mixtas (Sin alineación clara)\n\n━━━━━━━━━━━━━━━━━━━━━━\n📉 BOLLINGER BANDS\n━━━━━━━━━━━━━━━━━━━━━━\n🔻 Zona: Base de Bollinger\n🔹 Banda Superior: 2846.04744\n🔹 Banda Inferior: 2823.09756\n\n━━━━━━━━━━━━━━━━━━━━━━\n📊 PROBABILIDAD (30d)\n━━━━━━━━━━━━━━━━━━━━━━\n🎯 EXACTO (2): 50%🟢 50%🔴\n   Racha: 🟢🔴\n⚖️ SCORE (14): 42%🟢 57%🔴\n   Racha: 🟢🟢🔴🔴🟢\n📉 ZONA (15): 46%🟢 53%🔴\n   Racha: 🟢🟢🟢🔴🔴\n\n",
+    "image_name": "chart_20251123_200601_839662.png"
+  },
+  {
+    "timestamp": "20251123_201000_704619",
+    "datetime": "2025-11-23T20:10:00.704619",
+    "title": "ℹ️ PATRÓN DETECTADO | USDJPY\nSolo informativo - Requiere análisis adicional\n",
+    "message": "━━━━━━━━━━━━━━━━━━━━━━\n📊 INFO DE VELA\n━━━━━━━━━━━━━━━━━━━━━━\n🔹 Fuente: OANDA\n🔹 Patrón: SHOOTING_STAR\n🔹 Timestamp: 2025-11-23 20:09:00\n🔹 OHLC: O=156.59 | H=156.61 | L=156.59 | C=156.59\n🔹 Confianza Técnica: 100%\n🔹 Fuerza de Señal: LOW\n\n━━━━━━━━━━━━━━━━━━━━━━\n🎯 TENDENCIA\n━━━━━━━━━━━━━━━━━━━━━━\n🔹 Estado: STRONG_BULLISH (Score: +10/10)\n🔹 Interpretación: Tendencia alcista muy fuerte\n🔹 Estructura: Precio > EMA20 > EMA200 (Alineación alcista)\n\n━━━━━━━━━━━━━━━━━━━━━━\n📉 BOLLINGER BANDS\n━━━━━━━━━━━━━━━━━━━━━━\n➖ Zona: Zona Neutra\n🔹 Banda Superior: 156.65050\n🔹 Banda Inferior: 156.43830\n\n━━━━━━━━━━━━━━━━━━━━━━\n📊 PROBABILIDAD (30d)\n━━━━━━━━━━━━━━━━━━━━━━\n🎯 EXACTO (22): 40%🟢 59%🔴\n   Racha: 🔴🔴🔴🟢🟢\n⚖️ SCORE (28): 42%🟢 57%🔴\n   Racha: 🔴🔴🔴🔴🟢\n📉 ZONA (33): 36%🟢 63%🔴\n   Racha: 🔴🔴🔴🔴🟢\n\n",
+    "image_name": "chart_20251123_201000_704619.png"
+  },
+  {
+    "timestamp": "20251123_201102_708841",
+    "datetime": "2025-11-23T20:11:02.715630",
+    "title": "ℹ️ PATRÓN DETECTADO | GBPUSD\nSolo informativo - Requiere análisis adicional\n",
+    "message": "━━━━━━━━━━━━━━━━━━━━━━\n📊 INFO DE VELA\n━━━━━━━━━━━━━━━━━━━━━━\n🔹 Fuente: OANDA\n🔹 Patrón: HAMMER\n🔹 Timestamp: 2025-11-23 20:10:00\n🔹 OHLC: O=1.31 | H=1.31 | L=1.31 | C=1.31\n🔹 Confianza Técnica: 90%\n🔹 Fuerza de Señal: LOW\n\n━━━━━━━━━━━━━━━━━━━━━━\n🎯 TENDENCIA\n━━━━━━━━━━━━━━━━━━━━━━\n🔹 Estado: STRONG_BEARISH (Score: -10/10)\n🔹 Interpretación: Tendencia bajista muy fuerte\n🔹 Estructura: Precio < EMA20 < EMA200 (Alineación bajista)\n\n━━━━━━━━━━━━━━━━━━━━━━\n📉 BOLLINGER BANDS\n━━━━━━━━━━━━━━━━━━━━━━\n➖ Zona: Zona Neutra\n🔹 Banda Superior: 1.31039\n🔹 Banda Inferior: 1.30942\n\n━━━━━━━━━━━━━━━━━━━━━━\n📊 PROBABILIDAD (30d)\n━━━━━━━━━━━━━━━━━━━━━━\n🎯 EXACTO (36): 63%🟢 36%🔴\n   Racha: 🔴🟢🔴🟢🟢\n⚖️ SCORE (46): 60%🟢 39%🔴\n   Racha: 🔴🔴🟢🔴🟢\n📉 ZONA (52): 59%🟢 40%🔴\n   Racha: 🔴🔴🟢🔴🟢\n\n",
+    "image_name": "chart_20251123_201102_708841.png"
+  },
+  {
+    "timestamp": "20251123_201116_016867",
+    "datetime": "2025-11-23T20:11:16.023139",
+    "title": "ℹ️ PATRÓN DETECTADO | USDCHF\nSolo informativo - Requiere análisis adicional\n",
+    "message": "━━━━━━━━━━━━━━━━━━━━━━\n📊 INFO DE VELA\n━━━━━━━━━━━━━━━━━━━━━━\n🔹 Fuente: OANDA\n🔹 Patrón: SHOOTING_STAR\n🔹 Timestamp: 2025-11-23 20:10:00\n🔹 OHLC: O=0.81 | H=0.81 | L=0.81 | C=0.81\n🔹 Confianza Técnica: 100%\n🔹 Fuerza de Señal: LOW\n\n━━━━━━━━━━━━━━━━━━━━━━\n🎯 TENDENCIA\n━━━━━━━━━━━━━━━━━━━━━━\n🔹 Estado: STRONG_BULLISH (Score: +10/10)\n🔹 Interpretación: Tendencia alcista muy fuerte\n🔹 Estructura: Precio > EMA20 > EMA200 (Alineación alcista)\n\n━━━━━━━━━━━━━━━━━━━━━━\n📉 BOLLINGER BANDS\n━━━━━━━━━━━━━━━━━━━━━━\n➖ Zona: Zona Neutra\n🔹 Banda Superior: 0.80897\n🔹 Banda Inferior: 0.80805\n\n━━━━━━━━━━━━━━━━━━━━━━\n📊 PROBABILIDAD (30d)\n━━━━━━━━━━━━━━━━━━━━━━\n🎯 EXACTO (22): 40%🟢 59%🔴\n   Racha: 🔴🔴🔴🟢🟢\n⚖️ SCORE (28): 42%🟢 57%🔴\n   Racha: 🔴🔴🔴🔴🟢\n📉 ZONA (33): 36%🟢 63%🔴\n   Racha: 🔴🔴🔴🔴🟢\n\n",
+    "image_name": "chart_20251123_201116_016867.png"
+  },
+  {
+    "timestamp": "20251123_201706_844421",
+    "datetime": "2025-11-23T20:17:06.853522",
+    "title": "ℹ️ PATRÓN DETECTADO | EURUSD\nSolo informativo - Requiere análisis adicional\n",
+    "message": "━━━━━━━━━━━━━━━━━━━━━━\n📊 INFO DE VELA\n━━━━━━━━━━━━━━━━━━━━━━\n🔹 Fuente: OANDA\n🔹 Patrón: SHOOTING_STAR\n🔹 Timestamp: 2025-11-23 20:16:00\n🔹 OHLC: O=1.15 | H=1.15 | L=1.15 | C=1.15\n🔹 Confianza Técnica: 100%\n🔹 Fuerza de Señal: LOW\n\n━━━━━━━━━━━━━━━━━━━━━━\n🎯 TENDENCIA\n━━━━━━━━━━━━━━━━━━━━━━\n🔹 Estado: STRONG_BEARISH (Score: -10/10)\n🔹 Interpretación: Tendencia bajista muy fuerte\n🔹 Estructura: Precio < EMA20 < EMA200 (Alineación bajista)\n\n━━━━━━━━━━━━━━━━━━━━━━\n📉 BOLLINGER BANDS\n━━━━━━━━━━━━━━━━━━━━━━\n➖ Zona: Zona Neutra\n🔹 Banda Superior: 1.15152\n🔹 Banda Inferior: 1.15080\n\n━━━━━━━━━━━━━━━━━━━━━━\n📊 PROBABILIDAD (30d)\n━━━━━━━━━━━━━━━━━━━━━━\n⚠️  Sin datos históricos\n\n",
+    "image_name": "chart_20251123_201706_844421.png"
+  },
+  {
+    "timestamp": "20251123_201903_187917",
+    "datetime": "2025-11-23T20:19:03.192269",
+    "title": "ℹ️ PATRÓN DETECTADO | EURUSD\nSolo informativo - Requiere análisis adicional\n",
+    "message": "━━━━━━━━━━━━━━━━━━━━━━\n📊 INFO DE VELA\n━━━━━━━━━━━━━━━━━━━━━━\n🔹 Fuente: OANDA\n🔹 Patrón: HAMMER\n🔹 Timestamp: 2025-11-23 20:18:00\n🔹 OHLC: O=1.15 | H=1.15 | L=1.15 | C=1.15\n🔹 Confianza Técnica: 80%\n🔹 Fuerza de Señal: LOW\n\n━━━━━━━━━━━━━━━━━━━━━━\n🎯 TENDENCIA\n━━━━━━━━━━━━━━━━━━━━━━\n🔹 Estado: STRONG_BEARISH (Score: -10/10)\n🔹 Interpretación: Tendencia bajista muy fuerte\n🔹 Estructura: Precio < EMA20 < EMA200 (Alineación bajista)\n\n━━━━━━━━━━━━━━━━━━━━━━\n📉 BOLLINGER BANDS\n━━━━━━━━━━━━━━━━━━━━━━\n➖ Zona: Zona Neutra\n🔹 Banda Superior: 1.15141\n🔹 Banda Inferior: 1.15082\n\n━━━━━━━━━━━━━━━━━━━━━━\n📊 PROBABILIDAD (30d)\n━━━━━━━━━━━━━━━━━━━━━━\n⚠️  Sin datos históricos\n\n",
+    "image_name": "chart_20251123_201903_187917.png"
   }
 ]

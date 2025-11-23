@@ -52,11 +52,6 @@ logger = get_logger(__name__)
 # CONFIGURATION
 # =============================================================================
 
-# Instrumento a analizar
-SYMBOL = "BTCUSDT"
-EXCHANGE = "BINANCE"
-TIMEFRAME = "1"  # 1 minuto
-
 # Rango de fechas para backtesting
 # NOTA: TradingView tiene un límite de ~10,000 velas por request
 # Para 1 minuto: 10,000 velas = ~7 días de datos continuos
@@ -227,47 +222,84 @@ class BacktestingEngine:
             storage_service: Servicio de almacenamiento
         """
         self.storage_service = storage_service
-        self.patterns_found = 0
-        self.patterns_saved = 0
+        self.total_patterns_found = 0
+        self.total_patterns_saved = 0
     
     async def run(self):
-        """Ejecuta el proceso de backtesting completo."""
+        """Ejecuta el proceso de backtesting completo para todos los instrumentos."""
         logger.info("=" * 80)
-        logger.info("🚀 INICIANDO BACKTESTING HISTÓRICO")
+        logger.info("🚀 INICIANDO BACKTESTING HISTÓRICO MULTI-INSTRUMENTO")
         logger.info("=" * 80)
-        logger.info(f"📊 Instrumento: {EXCHANGE}:{SYMBOL}")
-        logger.info(f"⏱️  Timeframe: {TIMEFRAME} minuto(s)")
         logger.info(f"📅 Rango: {START_DATE.strftime('%Y-%m-%d')} a {END_DATE.strftime('%Y-%m-%d')} ({DAYS_TO_FETCH} días)")
         logger.info(f"📦 Estrategia: Peticiones de {DAYS_PER_REQUEST} días cada una")
         logger.info(f"⏭️  Velas a saltar: {SKIP_CANDLES:,}")
+        logger.info(f"📊 Instrumentos a procesar: {len(Config.INSTRUMENTS)}")
         logger.info("=" * 80)
         
-        # Paso 1: Obtener velas históricas por chunks
-        logger.info("\n📥 PASO 1: Obteniendo datos históricos de TradingView...")
-        candles = await self._fetch_historical_data_in_chunks()
-        
-        if not candles or len(candles) < SKIP_CANDLES + 100:
-            logger.error(f"❌ No se obtuvieron suficientes velas. Recibidas: {len(candles)}")
-            return
-        
-        logger.info(f"✅ Total obtenidas: {len(candles):,} velas históricas")
-        logger.info(f"🔍 Velas a analizar: {len(candles) - SKIP_CANDLES:,}")
-        
-        # Paso 2: Procesar velas y detectar patrones
-        logger.info("\n🔍 PASO 2: Procesando velas y detectando patrones...")
-        await self._process_candles(candles)
+        # Procesar cada instrumento
+        for instrument_key, instrument_config in Config.INSTRUMENTS.items():
+            logger.info(f"\n{'=' * 80}")
+            logger.info(f"📊 PROCESANDO: {instrument_config.exchange}:{instrument_config.symbol}")
+            logger.info(f"⏱️  Timeframe: {instrument_config.timeframe} minuto(s)")
+            logger.info(f"{'=' * 80}")
+            
+            patterns_found = 0
+            patterns_saved = 0
+            
+            try:
+                # Paso 1: Obtener velas históricas por chunks
+                logger.info("\n📥 PASO 1: Obteniendo datos históricos de TradingView...")
+                candles = await self._fetch_historical_data_in_chunks(
+                    symbol=instrument_config.symbol,
+                    exchange=instrument_config.exchange,
+                    timeframe=instrument_config.timeframe
+                )
+                
+                if not candles or len(candles) < SKIP_CANDLES + 100:
+                    logger.warning(f"⚠️  Insuficientes velas para {instrument_config.symbol}. Recibidas: {len(candles) if candles else 0}")
+                    continue
+                
+                logger.info(f"✅ Total obtenidas: {len(candles):,} velas históricas")
+                logger.info(f"🔍 Velas a analizar: {len(candles) - SKIP_CANDLES:,}")
+                
+                # Paso 2: Procesar velas y detectar patrones
+                logger.info("\n🔍 PASO 2: Procesando velas y detectando patrones...")
+                patterns_found, patterns_saved = await self._process_candles(
+                    candles=candles,
+                    symbol=instrument_config.symbol,
+                    exchange=instrument_config.exchange
+                )
+                
+                # Resumen del instrumento
+                logger.info(f"\n✅ {instrument_config.symbol} completado:")
+                logger.info(f"   🎯 Patrones detectados: {patterns_found}")
+                logger.info(f"   💾 Patrones guardados: {patterns_saved}")
+                
+                # Acumular totales
+                self.total_patterns_found += patterns_found
+                self.total_patterns_saved += patterns_saved
+            
+            except Exception as e:
+                logger.error(f"❌ Error procesando {instrument_config.symbol}: {e}", exc_info=True)
+                continue
         
         # Resumen final
         logger.info("\n" + "=" * 80)
-        logger.info("✅ BACKTESTING COMPLETADO")
+        logger.info("✅ BACKTESTING MULTI-INSTRUMENTO COMPLETADO")
         logger.info("=" * 80)
-        logger.info(f"🎯 Patrones detectados: {self.patterns_found}")
-        logger.info(f"💾 Patrones guardados: {self.patterns_saved}")
-        logger.info(f"📊 Dataset: data/trading_signals_dataset.jsonl")
+        logger.info(f"📊 Instrumentos procesados: {len(Config.INSTRUMENTS)}")
+        logger.info(f"🎯 Total patrones detectados: {self.total_patterns_found}")
+        logger.info(f"💾 Total patrones guardados: {self.total_patterns_saved}")
+        logger.info(f"📂 Dataset: data/trading_signals_dataset.jsonl")
         logger.info("=" * 80)
     
     
-    async def _fetch_historical_data_in_chunks(self) -> List[HistoricalCandle]:
+    async def _fetch_historical_data_in_chunks(
+        self,
+        symbol: str,
+        exchange: str,
+        timeframe: str
+    ) -> List[HistoricalCandle]:
         """
         Obtiene velas históricas de TradingView dividiendo en chunks por fecha.
         
@@ -276,6 +308,11 @@ class BacktestingEngine:
         2. Solicita cada chunk secuencialmente
         3. Espera REQUEST_DELAY segundos entre peticiones
         4. Combina y ordena todas las velas
+        
+        Args:
+            symbol: Símbolo del instrumento (ej: "BTCUSDT", "EURUSD")
+            exchange: Exchange (ej: "BINANCE", "OANDA")
+            timeframe: Timeframe en minutos (ej: "1")
         
         Returns:
             Lista de velas históricas ordenadas por timestamp
@@ -304,9 +341,9 @@ class BacktestingEngine:
             try:
                 # Solicitar velas (TradingView devuelve las más recientes)
                 candles = await service.fetch_historical_candles(
-                    symbol=SYMBOL,
-                    exchange=EXCHANGE,
-                    timeframe=TIMEFRAME,
+                    symbol=symbol,
+                    exchange=exchange,
+                    timeframe=timeframe,
                     num_candles=estimated_candles + 500  # Buffer extra
                 )
                 
@@ -352,13 +389,25 @@ class BacktestingEngine:
         
         return []
     
-    async def _process_candles(self, candles: List[HistoricalCandle]):
+    async def _process_candles(
+        self,
+        candles: List[HistoricalCandle],
+        symbol: str,
+        exchange: str
+    ) -> tuple:
         """
         Procesa las velas, detecta patrones y guarda en dataset.
         
         Args:
             candles: Lista de velas históricas
+            symbol: Símbolo del instrumento
+            exchange: Exchange
+            
+        Returns:
+            tuple: (patterns_found, patterns_saved)
         """
+        patterns_found = 0
+        patterns_saved = 0
         total_to_analyze = len(candles) - SKIP_CANDLES
         
         # Iterar desde la vela SKIP_CANDLES hasta la penúltima
@@ -376,7 +425,7 @@ class BacktestingEngine:
             
             if pattern_result:
                 pattern, confidence = pattern_result
-                self.patterns_found += 1
+                patterns_found += 1
                 
                 # Obtener buffer de 1000 velas anteriores
                 buffer_start = max(0, i - BUFFER_SIZE)
@@ -428,8 +477,8 @@ class BacktestingEngine:
                 # Preparar registro para dataset con estructura optimizada
                 record = {
                     "timestamp": current_candle.timestamp,
-                    "source": EXCHANGE,
-                    "symbol": SYMBOL,
+                    "source": exchange,
+                    "symbol": symbol,
                     "pattern_candle": {
                         "timestamp": current_candle.timestamp,
                         "open": current_candle.open,
@@ -481,7 +530,7 @@ class BacktestingEngine:
                 # Guardar en dataset
                 try:
                     await self.storage_service.save_signal_outcome(record)
-                    self.patterns_saved += 1
+                    patterns_saved += 1
                     
                     result_text = "WIN" if outcome_result else "LOSS"
                     logger.debug(
@@ -491,6 +540,8 @@ class BacktestingEngine:
                 
                 except Exception as e:
                     logger.error(f"❌ Error guardando patrón: {e}")
+        
+        return patterns_found, patterns_saved
     
     def _get_expected_direction(self, pattern: str) -> str:
         """

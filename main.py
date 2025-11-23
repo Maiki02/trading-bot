@@ -113,9 +113,6 @@ class TradingBot:
         self._register_signal_handlers()
         
         logger.info("🚀 Trading Bot started. Monitoring EUR/USD for Shooting Star patterns...")
-        logger.info(f"📊 Primary Source: OANDA | Secondary Source: FX")
-        logger.info(f"⏱️  Dual-Source Window: {Config.DUAL_SOURCE_WINDOW}s")
-        logger.info(f"📈 EMA Period: {Config.EMA_PERIOD}")
         
         # Iniciar Connection Service (blocking)
         try:
