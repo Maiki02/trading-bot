@@ -232,15 +232,15 @@ class TelegramService:
             f"{exhaustion_emoji} Zona: {exhaustion_text}\n"
             f"🔹 Banda Superior: {bb_upper_str}\n"
             f"🔹 Banda Inferior: {bb_lower_str}\n\n"
-            f"━━━━━━━━━━━━━━━━━━━━━━\n"
-            f"📈 INDICADORES\n"
-            f"━━━━━━━━━━━━━━━━━━━━━━\n"
-            f"🔹 EMA 200: {signal.ema_200:.5f}\n"
-            f"🔹 EMA 50: {ema_50_str}\n"
-            f"🔹 EMA 30: {ema_30_str}\n"
-            f"🔹 EMA 20: {ema_20_str}\n\n"
+            # f"━━━━━━━━━━━━━━━━━━━━━━\n"
+            # f"📈 INDICADORES\n"
+            # f"━━━━━━━━━━━━━━━━━━━━━━\n"
+            # f"🔹 EMA 200: {signal.ema_200:.5f}\n"
+            # f"🔹 EMA 50: {ema_50_str}\n"
+            # f"🔹 EMA 30: {ema_30_str}\n"
+            # f"🔹 EMA 20: {ema_20_str}\n\n"
             f"{statistics_block}"
-            f"⚡ *Verificar gráfico manualmente antes de operar.*\n"
+            #f"⚡ *Verificar gráfico manualmente antes de operar.*\n"
         )
         
         return AlertMessage(
