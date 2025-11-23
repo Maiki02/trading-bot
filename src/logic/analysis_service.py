@@ -194,7 +194,8 @@ class AnalysisService:
     def __init__(
         self,
         on_pattern_detected: Callable[[PatternSignal], None],
-        storage_service: Optional[object] = None  # StorageService (evitamos import circular)
+        storage_service: Optional[object] = None,  # StorageService (evitamos import circular)
+        telegram_service: Optional[object] = None  # TelegramService para notificaciones de resultados
     ):
         """
         Inicializa el servicio de análisis.
@@ -202,9 +203,11 @@ class AnalysisService:
         Args:
             on_pattern_detected: Callback invocado cuando se detecta un patrón válido
             storage_service: Instancia de StorageService para persistencia de dataset
+            telegram_service: Instancia de TelegramService para notificaciones de resultados
         """
         self.on_pattern_detected = on_pattern_detected
         self.storage_service = storage_service
+        self.telegram_service = telegram_service
         
         # Buffers separados por fuente (OANDA, FX)
         self.dataframes: Dict[str, pd.DataFrame] = {}
@@ -622,6 +625,24 @@ class AnalysisService:
                 log_exception(logger, "Error guardando registro en StorageService", e)
         else:
             logger.warning("⚠️  StorageService no disponible - registro no guardado")
+        
+        # Enviar notificación del resultado a Telegram si está disponible
+        if self.telegram_service:
+            try:
+                # Obtener el chart del patrón original si existe
+                chart_base64 = pending_signal.chart_base64 if hasattr(pending_signal, 'chart_base64') else None
+                
+                await self.telegram_service.send_outcome_notification(
+                    source=pending_signal.source,
+                    symbol=pending_signal.symbol,
+                    direction=actual_direction,
+                    chart_base64=chart_base64
+                )
+                logger.info(f"📨 Notificación de resultado enviada | Dirección: {actual_direction}")
+            except Exception as e:
+                log_exception(logger, "Error enviando notificación de resultado", e)
+        else:
+            logger.debug("⚠️  TelegramService no disponible - notificación de resultado no enviada")
         
         # Limpiar señal pendiente
         del self.pending_signals[source_key]

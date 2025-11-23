@@ -70,7 +70,8 @@ class TradingBot:
         # 3. Analysis Service (depende de Telegram y Storage)
         self.analysis_service = AnalysisService(
             on_pattern_detected=self.telegram_service.handle_pattern_signal,
-            storage_service=self.storage_service
+            storage_service=self.storage_service,
+            telegram_service=self.telegram_service
         )
         
         # 4. Connection Service (recibe AnalysisService completo)

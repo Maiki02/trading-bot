@@ -87,6 +87,7 @@ class TelegramConfig:
     api_url: str
     api_key: str
     subscription: str
+    outcome_subscription: str  # Subscription para notificaciones de resultados
     send_charts: bool  # Enviar gráficos en Base64 (aumenta costos API Gateway ~10x)
     enable_notifications: bool  # Habilitar/deshabilitar envío de notificaciones
     save_notifications_locally: bool  # Guardar notificaciones localmente en PNG y JSON
@@ -178,6 +179,7 @@ class Config:
         api_url=os.getenv("TELEGRAM_API_URL", ""),
         api_key=os.getenv("TELEGRAM_API_KEY", ""),
         subscription=os.getenv("TELEGRAM_SUBSCRIPTION", "trading_signals"),
+        outcome_subscription=os.getenv("TELEGRAM_OUTCOME_SUBSCRIPTION", "trading_signals"),
         send_charts=os.getenv("SEND_CHARTS", "true").lower() == "true",
         enable_notifications=os.getenv("ENABLE_NOTIFICATIONS", "true").lower() == "true",
         save_notifications_locally=os.getenv("SAVE_NOTIFICATIONS_LOCALLY", "false").lower() == "true"

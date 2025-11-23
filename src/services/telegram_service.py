@@ -432,7 +432,57 @@ class TelegramService:
             except Exception as e:
                 log_exception(logger, "Error guardando notificación localmente", e)
         
-        # PASO 2: Enviar vía HTTP si las notificaciones están habilitadas
+        # PASO 2: Enviar vía HTTP usando la función base
+        await self._send_telegram_notification(
+            title=message.title,
+            subscription=self.subscription,
+            message=message.body,
+            chart_base64=chart_base64
+        )
+    
+    async def send_outcome_notification(
+        self,
+        source: str,
+        symbol: str,
+        direction: str,
+        chart_base64: Optional[str] = None
+    ) -> None:
+        """
+        Envía una notificación del resultado de una vela (VERDE o ROJA).
+        
+        Args:
+            source: Fuente del dato (ej: "BINANCE", "OANDA")
+            symbol: Símbolo del activo (ej: "BTCUSDT", "EURUSD")
+            direction: Dirección de la vela ("VERDE" o "ROJA")
+            chart_base64: Imagen del gráfico codificada en Base64 (opcional)
+        """
+        title = f"📊 Resultado Vela - {source}:{symbol}"
+        message = f"La vela resultante fue: {direction}"
+        
+        await self._send_telegram_notification(
+            title=title,
+            subscription=Config.TELEGRAM.outcome_subscription,
+            message=message,
+            chart_base64=chart_base64
+        )
+    
+    async def _send_telegram_notification(
+        self,
+        title: str,
+        subscription: str,
+        message: str,
+        chart_base64: Optional[str] = None
+    ) -> None:
+        """
+        Función base para enviar notificaciones a Telegram API.
+        
+        Args:
+            title: Título del mensaje
+            subscription: Tipo de suscripción (topic)
+            message: Cuerpo del mensaje
+            chart_base64: Imagen del gráfico codificada en Base64 (opcional)
+        """
+        # Verificar si las notificaciones HTTP están habilitadas
         if not Config.TELEGRAM.enable_notifications:
             logger.debug("📵 Notificaciones HTTP deshabilitadas. Mensaje no enviado a Telegram API.")
             return
@@ -443,13 +493,13 @@ class TelegramService:
         
         # Formato del payload según el nuevo formato con image_base64
         payload = {
-            "first_message": message.title,
+            "first_message": title,
             "image_base64": chart_base64 if chart_base64 else "",
             #"message_type": "standard",
             "entries": [
                 {
-                    "subscription": self.subscription,
-                    "message": message.body
+                    "subscription": subscription,
+                    "message": message
                 }
             ]
         }
@@ -470,11 +520,10 @@ class TelegramService:
                 f"📤 INICIANDO PETICIÓN HTTP A TELEGRAM\n"
                 f"{'='*80}\n"
                 f"🔹 URL: {self.api_url}\n"
-                f"🔹 Tipo Alerta: {message.alert_type}\n"
-                f"🔹 Título: {message.title}\n"
+                f"🔹 Título: {title}\n"
                 f"🔹 Gráfico Incluido: {chart_status}\n"
                 f"🔹 Tamaño Gráfico: {chart_size} bytes\n"
-                f"🔹 Suscripción: {self.subscription}\n"
+                f"🔹 Suscripción: {subscription}\n"
                 f"{'='*80}"
             )
             
@@ -492,7 +541,7 @@ class TelegramService:
                         f"✅ PETICIÓN HTTP EXITOSA\n"
                         f"{'='*80}\n"
                         f"🔹 Estado HTTP: {response.status}\n"
-                        f"🔹 Tipo Alerta: {message.alert_type}\n"
+                        f"🔹 Suscripción: {subscription}\n"
                         f"🔹 Respuesta: {response_text[:200]}\n"
                         f"{'='*80}"
                     )
