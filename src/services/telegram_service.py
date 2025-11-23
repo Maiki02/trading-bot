@@ -139,7 +139,8 @@ class TelegramService:
         # ═════════════════════════════════════════════════════════════════════
         # TÍTULO BASADO EN SIGNAL_STRENGTH (Nuevo Sistema)
         # ═════════════════════════════════════════════════════════════════════
-        
+        logger.debug(f"🔹 Formateando mensaje para señal con fuerza: {signal.signal_strength}")
+
         if signal.signal_strength == "HIGH":
             # 🚨 ALERTA FUERTE - Patrón en zona de agotamiento (Cúspide o Base)
             if signal.pattern in ["SHOOTING_STAR", "HANGING_MAN"]:

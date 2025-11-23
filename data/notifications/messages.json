@@ -1034,5 +1034,33 @@
     "title": "ℹ️ PATRÓN DETECTADO | EURUSD\nSolo informativo - Requiere análisis adicional\n",
     "message": "━━━━━━━━━━━━━━━━━━━━━━\n📊 INFO DE VELA\n━━━━━━━━━━━━━━━━━━━━━━\n🔹 Fuente: OANDA\n🔹 Patrón: HAMMER\n🔹 Timestamp: 2025-11-23 20:18:00\n🔹 OHLC: O=1.15 | H=1.15 | L=1.15 | C=1.15\n🔹 Confianza Técnica: 80%\n🔹 Fuerza de Señal: LOW\n\n━━━━━━━━━━━━━━━━━━━━━━\n🎯 TENDENCIA\n━━━━━━━━━━━━━━━━━━━━━━\n🔹 Estado: STRONG_BEARISH (Score: -10/10)\n🔹 Interpretación: Tendencia bajista muy fuerte\n🔹 Estructura: Precio < EMA20 < EMA200 (Alineación bajista)\n\n━━━━━━━━━━━━━━━━━━━━━━\n📉 BOLLINGER BANDS\n━━━━━━━━━━━━━━━━━━━━━━\n➖ Zona: Zona Neutra\n🔹 Banda Superior: 1.15141\n🔹 Banda Inferior: 1.15082\n\n━━━━━━━━━━━━━━━━━━━━━━\n📊 PROBABILIDAD (30d)\n━━━━━━━━━━━━━━━━━━━━━━\n⚠️  Sin datos históricos\n\n",
     "image_name": "chart_20251123_201903_187917.png"
+  },
+  {
+    "timestamp": "20251123_202405_655845",
+    "datetime": "2025-11-23T20:24:05.658218",
+    "title": "ℹ️ PATRÓN DETECTADO | USDCHF\nSolo informativo - Requiere análisis adicional\n",
+    "message": "━━━━━━━━━━━━━━━━━━━━━━\n📊 INFO DE VELA\n━━━━━━━━━━━━━━━━━━━━━━\n🔹 Fuente: OANDA\n🔹 Patrón: HAMMER\n🔹 Timestamp: 2025-11-23 20:23:00\n🔹 OHLC: O=0.81 | H=0.81 | L=0.81 | C=0.81\n🔹 Confianza Técnica: 90%\n🔹 Fuerza de Señal: LOW\n\n━━━━━━━━━━━━━━━━━━━━━━\n🎯 TENDENCIA\n━━━━━━━━━━━━━━━━━━━━━━\n🔹 Estado: STRONG_BULLISH (Score: +10/10)\n🔹 Interpretación: Tendencia alcista muy fuerte\n🔹 Estructura: Precio > EMA20 > EMA200 (Alineación alcista)\n\n━━━━━━━━━━━━━━━━━━━━━━\n📉 BOLLINGER BANDS\n━━━━━━━━━━━━━━━━━━━━━━\n➖ Zona: Zona Neutra\n🔹 Banda Superior: 0.80883\n🔹 Banda Inferior: 0.80866\n\n━━━━━━━━━━━━━━━━━━━━━━\n📊 PROBABILIDAD (30d)\n━━━━━━━━━━━━━━━━━━━━━━\n🎯 EXACTO (34): 50%🟢 41%🔴\n   Racha: ⚪🟢🔴🟢🔴\n⚖️ SCORE (42): 52%🟢 40%🔴\n   Racha: 🔴🔴⚪🟢🔴\n📉 ZONA (46): 52%🟢 36%🔴\n   Racha: 🔴🔴⚪🟢🔴\n\n",
+    "image_name": "chart_20251123_202405_655845.png"
+  },
+  {
+    "timestamp": "20251123_202501_798064",
+    "datetime": "2025-11-23T20:25:01.804737",
+    "title": "ℹ️ PATRÓN DETECTADO | USDJPY\nSolo informativo - Requiere análisis adicional\n",
+    "message": "━━━━━━━━━━━━━━━━━━━━━━\n📊 INFO DE VELA\n━━━━━━━━━━━━━━━━━━━━━━\n🔹 Fuente: OANDA\n🔹 Patrón: HANGING_MAN\n🔹 Timestamp: 2025-11-23 20:24:00\n🔹 OHLC: O=156.61 | H=156.62 | L=156.61 | C=156.61\n🔹 Confianza Técnica: 70%\n🔹 Fuerza de Señal: LOW\n\n━━━━━━━━━━━━━━━━━━━━━━\n🎯 TENDENCIA\n━━━━━━━━━━━━━━━━━━━━━━\n🔹 Estado: STRONG_BULLISH (Score: +10/10)\n🔹 Interpretación: Tendencia alcista muy fuerte\n🔹 Estructura: Precio > EMA20 > EMA200 (Alineación alcista)\n\n━━━━━━━━━━━━━━━━━━━━━━\n📉 BOLLINGER BANDS\n━━━━━━━━━━━━━━━━━━━━━━\n➖ Zona: Zona Neutra\n🔹 Banda Superior: 156.63148\n🔹 Banda Inferior: 156.55532\n\n━━━━━━━━━━━━━━━━━━━━━━\n📊 PROBABILIDAD (30d)\n━━━━━━━━━━━━━━━━━━━━━━\n🎯 EXACTO (32): 59%🟢 40%🔴\n   Racha: 🟢🔴🟢🟢🔴\n⚖️ SCORE (42): 54%🟢 40%🔴\n   Racha: 🟢🟢🔴🟢🔴\n📉 ZONA (44): 54%🟢 40%🔴\n   Racha: 🟢🔴🟢🟢🔴\n\n",
+    "image_name": "chart_20251123_202501_798064.png"
+  },
+  {
+    "timestamp": "20251123_203309_571066",
+    "datetime": "2025-11-23T20:33:09.576899",
+    "title": "ℹ️ PATRÓN DETECTADO | GBPUSD\nSolo informativo - Requiere análisis adicional\n",
+    "message": "━━━━━━━━━━━━━━━━━━━━━━\n📊 INFO DE VELA\n━━━━━━━━━━━━━━━━━━━━━━\n🔹 Fuente: OANDA\n🔹 Patrón: HAMMER\n🔹 Timestamp: 2025-11-23 20:32:00\n🔹 OHLC: O=1.31 | H=1.31 | L=1.31 | C=1.31\n🔹 Confianza Técnica: 90%\n🔹 Fuerza de Señal: LOW\n\n━━━━━━━━━━━━━━━━━━━━━━\n🎯 TENDENCIA\n━━━━━━━━━━━━━━━━━━━━━━\n🔹 Estado: STRONG_BEARISH (Score: -10/10)\n🔹 Interpretación: Tendencia bajista muy fuerte\n🔹 Estructura: Precio < EMA20 < EMA200 (Alineación bajista)\n\n━━━━━━━━━━━━━━━━━━━━━━\n📉 BOLLINGER BANDS\n━━━━━━━━━━━━━━━━━━━━━━\n➖ Zona: Zona Neutra\n🔹 Banda Superior: 1.30987\n🔹 Banda Inferior: 1.30936\n\n━━━━━━━━━━━━━━━━━━━━━━\n📊 PROBABILIDAD (30d)\n━━━━━━━━━━━━━━━━━━━━━━\n🎯 EXACTO (27): 51%🟢 48%🔴\n   Racha: 🔴🟢🟢🔴🔴\n⚖️ SCORE (32): 50%🟢 50%🔴\n   Racha: 🔴🟢🔴🟢🔴\n📉 ZONA (34): 47%🟢 52%🔴\n   Racha: 🔴🔴🟢🔴🟢\n\n",
+    "image_name": "chart_20251123_203309_571066.png"
+  },
+  {
+    "timestamp": "20251123_203411_807743",
+    "datetime": "2025-11-23T20:34:11.811866",
+    "title": "ℹ️ PATRÓN DETECTADO | EURUSD\nSolo informativo - Requiere análisis adicional\n",
+    "message": "━━━━━━━━━━━━━━━━━━━━━━\n📊 INFO DE VELA\n━━━━━━━━━━━━━━━━━━━━━━\n🔹 Fuente: OANDA\n🔹 Patrón: SHOOTING_STAR\n🔹 Timestamp: 2025-11-23 20:33:00\n🔹 OHLC: O=1.15 | H=1.15 | L=1.15 | C=1.15\n🔹 Confianza Técnica: 100%\n🔹 Fuerza de Señal: LOW\n\n━━━━━━━━━━━━━━━━━━━━━━\n🎯 TENDENCIA\n━━━━━━━━━━━━━━━━━━━━━━\n🔹 Estado: STRONG_BEARISH (Score: -10/10)\n🔹 Interpretación: Tendencia bajista muy fuerte\n🔹 Estructura: Precio < EMA20 < EMA200 (Alineación bajista)\n\n━━━━━━━━━━━━━━━━━━━━━━\n📉 BOLLINGER BANDS\n━━━━━━━━━━━━━━━━━━━━━━\n➖ Zona: Zona Neutra\n🔹 Banda Superior: 1.15130\n🔹 Banda Inferior: 1.15055\n\n━━━━━━━━━━━━━━━━━━━━━━\n📊 PROBABILIDAD (30d)\n━━━━━━━━━━━━━━━━━━━━━━\n🎯 EXACTO (24): 33%🟢 50%🔴\n   Racha: 🔴⚪🔴⚪🔴\n⚖️ SCORE (30): 33%🟢 53%🔴\n   Racha: 🔴⚪🔴⚪🔴\n📉 ZONA (35): 31%🟢 57%🔴\n   Racha: 🔴🔴⚪🔴⚪\n\n",
+    "image_name": "chart_20251123_203411_807743.png"
   }
 ]
