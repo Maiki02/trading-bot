@@ -959,22 +959,34 @@ class AnalysisService:
             statistics = None
             if self.statistics_service:
                 try:
+                    # Calcular alignment y ema_order para búsqueda precisa
+                    emas_dict = {
+                        'ema_200': last_closed["ema_200"],
+                        'ema_50': last_closed.get("ema_50", np.nan),
+                        'ema_30': last_closed.get("ema_30", np.nan),
+                        'ema_20': last_closed.get("ema_20", np.nan)
+                    }
+                    current_alignment = get_ema_alignment_string(emas_dict)
+                    current_ema_order = get_ema_order_string(last_closed["close"], emas_dict)
+                    
                     statistics = self.statistics_service.get_probability(
                         pattern=pattern_detected,
                         current_score=trend_analysis.score,
+                        current_alignment=current_alignment,
+                        current_ema_order=current_ema_order,
                         lookback_days=30,
                         score_tolerance=1
                     )
                     
                     exact_cases = statistics.get('exact', {}).get('total_cases', 0)
-                    similar_cases = statistics.get('similar', {}).get('total_cases', 0)
-                    exact_success = statistics.get('exact', {}).get('success_rate', 0.0)
-                    similar_success = statistics.get('similar', {}).get('success_rate', 0.0)
+                    by_alignment_cases = statistics.get('by_alignment', {}).get('total_cases', 0)
+                    by_score_cases = statistics.get('by_score', {}).get('total_cases', 0)
                     
                     logger.debug(
                         f"📊 Estadísticas obtenidas | "
-                        f"Exactos: {exact_cases} (Acierto: {exact_success:.1%}) | "
-                        f"Similares: {similar_cases} (Acierto: {similar_success:.1%})"
+                        f"Exact: {exact_cases} | "
+                        f"By Alignment: {by_alignment_cases} | "
+                        f"By Score: {by_score_cases}"
                     )
                 except Exception as e:
                     logger.warning(f"⚠️  Error obteniendo estadísticas: {e}")

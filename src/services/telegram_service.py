@@ -319,66 +319,16 @@ class TelegramService:
         statistics_block = ""
         if signal.statistics:
             exact = signal.statistics.get('exact', {})
-            similar = signal.statistics.get('similar', {})
+            by_alignment = signal.statistics.get('by_alignment', {})
+            by_score = signal.statistics.get('by_score', {})
             
-            # Solo mostrar si hay al menos 3 casos similares
-            if similar.get('total_cases', 0) >= 3:
-                # ═══════════════════════════════════════════════════════════════════════════════
+            # Solo mostrar si hay al menos 3 casos en by_score
+            if by_score.get('total_cases', 0) >= 3:
                 # Dirección esperada del patrón
-                # ═══════════════════════════════════════════════════════════════════════════════
-                expected_dir = similar.get('expected_direction', 'UNKNOWN')
+                expected_dir = by_score.get('expected_direction', 'UNKNOWN')
                 expected_emoji = "🔴" if expected_dir == "ROJA" else "🟢" if expected_dir == "VERDE" else "⚪"
                 
-                # ═══════════════════════════════════════════════════════════════════════════════
-                # Estadísticas con Score EXACTO
-                # ═══════════════════════════════════════════════════════════════════════════════
-                exact_cases = exact.get('total_cases', 0)
-                exact_line = ""
-                
-                if exact_cases > 0:
-                    exact_verde_pct = exact.get('verde_pct', 0.0) * 100
-                    exact_roja_pct = exact.get('roja_pct', 0.0) * 100
-                    exact_doji_pct = exact.get('doji_pct', 0.0) * 100
-                    exact_success_pct = exact.get('success_rate', 0.0) * 100
-                    exact_ev = exact.get('ev', 0.0) * 100
-                    
-                    # Emoji según success rate
-                    if exact_success_pct >= 60:
-                        exact_emoji_status = "🟢"
-                    elif exact_success_pct >= 40:
-                        exact_emoji_status = "🟡"
-                    else:
-                        exact_emoji_status = "🔴"
-                    
-                    exact_line = (
-                        f"\n{exact_emoji_status} Score EXACTO ({signal.trend_score:+d}) — {exact_cases} casos:\n"
-                        f"   🟢 Verde: {exact_verde_pct:.1f}%  |  🔴 Roja: {exact_roja_pct:.1f}%  |  ⚪ Doji: {exact_doji_pct:.1f}%\n"
-                        f"   🎯 Acierto ({expected_dir}): {exact_success_pct:.1f}%\n"
-                        f"   💰 EV (payout 86%): {exact_ev:+.1f}% por apuesta\n"
-                    )
-                else:
-                    exact_line = f"\n⚪ Score EXACTO ({signal.trend_score:+d}): Sin datos\n"
-                
-                # ═══════════════════════════════════════════════════════════════════════════════
-                # Estadísticas con Score SIMILAR
-                # ═══════════════════════════════════════════════════════════════════════════════
-                similar_cases = similar.get('total_cases', 0)
-                similar_verde_pct = similar.get('verde_pct', 0.0) * 100
-                similar_roja_pct = similar.get('roja_pct', 0.0) * 100
-                similar_doji_pct = similar.get('doji_pct', 0.0) * 100
-                similar_success_pct = similar.get('success_rate', 0.0) * 100
-                similar_ev = similar.get('ev', 0.0) * 100
-                score_range = similar.get('score_range', (0, 0))
-                
-                # Emoji según success rate
-                if similar_success_pct >= 60:
-                    similar_emoji_status = "🟢"
-                elif similar_success_pct >= 40:
-                    similar_emoji_status = "🟡"
-                else:
-                    similar_emoji_status = "🔴"
-                
-                # Racha reciente (ahora muestra direcciones de velas)
+                # Racha reciente
                 streak = signal.statistics.get('streak', [])
                 streak_emojis = []
                 for direction in streak[:5]:
@@ -386,30 +336,71 @@ class TelegramService:
                         streak_emojis.append("🟢")
                     elif direction == "ROJA":
                         streak_emojis.append("🔴")
-                    elif direction == "DOJI":
-                        streak_emojis.append("⚪")
                     else:
-                        streak_emojis.append("?")
+                        streak_emojis.append("⚪")
                 streak_str = " ".join(streak_emojis) if streak_emojis else "N/A"
                 
                 # ═══════════════════════════════════════════════════════════════════════════════
-                # Construir mensaje final
+                # 1. MÁXIMA PRECISIÓN (exact)
                 # ═══════════════════════════════════════════════════════════════════════════════
+                exact_cases = exact.get('total_cases', 0)
+                exact_line = ""
+                
+                if exact_cases > 0:
+                    exact_verde_pct = exact.get('verde_pct', 0.0) * 100
+                    exact_roja_pct = exact.get('roja_pct', 0.0) * 100
+                    
+                    exact_line = (
+                        f"🎯 MÁXIMA PRECISIÓN — {exact_cases} casos\n"
+                        f"   Score={signal.trend_score:+d} + ema_order exacto\n"
+                        f"   🟢 Verde: {exact_verde_pct:.1f}%  |  🔴 Roja: {exact_roja_pct:.1f}%\n\n"
+                    )
+                else:
+                    exact_line = f"🎯 MÁXIMA PRECISIÓN — Sin datos\n\n"
+                
+                # ═══════════════════════════════════════════════════════════════════════════════
+                # 2. PRECISIÓN MEDIA (by_alignment)
+                # ═══════════════════════════════════════════════════════════════════════════════
+                by_alignment_cases = by_alignment.get('total_cases', 0)
+                by_alignment_line = ""
+                score_range_align = by_alignment.get('score_range', (0, 0))
+                
+                if by_alignment_cases > 0:
+                    by_alignment_verde_pct = by_alignment.get('verde_pct', 0.0) * 100
+                    by_alignment_roja_pct = by_alignment.get('roja_pct', 0.0) * 100
+                    
+                    by_alignment_line = (
+                        f"📊 PRECISIÓN MEDIA — {by_alignment_cases} casos\n"
+                        f"   Score [{score_range_align[0]}, {score_range_align[1]}] + mismo alignment\n"
+                        f"   🟢 Verde: {by_alignment_verde_pct:.1f}%  |  🔴 Roja: {by_alignment_roja_pct:.1f}%\n\n"
+                    )
+                else:
+                    by_alignment_line = f"📊 PRECISIÓN MEDIA — Sin datos\n\n"
+                
+                # ═══════════════════════════════════════════════════════════════════════════════
+                # 3. MÁXIMA MUESTRA (by_score)
+                # ═══════════════════════════════════════════════════════════════════════════════
+                by_score_cases = by_score.get('total_cases', 0)
+                by_score_verde_pct = by_score.get('verde_pct', 0.0) * 100
+                by_score_roja_pct = by_score.get('roja_pct', 0.0) * 100
+                score_range_score = by_score.get('score_range', (0, 0))
+                
+                by_score_line = (
+                    f"📈 MÁXIMA MUESTRA — {by_score_cases} casos\n"
+                    f"   Score [{score_range_score[0]}, {score_range_score[1]}] sin filtros\n"
+                    f"   🟢 Verde: {by_score_verde_pct:.1f}%  |  🔴 Roja: {by_score_roja_pct:.1f}%\n"
+                )
+                
+                # Mensaje final
                 statistics_block = (
                     f"━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                    f"📊 PROBABILIDADES HISTÓRICAS (Últimos 30 días)\n"
+                    f"📊 PROBABILIDADES HISTÓRICAS (30 días)\n"
                     f"━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                    f"{expected_emoji} Dirección esperada del patrón: {expected_dir}\n"
+                    f"{expected_emoji} Dirección esperada: {expected_dir}\n\n"
                     f"{exact_line}"
-                    f"\n{similar_emoji_status} Score SIMILAR [{score_range[0]}, {score_range[1]}] — {similar_cases} casos:\n"
-                    f"   🟢 Verde: {similar_verde_pct:.1f}%  |  🔴 Roja: {similar_roja_pct:.1f}%  |  ⚪ Doji: {similar_doji_pct:.1f}%\n"
-                    f"   🎯 Acierto ({expected_dir}): {similar_success_pct:.1f}%\n"
-                    f"   💰 EV (payout 86%): {similar_ev:+.1f}% por apuesta\n"
-                    f"\n📈 Últimas 5 velas: {streak_str}\n"
-                    f"\n💡 Interpretación para OPCIONES BINARIAS:\n"
-                    f"   🟢 Acierto ≥60% + EV positivo = Operación FAVORABLE\n"
-                    f"   🟡 Acierto 40-60% = Operación CAUTELOSA\n"
-                    f"   🔴 Acierto <40% o EV negativo = Operación DESFAVORABLE\n\n"
+                    f"{by_alignment_line}"
+                    f"{by_score_line}\n"
+                    f"\n📈 Últimas 5 velas: {streak_str}\n\n"
                 )
         
         # Cuerpo del mensaje estructurado

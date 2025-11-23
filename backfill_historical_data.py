@@ -68,7 +68,7 @@ DAYS_TO_FETCH = 30  # Días hacia atrás (último mes)
 START_DATE = END_DATE - timedelta(days=DAYS_TO_FETCH)
 
 DAYS_PER_REQUEST = 5  # Días por petición (5 días = ~7,200 velas para 1min)
-REQUEST_DELAY = 2  # Segundos entre peticiones (evitar rate limiting)
+REQUEST_DELAY = 0.5  # Segundos entre peticiones (evitar rate limiting)
 
 # Buffer y skip
 SKIP_CANDLES = 1000    # Velas a saltar (para inicializar EMAs)

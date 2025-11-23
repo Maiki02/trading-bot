@@ -175,10 +175,8 @@ class StatisticsService:
         score_tolerance: int = 1
     ) -> Dict[str, any]:
         """
-        Calcula probabilidades con 3 niveles de precisión:
-        1. EXACTO: Score exacto + EMA order exacto (máxima precisión)
-        2. BY_ALIGNMENT: Score similar + mismo alignment (precisión media)
-        3. BY_SCORE: Solo score similar (máxima muestra)
+        Calcula probabilidades con estadísticas completas para alertas.
+        Retorna estructura compatible con telegram_service y analysis_service.
         
         Args:
             pattern: Tipo de patrón (ej: "SHOOTING_STAR", "HAMMER")
@@ -191,27 +189,33 @@ class StatisticsService:
         Returns:
             Dict con estructura:
             {
-                "exact_order": {          # Score exacto + EMA order exacto
+                "exact": {                # 🎯 MÁXIMA PRECISIÓN: Score exacto + EMA order exacto
                     "total_cases": int,
-                    "win_rate": float,
-                    "wins": int,
-                    "losses": int
+                    "verde_count": int,
+                    "roja_count": int,
+                    "verde_pct": float,
+                    "roja_pct": float,
+                    "expected_direction": str  # "VERDE" o "ROJA"
                 },
-                "by_alignment": {         # Score similar + mismo alignment
+                "by_alignment": {         # 📊 PRECISIÓN MEDIA: Score similar + mismo alignment
                     "total_cases": int,
-                    "win_rate": float,
-                    "wins": int,
-                    "losses": int,
+                    "verde_count": int,
+                    "roja_count": int,
+                    "verde_pct": float,
+                    "roja_pct": float,
+                    "expected_direction": str,
                     "score_range": tuple
                 },
-                "by_score": {             # Solo score similar
+                "by_score": {             # 📈 MÁXIMA MUESTRA: Solo score similar
                     "total_cases": int,
-                    "win_rate": float,
-                    "wins": int,
-                    "losses": int,
+                    "verde_count": int,
+                    "roja_count": int,
+                    "verde_pct": float,
+                    "roja_pct": float,
+                    "expected_direction": str,
                     "score_range": tuple
                 },
-                "streak": list,
+                "streak": list,           # ["VERDE", "ROJA", "VERDE", ...]
                 "lookback_days": int
             }
         """
@@ -250,12 +254,16 @@ class StatisticsService:
             logger.info(f"📊 No hay datos para patrón {pattern}")
             return self._empty_stats_response()
         
-        # Extraer columna de success para todos los cálculos
+        # Extraer columnas necesarias de la estructura V2
         df_filtered['success'] = df_filtered['outcome'].apply(
             lambda x: x.get('success') if isinstance(x, dict) else False
         )
-        
-        # Extraer ema_order y alignment de la estructura V2
+        df_filtered['expected_direction'] = df_filtered['outcome'].apply(
+            lambda x: x.get('expected_direction') if isinstance(x, dict) else None
+        )
+        df_filtered['actual_direction'] = df_filtered['outcome'].apply(
+            lambda x: x.get('actual_direction') if isinstance(x, dict) else None
+        )
         df_filtered['ema_order'] = df_filtered['emas'].apply(
             lambda x: x.get('ema_order') if isinstance(x, dict) else None
         )
@@ -266,12 +274,7 @@ class StatisticsService:
         # ═════════════════════════════════════════════════════════
         # 1. EXACTO: Score exacto + EMA order exacto
         # ═════════════════════════════════════════════════════════
-        exact_order_stats = {
-            "total_cases": 0,
-            "win_rate": 0.0,
-            "wins": 0,
-            "losses": 0
-        }
+        exact_stats = self._empty_single_stats()
         
         if current_ema_order:
             df_exact_order = df_filtered[
@@ -280,17 +283,7 @@ class StatisticsService:
             ]
             
             if not df_exact_order.empty:
-                exact_total = len(df_exact_order)
-                exact_wins = df_exact_order['success'].sum()
-                exact_losses = exact_total - exact_wins
-                exact_win_rate = exact_wins / exact_total if exact_total > 0 else 0.0
-                
-                exact_order_stats = {
-                    "total_cases": int(exact_total),
-                    "win_rate": float(exact_win_rate),
-                    "wins": int(exact_wins),
-                    "losses": int(exact_losses)
-                }
+                exact_stats = self._calculate_direction_stats(df_exact_order, pattern)
         
         # ═════════════════════════════════════════════════════════
         # 2. BY_ALIGNMENT: Score similar + mismo alignment
@@ -298,13 +291,8 @@ class StatisticsService:
         score_min = current_score - score_tolerance
         score_max = current_score + score_tolerance
         
-        by_alignment_stats = {
-            "total_cases": 0,
-            "win_rate": 0.0,
-            "wins": 0,
-            "losses": 0,
-            "score_range": (int(score_min), int(score_max))
-        }
+        by_alignment_stats = self._empty_single_stats()
+        by_alignment_stats['score_range'] = (int(score_min), int(score_max))
         
         if current_alignment:
             df_by_alignment = df_filtered[
@@ -314,18 +302,8 @@ class StatisticsService:
             ]
             
             if not df_by_alignment.empty:
-                alignment_total = len(df_by_alignment)
-                alignment_wins = df_by_alignment['success'].sum()
-                alignment_losses = alignment_total - alignment_wins
-                alignment_win_rate = alignment_wins / alignment_total if alignment_total > 0 else 0.0
-                
-                by_alignment_stats = {
-                    "total_cases": int(alignment_total),
-                    "win_rate": float(alignment_win_rate),
-                    "wins": int(alignment_wins),
-                    "losses": int(alignment_losses),
-                    "score_range": (int(score_min), int(score_max))
-                }
+                by_alignment_stats = self._calculate_direction_stats(df_by_alignment, pattern)
+                by_alignment_stats['score_range'] = (int(score_min), int(score_max))
         
         # ═════════════════════════════════════════════════════════
         # 3. BY_SCORE: Solo score similar (máxima muestra)
@@ -335,43 +313,30 @@ class StatisticsService:
             (df_filtered['calculated_score'] <= score_max)
         ]
         
-        by_score_stats = {
-            "total_cases": 0,
-            "win_rate": 0.0,
-            "wins": 0,
-            "losses": 0,
-            "score_range": (int(score_min), int(score_max))
-        }
+        by_score_stats = self._empty_single_stats()
+        by_score_stats['score_range'] = (int(score_min), int(score_max))
         
         if not df_by_score.empty:
-            score_total = len(df_by_score)
-            score_wins = df_by_score['success'].sum()
-            score_losses = score_total - score_wins
-            score_win_rate = score_wins / score_total if score_total > 0 else 0.0
-            
-            by_score_stats = {
-                "total_cases": int(score_total),
-                "win_rate": float(score_win_rate),
-                "wins": int(score_wins),
-                "losses": int(score_losses),
-                "score_range": (int(score_min), int(score_max))
-            }
+            by_score_stats = self._calculate_direction_stats(df_by_score, pattern)
+            by_score_stats['score_range'] = (int(score_min), int(score_max))
         
         # ═════════════════════════════════════════════════════════
         # RACHA RECIENTE (basada en by_score para mayor muestra)
         # ═════════════════════════════════════════════════════════
-        recent_results = []
+        recent_directions = []
         if not df_by_score.empty:
-            recent_results = df_by_score.nlargest(5, 'timestamp_dt')['success'].tolist()
+            # Obtener últimas 5 direcciones actuales (más recientes primero)
+            recent_df = df_by_score.nlargest(5, 'timestamp_dt')
+            recent_directions = recent_df['actual_direction'].tolist()
         
         # ═════════════════════════════════════════════════════════
-        # RESULTADO FINAL
+        # RESULTADO FINAL (3 niveles de precisión)
         # ═════════════════════════════════════════════════════════
         stats = {
-            "exact_order": exact_order_stats,
+            "exact": exact_stats,
             "by_alignment": by_alignment_stats,
             "by_score": by_score_stats,
-            "streak": recent_results,
+            "streak": recent_directions,
             "lookback_days": lookback_days
         }
         
@@ -379,43 +344,80 @@ class StatisticsService:
             f"📊 Estadísticas | "
             f"Patrón: {pattern} | "
             f"Score: {current_score} | "
-            f"Orden exacto: {exact_order_stats['total_cases']} ({exact_order_stats['win_rate']:.1%}) | "
-            f"Por alignment: {by_alignment_stats['total_cases']} ({by_alignment_stats['win_rate']:.1%}) | "
-            f"Por score: {by_score_stats['total_cases']} ({by_score_stats['win_rate']:.1%})"
+            f"Exacto: {exact_stats['total_cases']} casos | "
+            f"By Alignment: {by_alignment_stats['total_cases']} casos | "
+            f"By Score: {by_score_stats['total_cases']} casos"
         )
         
         return stats
+    
+    def _calculate_direction_stats(self, df: pd.DataFrame, pattern: str) -> Dict[str, any]:
+        """
+        Calcula estadísticas completas de direcciones para un DataFrame filtrado.
+        
+        Args:
+            df: DataFrame con registros filtrados
+            pattern: Tipo de patrón para determinar dirección esperada
+            
+        Returns:
+            Dict con estadísticas completas
+        """
+        total_cases = len(df)
+        
+        # Contar direcciones (solo VERDE y ROJA)
+        verde_count = (df['actual_direction'] == 'VERDE').sum()
+        roja_count = (df['actual_direction'] == 'ROJA').sum()
+        
+        # Calcular porcentajes
+        verde_pct = verde_count / total_cases if total_cases > 0 else 0.0
+        roja_pct = roja_count / total_cases if total_cases > 0 else 0.0
+        
+        # Determinar dirección esperada del patrón
+        # SHOOTING_STAR y HANGING_MAN son bajistas → esperan ROJA
+        # HAMMER e INVERTED_HAMMER son alcistas → esperan VERDE
+        if pattern in ["SHOOTING_STAR", "HANGING_MAN"]:
+            expected_direction = "ROJA"
+        elif pattern in ["HAMMER", "INVERTED_HAMMER"]:
+            expected_direction = "VERDE"
+        else:
+            expected_direction = "UNKNOWN"
+        
+        return {
+            "total_cases": int(total_cases),
+            "verde_count": int(verde_count),
+            "roja_count": int(roja_count),
+            "verde_pct": float(verde_pct),
+            "roja_pct": float(roja_pct),
+            "expected_direction": expected_direction
+        }
+    
+    def _empty_single_stats(self) -> Dict[str, any]:
+        """
+        Retorna estructura de estadísticas vacía para un nivel.
+        """
+        return {
+            "total_cases": 0,
+            "verde_count": 0,
+            "roja_count": 0,
+            "verde_pct": 0.0,
+            "roja_pct": 0.0,
+            "expected_direction": "UNKNOWN"
+        }
     
     def _empty_stats_response(self) -> Dict[str, any]:
         """
         Retorna respuesta vacía cuando no hay datos disponibles.
         """
+        exact_empty = self._empty_single_stats()
+        by_alignment_empty = self._empty_single_stats()
+        by_alignment_empty['score_range'] = (0, 0)
+        by_score_empty = self._empty_single_stats()
+        by_score_empty['score_range'] = (0, 0)
+        
         return {
-            "exact": {
-                "total_cases": 0,
-                "verde_count": 0,
-                "roja_count": 0,
-                "doji_count": 0,
-                "verde_pct": 0.0,
-                "roja_pct": 0.0,
-                "doji_pct": 0.0,
-                "expected_direction": "UNKNOWN",
-                "success_rate": 0.0,
-                "ev": 0.0
-            },
-            "similar": {
-                "total_cases": 0,
-                "verde_count": 0,
-                "roja_count": 0,
-                "doji_count": 0,
-                "verde_pct": 0.0,
-                "roja_pct": 0.0,
-                "doji_pct": 0.0,
-                "expected_direction": "UNKNOWN",
-                "success_rate": 0.0,
-                "ev": 0.0,
-                "score_range": (0, 0)
-            },
+            "exact": exact_empty,
+            "by_alignment": by_alignment_empty,
+            "by_score": by_score_empty,
             "streak": [],
             "lookback_days": 0
         }
