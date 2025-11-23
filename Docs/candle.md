@@ -52,47 +52,32 @@ Estos patrones aparecen típicamente en **tendencias alcistas** y sugieren una p
 - Mecha inferior mínima (≤15% del rango total)
 - **DEBE SER VELA ROJA O NEUTRAL** (close <= open) ⚠️ VALIDACIÓN CRÍTICA
 
-**Sistema de Confianza por Niveles (Tiered System):**
+**Fórmulas de Validación:**
 
 ```python
-# ⚠️ VALIDACIÓN CRÍTICA: DEBE SER VELA ROJA
+# Validación de color (crítica)
 if close > open_price:
     return False, 0.0  # Rechaza velas verdes
 
-# Cálculo de ratios
-upper_wick_ratio = upper_wick / total_range
-lower_wick_ratio = lower_wick / total_range  # Mecha contraria
-body_ratio = body_size / total_range
-
-# Safety check
-if body_size > 0 and (upper_wick / body_size) < 2.0:
-    return False, 0.0
-
-# NIVEL SNIPER (100%) - Perfect Entry
-if (upper_wick_ratio >= 0.70 and body_ratio <= 0.15 and lower_wick_ratio <= 0.01):
-    return True, 1.0
-
-# NIVEL EXCELENTE (90%) - High Probability
-elif (upper_wick_ratio >= 0.60 and body_ratio <= 0.20 and lower_wick_ratio <= 0.05):
-    return True, 0.9
-
-# NIVEL ESTÁNDAR (80%) - Minimum Acceptable
-elif (upper_wick_ratio >= 0.50 and body_ratio <= 0.30 and lower_wick_ratio <= 0.10):
-    return True, 0.8
-
-else:
-    return False, 0.0
+# Validaciones matemáticas
+upper_wick_ratio ≥ UPPER_WICK_RATIO_MIN (0.60)
+body_ratio ≤ SMALL_BODY_RATIO (0.30)
+lower_wick_ratio ≤ OPPOSITE_WICK_MAX (0.15)
+upper_wick ≥ body * WICK_TO_BODY_RATIO (2.0)
 ```
 
-**Umbrales por Nivel:**
+**Cálculo de Confianza:**
 
-| Nivel | Mecha Rechazo | Cuerpo Máx | Mecha Contraria | Confianza |
-|-------|---------------|------------|-----------------|-----------|
-| 🎯 SNIPER | ≥70% | ≤15% | ≤1% | 100% |
-| ⭐ EXCELENTE | ≥60% | ≤20% | ≤5% | 90% |
-| ✅ ESTÁNDAR | ≥50% | ≤30% | ≤10% | 80% |
+```
+Base Confidence = 0.70
 
-**Filosofía:** La mecha contraria es el filtro MÁS IMPORTANTE en opciones binarias de 1 minuto. Para nivel SNIPER, mecha contraria debe ser prácticamente inexistente (<1%).
+Bonuses:
+- Upper Wick Ratio ≥ 0.70: +0.10
+- Body Ratio ≤ 0.20: +0.10
+- Lower Wick Ratio ≤ 0.10: +0.10
+
+Confidence = min(1.0, Base + Σ Bonuses)
+```
 
 **Contexto de Uso:**
 - Tendencia: Alcista (Close > EMA 200)
@@ -108,47 +93,32 @@ else:
 - Mecha superior mínima (≤15% del rango total)
 - **DEBE SER VELA ROJA O NEUTRAL** (close <= open) ⚠️ VALIDACIÓN CRÍTICA
 
-**Sistema de Confianza por Niveles (Tiered System):**
+**Fórmulas de Validación:**
 
 ```python
-# ⚠️ VALIDACIÓN CRÍTICA: DEBE SER VELA ROJA
+# Validación de color (crítica)
 if close > open_price:
     return False, 0.0  # Rechaza velas verdes
 
-# Cálculo de ratios
-upper_wick_ratio = upper_wick / total_range  # Mecha contraria
-lower_wick_ratio = lower_wick / total_range  # Mecha de rechazo
-body_ratio = body_size / total_range
-
-# Safety check
-if body_size > 0 and (lower_wick / body_size) < 2.0:
-    return False, 0.0
-
-# NIVEL SNIPER (100%) - Perfect Entry
-if (lower_wick_ratio >= 0.70 and body_ratio <= 0.15 and upper_wick_ratio <= 0.01):
-    return True, 1.0
-
-# NIVEL EXCELENTE (90%) - High Probability
-elif (lower_wick_ratio >= 0.60 and body_ratio <= 0.20 and upper_wick_ratio <= 0.05):
-    return True, 0.9
-
-# NIVEL ESTÁNDAR (80%) - Minimum Acceptable
-elif (lower_wick_ratio >= 0.50 and body_ratio <= 0.30 and upper_wick_ratio <= 0.10):
-    return True, 0.8
-
-else:
-    return False, 0.0
+# Validaciones matemáticas
+lower_wick_ratio ≥ LOWER_WICK_RATIO_MIN (0.60)
+body_ratio ≤ SMALL_BODY_RATIO (0.30)
+upper_wick_ratio ≤ OPPOSITE_WICK_MAX (0.15)
+lower_wick ≥ body * WICK_TO_BODY_RATIO (2.0)
 ```
 
-**Umbrales por Nivel:**
+**Cálculo de Confianza:**
 
-| Nivel | Mecha Rechazo | Cuerpo Máx | Mecha Contraria | Confianza |
-|-------|---------------|------------|-----------------|-----------|
-| 🎯 SNIPER | ≥70% | ≤15% | ≤1% | 100% |
-| ⭐ EXCELENTE | ≥60% | ≤20% | ≤5% | 90% |
-| ✅ ESTÁNDAR | ≥50% | ≤30% | ≤10% | 80% |
+```
+Base Confidence = 0.70
 
-**Filosofía:** La mecha contraria es el filtro MÁS IMPORTANTE en opciones binarias de 1 minuto. Para nivel SNIPER, mecha contraria debe ser prácticamente inexistente (<1%).
+Bonuses:
+- Lower Wick Ratio ≥ 0.70: +0.10
+- Body Ratio ≤ 0.20: +0.10
+- Upper Wick Ratio ≤ 0.10: +0.10
+
+Confidence = min(1.0, Base + Σ Bonuses)
+```
 
 **Contexto de Uso:**
 - Tendencia: Alcista (Close > EMA 200)
@@ -169,47 +139,34 @@ Estos patrones aparecen típicamente en **tendencias bajistas** y sugieren una p
 - Mecha inferior mínima (≤15% del rango total)
 - **DEBE SER VELA VERDE** (close > open) ⚠️ VALIDACIÓN CRÍTICA
 
-**Sistema de Confianza por Niveles (Tiered System):**
+**Fórmulas de Validación:**
 
 ```python
-# ⚠️ VALIDACIÓN CRÍTICA: DEBE SER VELA VERDE
+# Validación de color (crítica)
 if close <= open_price:
     return False, 0.0  # Rechaza velas rojas
 
-# Cálculo de ratios
-upper_wick_ratio = upper_wick / total_range  # Mecha de rechazo
-lower_wick_ratio = lower_wick / total_range  # Mecha contraria
-body_ratio = body_size / total_range
-
-# Safety check
-if body_size > 0 and (upper_wick / body_size) < 2.0:
-    return False, 0.0
-
-# NIVEL SNIPER (100%) - Perfect Entry
-if (upper_wick_ratio >= 0.70 and body_ratio <= 0.15 and lower_wick_ratio <= 0.01):
-    return True, 1.0
-
-# NIVEL EXCELENTE (90%) - High Probability
-elif (upper_wick_ratio >= 0.60 and body_ratio <= 0.20 and lower_wick_ratio <= 0.05):
-    return True, 0.9
-
-# NIVEL ESTÁNDAR (80%) - Minimum Acceptable
-elif (upper_wick_ratio >= 0.50 and body_ratio <= 0.30 and lower_wick_ratio <= 0.10):
-    return True, 0.8
-
-else:
-    return False, 0.0
+# Validaciones matemáticas
+upper_wick_ratio ≥ UPPER_WICK_RATIO_MIN (0.60)
+body_ratio ≤ SMALL_BODY_RATIO (0.30)
+lower_wick_ratio ≤ OPPOSITE_WICK_MAX (0.15)
+upper_wick ≥ body * WICK_TO_BODY_RATIO (2.0)
 ```
 
-**Umbrales por Nivel:**
+**Cálculo de Confianza:**
 
-| Nivel | Mecha Rechazo | Cuerpo Máx | Mecha Contraria | Confianza |
-|-------|---------------|------------|-----------------|-----------|
-| 🎯 SNIPER | ≥70% | ≤15% | ≤1% | 100% |
-| ⭐ EXCELENTE | ≥60% | ≤20% | ≤5% | 90% |
-| ✅ ESTÁNDAR | ≥50% | ≤30% | ≤10% | 80% |
+```
+Base Confidence = 0.70
 
-**Filosofía:** La mecha contraria es el filtro MÁS IMPORTANTE en opciones binarias de 1 minuto. Para nivel SNIPER, mecha contraria debe ser prácticamente inexistente (<1%).
+Bonuses:
+- Upper Wick Ratio ≥ 0.70: +0.10
+- Body Ratio ≤ 0.20: +0.10
+- Lower Wick Ratio ≤ 0.10: +0.10
+
+Confidence = min(1.0, Base + Σ Bonuses)
+```
+
+**Nota:** NO hay bono por color verde porque es OBLIGATORIO.
 
 **Contexto de Uso:**
 - Tendencia: Bajista (Close < EMA 200)
@@ -226,49 +183,36 @@ else:
 - Mecha superior mínima (≤15% del rango total)
 - **DEBE SER VELA VERDE** (close > open) ⚠️ VALIDACIÓN CRÍTICA
 
-**Sistema de Confianza por Niveles (Tiered System):**
+**Fórmulas de Validación:**
 
 ```python
-# ⚠️ VALIDACIÓN CRÍTICA: DEBE SER VELA VERDE
+# Validación de color (crítica)
 if close <= open_price:
     return False, 0.0  # Rechaza velas rojas
 
-# Cálculo de ratios
-upper_wick_ratio = upper_wick / total_range  # Mecha contraria
-lower_wick_ratio = lower_wick / total_range  # Mecha de rechazo
-body_ratio = body_size / total_range
-
-# Safety check
-if body_size > 0 and (lower_wick / body_size) < 2.0:
-    return False, 0.0
-
-# NIVEL SNIPER (100%) - Perfect Entry
-if (lower_wick_ratio >= 0.70 and body_ratio <= 0.15 and upper_wick_ratio <= 0.01):
-    return True, 1.0
-
-# NIVEL EXCELENTE (90%) - High Probability
-elif (lower_wick_ratio >= 0.60 and body_ratio <= 0.20 and upper_wick_ratio <= 0.05):
-    return True, 0.9
-
-# NIVEL ESTÁNDAR (80%) - Minimum Acceptable
-elif (lower_wick_ratio >= 0.50 and body_ratio <= 0.30 and upper_wick_ratio <= 0.10):
-    return True, 0.8
-
-else:
-    return False, 0.0
+# Validaciones matemáticas
+lower_wick_ratio ≥ LOWER_WICK_RATIO_MIN (0.60)
+body_ratio ≤ SMALL_BODY_RATIO (0.30)
+upper_wick_ratio ≤ OPPOSITE_WICK_MAX (0.15)
+lower_wick ≥ body * WICK_TO_BODY_RATIO (2.0)
 ```
 
-**Umbrales por Nivel:**
+**Cálculo de Confianza:**
 
-| Nivel | Mecha Rechazo | Cuerpo Máx | Mecha Contraria | Confianza |
-|-------|---------------|------------|-----------------|-----------|
-| 🎯 SNIPER | ≥70% | ≤15% | ≤1% | 100% |
-| ⭐ EXCELENTE | ≥60% | ≤20% | ≤5% | 90% |
-| ✅ ESTÁNDAR | ≥50% | ≤30% | ≤10% | 80% |
+```
+Base Confidence = 0.70
 
-**Filosofía:** La mecha contraria es el filtro MÁS IMPORTANTE en opciones binarias de 1 minuto. Para nivel SNIPER, mecha contraria debe ser prácticamente inexistente (<1%).
+Bonuses:
+- Lower Wick Ratio ≥ 0.70: +0.10
+- Body Ratio ≤ 0.20: +0.10
+- Upper Wick Ratio ≤ 0.10: +0.10
 
-**Nota:** A diferencia del Hanging Man, el Hammer DEBE ser verde (cierre > apertura). La diferencia es: Hammer (verde) vs Hanging Man (rojo) con misma geometría.
+Confidence = min(1.0, Base + Σ Bonuses)
+```
+
+**Nota:** NO hay bono por color verde porque es OBLIGATORIO.
+A diferencia del Hanging Man, el Hammer DEBE ser verde (cierre > apertura).
+La diferencia es: Hammer (verde) vs Hanging Man (rojo) con misma geometría.
 
 **Contexto de Uso:**
 - Tendencia: Bajista (Close < EMA 200)
@@ -276,85 +220,53 @@ else:
 
 ---
 
-## 4. Configuración de Umbrales (Sistema Tiered)
+## 4. Configuración de Umbrales
 
 Todos los umbrales están centralizados en `config.py`:
 
 ```python
 @dataclass(frozen=True)
 class CandleConfig:
-    """Configuración para detección de patrones de velas - Sistema de Niveles."""
+    """Configuración para detección de patrones de velas."""
     
-    # =========================================================================
-    # NIVEL SNIPER (100%) - Perfect Entry | Minimal Risk
-    # =========================================================================
-    SNIPER_REJECTION_WICK: float = 0.70        # Mecha de rechazo >= 70%
-    SNIPER_BODY_MAX: float = 0.15              # Cuerpo <= 15%
-    SNIPER_OPPOSITE_WICK_MAX: float = 0.01     # ⚠️ Mecha contraria < 1% (CRÍTICO)
+    # Ratios de cuerpo
+    BODY_RATIO_MIN: float = 0.30          # Cuerpo mínimo para validación
+    SMALL_BODY_RATIO: float = 0.30        # Cuerpo pequeño (patrones de reversión)
     
-    # =========================================================================
-    # NIVEL EXCELENTE (90%) - High Probability | Low Risk
-    # =========================================================================
-    EXCELLENT_REJECTION_WICK: float = 0.60     # Mecha de rechazo >= 60%
-    EXCELLENT_BODY_MAX: float = 0.20           # Cuerpo <= 20%
-    EXCELLENT_OPPOSITE_WICK_MAX: float = 0.05  # ⚠️ Mecha contraria < 5%
+    # Ratios de mechas
+    UPPER_WICK_RATIO_MIN: float = 0.60    # Mecha superior mínima
+    LOWER_WICK_RATIO_MIN: float = 0.60    # Mecha inferior mínima
+    WICK_TO_BODY_RATIO: float = 2.0       # Relación mecha/cuerpo
+    OPPOSITE_WICK_MAX: float = 0.15       # Mecha opuesta máxima
     
-    # =========================================================================
-    # NIVEL ESTÁNDAR (80%) - Minimum Acceptable | Moderate Risk
-    # =========================================================================
-    STANDARD_REJECTION_WICK: float = 0.50      # Mecha de rechazo >= 50%
-    STANDARD_BODY_MAX: float = 0.30            # Cuerpo <= 30%
-    STANDARD_OPPOSITE_WICK_MAX: float = 0.10   # ⚠️ Mecha contraria < 10%
-    
-    # =========================================================================
-    # Safety Checks (Transversales)
-    # =========================================================================
-    WICK_TO_BODY_RATIO: float = 2.0           # Mecha >= 2x cuerpo
+    # Sistema de confianza
+    BASE_CONFIDENCE: float = 0.70          # Confianza base
+    BONUS_CONFIDENCE_PER_CONDITION: float = 0.10  # Bonus por condición cumplida
 ```
-
-**⚠️ BREAKING CHANGE:** Se eliminó el sistema de bonos acumulativos. Ahora solo existen 3 niveles de confianza fijos: 100%, 90%, 80%. No hay confianza del 70% ni acumulación de bonos.
-
-**Filosofía del Sistema Tiered:**
-- **Mecha contraria < 1% para SNIPER**: En opciones binarias de 1 minuto, la mecha contraria es el enemigo #1. Si existe mecha contraria significativa, indica indecisión del mercado.
-- **Minimum 80% threshold**: Se rechaza cualquier vela que no cumpla al menos ESTÁNDAR (80%). Esto reduce drásticamente los falsos positivos.
-- **No gradientes**: A diferencia del sistema anterior (70% + bonos), ahora son niveles discretos. Una vela ES o NO ES de cierto nivel.
 
 ---
 
-## 5. Sistema de Confianza (Tiered System)
+## 5. Sistema de Confianza
 
 Cada patrón retorna una tupla `(bool, float)`:
 - `bool`: Indica si el patrón fue detectado
-- `float`: Nivel de confianza discreto: 1.0, 0.9, 0.8, o 0.0
+- `float`: Nivel de confianza entre 0.0 y 1.0
 
-### Niveles de Confianza (Discretos)
+### Niveles de Confianza
 
 ```
-1.0 (100%) - SNIPER: Perfect Entry | Minimal Risk
-0.9 (90%)  - EXCELENTE: High Probability | Low Risk  
-0.8 (80%)  - ESTÁNDAR: Minimum Acceptable | Moderate Risk
-0.0 (0%)   - NO CUMPLE: Patrón rechazado
+0.70 - 0.79: Patrón detectado (criterios básicos)
+0.80 - 0.89: Alta confianza (1-2 bonuses)
+0.90 - 1.00: Muy alta confianza (3+ bonuses)
 ```
 
-### Criterios de Evaluación por Nivel
+### Condiciones de Bonus
 
-Cada patrón evalúa **3 métricas simultáneamente**:
+Cada patrón evalúa condiciones adicionales que otorgan +0.10 de confianza:
 
-1. **Mecha de Rechazo**: Debe ser >= umbral (50%/60%/70%)
-2. **Cuerpo**: Debe ser <= umbral (30%/20%/15%)
-3. **Mecha Contraria**: ⚠️ **CRÍTICO** - Debe ser <= umbral (10%/5%/1%)
-
-**NO hay acumulación de bonos**. Una vela pertenece a UN solo nivel basado en el cumplimiento simultáneo de las 3 métricas.
-
-### Ejemplo de Evaluación (Shooting Star)
-
-```python
-# Vela: upper_wick=65%, body=18%, lower_wick=3%
-
-# ¿Es SNIPER? NO (upper_wick < 70%)
-# ¿Es EXCELENTE? SÍ (upper_wick >= 60%, body <= 20%, lower_wick <= 5%)
-# Resultado: return True, 0.9
-```
+1. **Ratios excepcionales**: Mechas muy largas (≥70%) o cuerpos muy pequeños (≤20%)
+2. **Mecha opuesta mínima**: Mecha contraria casi inexistente (≤10%)
+3. **Color apropiado**: Vela con dirección favorable al patrón
 
 ---
 
@@ -386,39 +298,30 @@ else:
 ## 7. Casos Especiales
 
 ### División por Cero
-Si `Total Range = 0`, el patrón retorna `(False, 0.0)` inmediatamente.
+Si `Total Range = 0` o `Body Size = 0`, el patrón retorna `(False, 0.0)`.
 
 ### Velas Doji
-Velas con cuerpo muy pequeño (≈0) pueden cumplir múltiples patrones. El sistema prioriza según la tendencia actual.
+Velas con cuerpo muy pequeño (≈0) pueden detectarse como múltiples patrones. El sistema prioriza según la tendencia actual.
 
-### Validación de Color (⚠️ CRÍTICO - Sistema Actualizado)
+### Validación de Color (⚠️ CRÍTICO)
 
 **Patrones BAJISTAS (Requieren vela ROJA o NEUTRAL):**
 - **Shooting Star**: `if close > open: return False, 0.0`
 - **Hanging Man**: `if close > open: return False, 0.0`
 - **Razón:** Velas verdes indican compras fuertes, contradicen reversión bajista
 
-**Patrones ALCISTAS (Requieren vela VERDE):**
-- **Inverted Hammer**: `if close <= open: return False, 0.0`
-- **Hammer**: `if close <= open: return False, 0.0`
-- **Razón:** En opciones binarias de 1 minuto, el color es señal de fuerza direccional. Martillos deben ser verdes para confirmar intención alcista.
+**Patrones ALCISTAS (Aceptan cualquier color):**
+- **Inverted Hammer**: Verde o roja aceptadas (sin bono)
+- **Hammer**: Verde o roja aceptadas (+10% bono si es verde)
+- **Razón:** Martillos pueden ser de cualquier color, pero verde refuerza señal alcista
 
-**⚠️ BREAKING CHANGE vs Versión Anterior:**
-- **Antes**: Martillos aceptaban cualquier color (verde/roja), con bono para verde
-- **Ahora**: Martillos SOLO aceptan velas verdes (validación crítica al inicio de función)
-- **Impacto**: Reduce falsos positivos al exigir confirmación de dirección
-
-**Ejemplo de vela RECHAZADA (Hammer):**
+**Ejemplo de vela RECHAZADA:**
 ```python
-# Vela ROJA con mecha inferior larga
-apertura = 84752.68
-cierre = 84751.56  # ← cierre < apertura (ROJA)
+# Vela VERDE con mecha inferior larga
+apertura = 84751.56
+cierre = 84752.68  # ← cierre > apertura (VERDE)
 maximo = 84755.31
 minimo = 84702.73
-
-# ❌ Aunque tiene geometría de Hammer, SE RECHAZA por ser roja
-# Resultado: return False, 0.0
-```
 
 # Intento de detección
 is_hanging_man(apertura, maximo, minimo, cierre)

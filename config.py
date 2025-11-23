@@ -25,45 +25,25 @@ load_dotenv()
 class CandleConfig:
     """
     Configuración de umbrales para detección de patrones de velas japonesas.
-    Sistema de Confianza por Niveles (Tiered System) optimizado para Opciones Binarias 1m.
     
-    FILOSOFÍA: En trading de 1 minuto, la "mecha contraria" es el enemigo #1.
-    Una vela con mecha contraria > 1% indica indecisión y genera falsos positivos.
-    Implementamos 3 niveles de calidad estrictos para filtrar ruido.
-    
-    NIVELES DE CALIDAD:
-    - SNIPER (100%): Entrada perfecta - Mecha contraria < 1%
-    - EXCELENTE (90%): Alta probabilidad - Mecha contraria < 5%
-    - ESTÁNDAR (80%): Mínimo aceptable - Mecha contraria < 10%
-    
-    NOTA: Cualquier patrón que no cumpla ESTÁNDAR (80%) es descartado (retorna 0.0).
+    Estos valores son constantes matemáticas optimizadas para la identificación
+    de patrones en temporalidad de 1 minuto.
     """
+    # Umbrales generales
+    BODY_RATIO_MIN: float = 0.30  # Cuerpo mínimo como % del rango total
+    SMALL_BODY_RATIO: float = 0.30  # Cuerpo pequeño como % del rango (para martillos)
     
-    # =========================================================================
-    # NIVEL SNIPER (100% - Perfect Entry)
-    # =========================================================================
-    SNIPER_REJECTION_WICK: float = 0.70  # Mecha de rechazo >= 70%
-    SNIPER_BODY_MAX: float = 0.15         # Cuerpo <= 15%
-    SNIPER_OPPOSITE_WICK_MAX: float = 0.01  # Mecha contraria < 1% (CRÍTICO)
+    # Umbrales de mechas
+    UPPER_WICK_RATIO_MIN: float = 0.60  # Mecha superior mínima (Shooting Star)
+    LOWER_WICK_RATIO_MIN: float = 0.60  # Mecha inferior mínima (Hammer)
+    WICK_TO_BODY_RATIO: float = 2.0  # Mecha debe ser >= 2x el cuerpo
     
-    # =========================================================================
-    # NIVEL EXCELENTE (90% - High Probability)
-    # =========================================================================
-    EXCELLENT_REJECTION_WICK: float = 0.60  # Mecha de rechazo >= 60%
-    EXCELLENT_BODY_MAX: float = 0.20         # Cuerpo <= 20%
-    EXCELLENT_OPPOSITE_WICK_MAX: float = 0.05  # Mecha contraria < 5%
+    # Umbrales de mechas opuestas (deben ser pequeñas)
+    OPPOSITE_WICK_MAX: float = 0.15  # Mecha opuesta máxima permitida
     
-    # =========================================================================
-    # NIVEL ESTÁNDAR (80% - Minimum Acceptable)
-    # =========================================================================
-    STANDARD_REJECTION_WICK: float = 0.50  # Mecha de rechazo >= 50%
-    STANDARD_BODY_MAX: float = 0.30         # Cuerpo <= 30%
-    STANDARD_OPPOSITE_WICK_MAX: float = 0.10  # Mecha contraria < 10%
-    
-    # =========================================================================
-    # VALIDACIÓN ADICIONAL (Opcional para todos los niveles)
-    # =========================================================================
-    WICK_TO_BODY_RATIO: float = 2.0  # Mecha debe ser >= 2x el cuerpo (safety check)
+    # Confianza base para patrones válidos
+    BASE_CONFIDENCE: float = 0.70  # Confianza inicial (70%)
+    BONUS_CONFIDENCE_PER_CONDITION: float = 0.10  # +10% por cada condición adicional cumplida
 
 
 @dataclass(frozen=True)
