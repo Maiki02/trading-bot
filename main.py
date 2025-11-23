@@ -63,18 +63,25 @@ class TradingBot:
             filename="trading_signals_dataset.jsonl"
         )
         
-        # 2. Telegram Service (notificaciones - sin dependencias)
+        # 2. Statistics Service (análisis de probabilidad - sin dependencias)
+        from src.services.statistics_service import StatisticsService
+        self.statistics_service = StatisticsService(
+            data_path="data/trading_signals_dataset.jsonl"
+        )
+        
+        # 3. Telegram Service (notificaciones - sin dependencias)
         self.telegram_service = TelegramService()
         await self.telegram_service.start()
         
-        # 3. Analysis Service (depende de Telegram y Storage)
+        # 4. Analysis Service (depende de Telegram, Storage y Statistics)
         self.analysis_service = AnalysisService(
             on_pattern_detected=self.telegram_service.handle_pattern_signal,
             storage_service=self.storage_service,
-            telegram_service=self.telegram_service
+            telegram_service=self.telegram_service,
+            statistics_service=self.statistics_service
         )
         
-        # 4. Connection Service (recibe AnalysisService completo)
+        # 5. Connection Service (recibe AnalysisService completo)
         self.connection_service = ConnectionService(
             analysis_service=self.analysis_service,
             on_auth_failure_callback=self._handle_auth_failure

@@ -66,6 +66,7 @@ class PatternSignal:
     confidence: float  # 0.0 - 1.0
     trend_filtered: bool  # True si se aplicó filtro de tendencia
     chart_base64: Optional[str] = None  # Gráfico codificado en Base64
+    statistics: Optional[Dict] = None  # Estadísticas históricas de probabilidad
 
 
 # =============================================================================
@@ -195,7 +196,8 @@ class AnalysisService:
         self,
         on_pattern_detected: Callable[[PatternSignal], None],
         storage_service: Optional[object] = None,  # StorageService (evitamos import circular)
-        telegram_service: Optional[object] = None  # TelegramService para notificaciones de resultados
+        telegram_service: Optional[object] = None,  # TelegramService para notificaciones de resultados
+        statistics_service: Optional[object] = None  # StatisticsService para probabilidades
     ):
         """
         Inicializa el servicio de análisis.
@@ -204,10 +206,12 @@ class AnalysisService:
             on_pattern_detected: Callback invocado cuando se detecta un patrón válido
             storage_service: Instancia de StorageService para persistencia de dataset
             telegram_service: Instancia de TelegramService para notificaciones de resultados
+            statistics_service: Instancia de StatisticsService para análisis de probabilidad
         """
         self.on_pattern_detected = on_pattern_detected
         self.storage_service = storage_service
         self.telegram_service = telegram_service
+        self.statistics_service = statistics_service
         
         # Buffers separados por fuente (OANDA, FX)
         self.dataframes: Dict[str, pd.DataFrame] = {}
@@ -605,6 +609,15 @@ class AnalysisService:
                 "pnl_pips": round(pnl_pips, 1),
                 "outcome_timestamp": datetime.utcfromtimestamp(outcome_candle.timestamp).isoformat() + "Z"
             },
+            "raw_data": {
+                "ema_200": pending_signal.ema_200,
+                "ema_50": pending_signal.ema_50,
+                "ema_30": pending_signal.ema_30,
+                "ema_20": pending_signal.ema_20,
+                "close": pending_signal.candle.close,
+                "open": pending_signal.candle.open,
+                "algo_version": Config.ALGO_VERSION
+            },
             "_metadata": {
                 "timestamp_gap_seconds": timestamp_diff,
                 "expected_gap_seconds": expected_diff,
@@ -867,6 +880,31 @@ class AnalysisService:
                 chart_base64 = None
             
             # En este punto siempre hay un patrón detectado
+            
+            # Consultar estadísticas históricas si hay StatisticsService disponible
+            statistics = None
+            if self.statistics_service:
+                try:
+                    statistics = self.statistics_service.get_probability(
+                        pattern=pattern_detected,
+                        current_score=trend_analysis.score,
+                        lookback_days=30,
+                        score_tolerance=1
+                    )
+                    
+                    exact_cases = statistics.get('exact', {}).get('total_cases', 0)
+                    similar_cases = statistics.get('similar', {}).get('total_cases', 0)
+                    exact_success = statistics.get('exact', {}).get('success_rate', 0.0)
+                    similar_success = statistics.get('similar', {}).get('success_rate', 0.0)
+                    
+                    logger.debug(
+                        f"📊 Estadísticas obtenidas | "
+                        f"Exactos: {exact_cases} (Acierto: {exact_success:.1%}) | "
+                        f"Similares: {similar_cases} (Acierto: {similar_success:.1%})"
+                    )
+                except Exception as e:
+                    logger.warning(f"⚠️  Error obteniendo estadísticas: {e}")
+            
             signal = PatternSignal(
                 symbol=current_candle.symbol,
                 source=current_candle.source,
@@ -891,7 +929,8 @@ class AnalysisService:
                 is_trend_aligned=trend_analysis.is_aligned,
                 confidence=pattern_confidence,
                 trend_filtered=Config.USE_TREND_FILTER,
-                chart_base64=chart_base64
+                chart_base64=chart_base64,
+                statistics=statistics
             )
             
             logger.info(

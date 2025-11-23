@@ -108,6 +108,15 @@ class StorageService:
                 "success": true,
                 "pnl_pips": 20.0,
                 "outcome_timestamp": "ISO8601"
+            },
+            "raw_data": {
+                "ema_200": 1.0540,
+                "ema_50": 1.0542,
+                "ema_30": 1.0543,
+                "ema_20": 1.0544,
+                "close": 1.0545,
+                "open": 1.0540,
+                "algo_version": "v2.0"
             }
         }
         
@@ -148,7 +157,7 @@ class StorageService:
         Raises:
             ValueError: Si faltan campos críticos
         """
-        required_keys = ["timestamp", "signal", "trigger_candle", "outcome_candle", "outcome"]
+        required_keys = ["timestamp", "signal", "trigger_candle", "outcome_candle", "outcome", "raw_data"]
         missing_keys = [key for key in required_keys if key not in record]
         
         if missing_keys:
@@ -164,6 +173,16 @@ class StorageService:
         # Validar sub-estructura de outcome
         outcome_keys = ["expected_direction", "actual_direction", "success"]
         missing_outcome = [key for key in outcome_keys if key not in record["outcome"]]
+        
+        if missing_outcome:
+            raise ValueError(f"Campo 'outcome' inválido. Faltan: {missing_outcome}")
+        
+        # Validar sub-estructura de raw_data
+        raw_data_keys = ["ema_200", "ema_50", "ema_30", "ema_20", "close", "open", "algo_version"]
+        missing_raw = [key for key in raw_data_keys if key not in record["raw_data"]]
+        
+        if missing_raw:
+            raise ValueError(f"Campo 'raw_data' inválido. Faltan: {missing_raw}")
         
         if missing_outcome:
             raise ValueError(f"Campo 'outcome' inválido. Faltan: {missing_outcome}")

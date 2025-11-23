@@ -1,5 +1,5 @@
 """
-Configuration Module - Trading Bot MVP v0.0.1
+Configuration Module - Trading Bot MVP v0.0.2
 ==============================================
 Gestiona la carga de variables de entorno, configuración de instrumentos,
 headers HTTP Anti-WAF y validación de parámetros críticos.
@@ -15,6 +15,13 @@ from dotenv import load_dotenv
 
 # Cargar variables de entorno desde .env
 load_dotenv()
+
+# Versión del algoritmo de análisis (para tracking en raw_data)
+ALGO_VERSION = "v2.0"
+
+# Payout de opciones binarias (ganancia neta si aciertas, en decimal)
+# Ejemplo: 0.86 = 86% de ganancia sobre la inversión
+BINARY_PAYOUT = 0.86
 
 
 # =============================================================================

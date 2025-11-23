@@ -315,6 +315,103 @@ class TelegramService:
         else:
             trend_interpretation = "Tendencia bajista muy fuerte"
         
+        # Construir bloque de estadísticas si hay datos suficientes
+        statistics_block = ""
+        if signal.statistics:
+            exact = signal.statistics.get('exact', {})
+            similar = signal.statistics.get('similar', {})
+            
+            # Solo mostrar si hay al menos 3 casos similares
+            if similar.get('total_cases', 0) >= 3:
+                # ═══════════════════════════════════════════════════════════════════════════════
+                # Dirección esperada del patrón
+                # ═══════════════════════════════════════════════════════════════════════════════
+                expected_dir = similar.get('expected_direction', 'UNKNOWN')
+                expected_emoji = "🔴" if expected_dir == "ROJA" else "🟢" if expected_dir == "VERDE" else "⚪"
+                
+                # ═══════════════════════════════════════════════════════════════════════════════
+                # Estadísticas con Score EXACTO
+                # ═══════════════════════════════════════════════════════════════════════════════
+                exact_cases = exact.get('total_cases', 0)
+                exact_line = ""
+                
+                if exact_cases > 0:
+                    exact_verde_pct = exact.get('verde_pct', 0.0) * 100
+                    exact_roja_pct = exact.get('roja_pct', 0.0) * 100
+                    exact_doji_pct = exact.get('doji_pct', 0.0) * 100
+                    exact_success_pct = exact.get('success_rate', 0.0) * 100
+                    exact_ev = exact.get('ev', 0.0) * 100
+                    
+                    # Emoji según success rate
+                    if exact_success_pct >= 60:
+                        exact_emoji_status = "🟢"
+                    elif exact_success_pct >= 40:
+                        exact_emoji_status = "🟡"
+                    else:
+                        exact_emoji_status = "🔴"
+                    
+                    exact_line = (
+                        f"\n{exact_emoji_status} Score EXACTO ({signal.trend_score:+d}) — {exact_cases} casos:\n"
+                        f"   🟢 Verde: {exact_verde_pct:.1f}%  |  🔴 Roja: {exact_roja_pct:.1f}%  |  ⚪ Doji: {exact_doji_pct:.1f}%\n"
+                        f"   🎯 Acierto ({expected_dir}): {exact_success_pct:.1f}%\n"
+                        f"   💰 EV (payout 86%): {exact_ev:+.1f}% por apuesta\n"
+                    )
+                else:
+                    exact_line = f"\n⚪ Score EXACTO ({signal.trend_score:+d}): Sin datos\n"
+                
+                # ═══════════════════════════════════════════════════════════════════════════════
+                # Estadísticas con Score SIMILAR
+                # ═══════════════════════════════════════════════════════════════════════════════
+                similar_cases = similar.get('total_cases', 0)
+                similar_verde_pct = similar.get('verde_pct', 0.0) * 100
+                similar_roja_pct = similar.get('roja_pct', 0.0) * 100
+                similar_doji_pct = similar.get('doji_pct', 0.0) * 100
+                similar_success_pct = similar.get('success_rate', 0.0) * 100
+                similar_ev = similar.get('ev', 0.0) * 100
+                score_range = similar.get('score_range', (0, 0))
+                
+                # Emoji según success rate
+                if similar_success_pct >= 60:
+                    similar_emoji_status = "🟢"
+                elif similar_success_pct >= 40:
+                    similar_emoji_status = "🟡"
+                else:
+                    similar_emoji_status = "🔴"
+                
+                # Racha reciente (ahora muestra direcciones de velas)
+                streak = signal.statistics.get('streak', [])
+                streak_emojis = []
+                for direction in streak[:5]:
+                    if direction == "VERDE":
+                        streak_emojis.append("🟢")
+                    elif direction == "ROJA":
+                        streak_emojis.append("🔴")
+                    elif direction == "DOJI":
+                        streak_emojis.append("⚪")
+                    else:
+                        streak_emojis.append("?")
+                streak_str = " ".join(streak_emojis) if streak_emojis else "N/A"
+                
+                # ═══════════════════════════════════════════════════════════════════════════════
+                # Construir mensaje final
+                # ═══════════════════════════════════════════════════════════════════════════════
+                statistics_block = (
+                    f"━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                    f"📊 PROBABILIDADES HISTÓRICAS (Últimos 30 días)\n"
+                    f"━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                    f"{expected_emoji} Dirección esperada del patrón: {expected_dir}\n"
+                    f"{exact_line}"
+                    f"\n{similar_emoji_status} Score SIMILAR [{score_range[0]}, {score_range[1]}] — {similar_cases} casos:\n"
+                    f"   🟢 Verde: {similar_verde_pct:.1f}%  |  🔴 Roja: {similar_roja_pct:.1f}%  |  ⚪ Doji: {similar_doji_pct:.1f}%\n"
+                    f"   🎯 Acierto ({expected_dir}): {similar_success_pct:.1f}%\n"
+                    f"   💰 EV (payout 86%): {similar_ev:+.1f}% por apuesta\n"
+                    f"\n📈 Últimas 5 velas: {streak_str}\n"
+                    f"\n💡 Interpretación para OPCIONES BINARIAS:\n"
+                    f"   🟢 Acierto ≥60% + EV positivo = Operación FAVORABLE\n"
+                    f"   🟡 Acierto 40-60% = Operación CAUTELOSA\n"
+                    f"   🔴 Acierto <40% o EV negativo = Operación DESFAVORABLE\n\n"
+                )
+        
         # Cuerpo del mensaje estructurado
         body = (
             f"━━━━━━━━━━━━━━━━━━━━━━━━\n"
@@ -343,6 +440,7 @@ class TelegramService:
             f"🔹 Estado: {signal.trend}\n"
             f"🔹 Score: {signal.trend_score:+d}/10\n"
             f"🔹 Interpretación: {trend_interpretation}\n\n"
+            f"{statistics_block}"
             f"⚡ IMPORTANTE: Verificar gráfico y contexto de mercado antes de operar."
         )
         
