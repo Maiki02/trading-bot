@@ -1657,5 +1657,12 @@
     "maximo": 86404.58,
     "minimo": 86308.54,
     "tipo_vela": "inverted_hammer"
+  },
+  {
+    "apertura": 86042.07,
+    "cierre": 86042.08,
+    "maximo": 86082.0,
+    "minimo": 86042.07,
+    "tipo_vela": "inverted_hammer"
   }
 ]

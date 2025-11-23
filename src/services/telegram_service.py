@@ -318,12 +318,23 @@ class TelegramService:
         # Construir bloque de estadísticas si hay datos suficientes
         statistics_block = ""
         if signal.statistics:
+            logger.info(f"📊 Procesando estadísticas para mensaje | signal.statistics existe: True")
+            
             exact = signal.statistics.get('exact', {})
             by_alignment = signal.statistics.get('by_alignment', {})
             by_score = signal.statistics.get('by_score', {})
             
+            logger.info(
+                f"📊 Estadísticas recibidas | "
+                f"exact: {exact.get('total_cases', 0)} casos | "
+                f"by_alignment: {by_alignment.get('total_cases', 0)} casos | "
+                f"by_score: {by_score.get('total_cases', 0)} casos"
+            )
+            
             # Solo mostrar si hay al menos 3 casos en by_score
-            if by_score.get('total_cases', 0) >= 3:
+            by_score_cases = by_score.get('total_cases', 0)
+            if by_score_cases >= 3:
+                logger.info(f"✅ Suficientes casos ({by_score_cases}) para mostrar estadísticas")
                 # Dirección esperada del patrón
                 expected_dir = by_score.get('expected_direction', 'UNKNOWN')
                 expected_emoji = "🔴" if expected_dir == "ROJA" else "🟢" if expected_dir == "VERDE" else "⚪"
@@ -340,15 +351,21 @@ class TelegramService:
                         streak_emojis.append("⚪")
                 streak_str = " ".join(streak_emojis) if streak_emojis else "N/A"
                 
+                logger.info(f"📊 Racha construida: {streak_str}")
+                
                 # ═══════════════════════════════════════════════════════════════════════════════
                 # 1. MÁXIMA PRECISIÓN (exact)
                 # ═══════════════════════════════════════════════════════════════════════════════
                 exact_cases = exact.get('total_cases', 0)
                 exact_line = ""
                 
+                logger.debug(f"🎯 Procesando EXACT: {exact_cases} casos")
+                
                 if exact_cases > 0:
                     exact_verde_pct = exact.get('verde_pct', 0.0) * 100
                     exact_roja_pct = exact.get('roja_pct', 0.0) * 100
+                    
+                    logger.info(f"🎯 EXACT válido | Verde: {exact_verde_pct:.1f}% | Roja: {exact_roja_pct:.1f}%")
                     
                     exact_line = (
                         f"🎯 MÁXIMA PRECISIÓN — {exact_cases} casos\n"
@@ -356,6 +373,7 @@ class TelegramService:
                         f"   🟢 Verde: {exact_verde_pct:.1f}%  |  🔴 Roja: {exact_roja_pct:.1f}%\n\n"
                     )
                 else:
+                    logger.debug("🎯 EXACT sin datos")
                     exact_line = f"🎯 MÁXIMA PRECISIÓN — Sin datos\n\n"
                 
                 # ═══════════════════════════════════════════════════════════════════════════════
@@ -365,9 +383,13 @@ class TelegramService:
                 by_alignment_line = ""
                 score_range_align = by_alignment.get('score_range', (0, 0))
                 
+                logger.debug(f"📊 Procesando BY_ALIGNMENT: {by_alignment_cases} casos | range: {score_range_align}")
+                
                 if by_alignment_cases > 0:
                     by_alignment_verde_pct = by_alignment.get('verde_pct', 0.0) * 100
                     by_alignment_roja_pct = by_alignment.get('roja_pct', 0.0) * 100
+                    
+                    logger.info(f"📊 BY_ALIGNMENT válido | Verde: {by_alignment_verde_pct:.1f}% | Roja: {by_alignment_roja_pct:.1f}%")
                     
                     by_alignment_line = (
                         f"📊 PRECISIÓN MEDIA — {by_alignment_cases} casos\n"
@@ -375,6 +397,7 @@ class TelegramService:
                         f"   🟢 Verde: {by_alignment_verde_pct:.1f}%  |  🔴 Roja: {by_alignment_roja_pct:.1f}%\n\n"
                     )
                 else:
+                    logger.debug("📊 BY_ALIGNMENT sin datos")
                     by_alignment_line = f"📊 PRECISIÓN MEDIA — Sin datos\n\n"
                 
                 # ═══════════════════════════════════════════════════════════════════════════════
@@ -385,6 +408,14 @@ class TelegramService:
                 by_score_roja_pct = by_score.get('roja_pct', 0.0) * 100
                 score_range_score = by_score.get('score_range', (0, 0))
                 
+                logger.info(
+                    f"📈 BY_SCORE | "
+                    f"Casos: {by_score_cases} | "
+                    f"Range: {score_range_score} | "
+                    f"Verde: {by_score_verde_pct:.1f}% | "
+                    f"Roja: {by_score_roja_pct:.1f}%"
+                )
+                
                 by_score_line = (
                     f"📈 MÁXIMA MUESTRA — {by_score_cases} casos\n"
                     f"   Score [{score_range_score[0]}, {score_range_score[1]}] sin filtros\n"
@@ -392,6 +423,7 @@ class TelegramService:
                 )
                 
                 # Mensaje final
+                logger.info("✅ Construyendo bloque de estadísticas completo")
                 statistics_block = (
                     f"━━━━━━━━━━━━━━━━━━━━━━━━\n"
                     f"📊 PROBABILIDADES HISTÓRICAS (30 días)\n"
@@ -402,6 +434,22 @@ class TelegramService:
                     f"{by_score_line}\n"
                     f"\n📈 Últimas 5 velas: {streak_str}\n\n"
                 )
+                logger.info(f"✅ statistics_block construido | Longitud: {len(statistics_block)} caracteres")
+            else:
+                # No hay suficientes casos para mostrar estadísticas
+                logger.warning(
+                    f"⚠️  No hay suficientes casos para estadísticas | "
+                    f"by_score: {by_score_cases} casos (mínimo: 3)"
+                )
+                statistics_block = (
+                    f"━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                    f"📊 PROBABILIDADES HISTÓRICAS\n"
+                    f"━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                    f"⚠️  No hay suficientes casos para mostrar estadísticas\n"
+                    f"   (Necesario: mínimo 3 casos | Actual: {by_score_cases} casos)\n\n"
+                )
+        else:
+            logger.warning("⚠️  signal.statistics es None o no existe")
         
         # Cuerpo del mensaje estructurado
         body = (
