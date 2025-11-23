@@ -211,30 +211,30 @@ class TelegramService:
         
         # Cuerpo del mensaje estructurado (reducido para cumplir límite Telegram)
         body = (
-            f"━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━\n"
             f"📊 INFO DE VELA\n"
-            f"━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━\n"
             f"🔹 Fuente: {signal.source}\n"
             f"🔹 Patrón: {signal.pattern}\n"
             f"🔹 Timestamp: {timestamp_str}\n"
             f"🔹 OHLC: O={signal.candle.open:.2f} | H={signal.candle.high:.2f} | L={signal.candle.low:.2f} | C={signal.candle.close:.2f}\n"
             f"🔹 Confianza Técnica: {signal.confidence:.0%}\n"
             f"🔹 Fuerza de Señal: {signal.signal_strength}\n\n"
-            f"━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━\n"
             f"🎯 TENDENCIA\n"
-            f"━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━\n"
             f"🔹 Estado: {signal.trend} (Score: {signal.trend_score:+d}/10)\n"
             f"🔹 Interpretación: {trend_interpretation}\n"
             f"🔹 Estructura: {estructura}\n\n"
-            f"━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━\n"
             f"📉 BOLLINGER BANDS\n"
-            f"━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━\n"
             f"{exhaustion_emoji} Zona: {exhaustion_text}\n"
             f"🔹 Banda Superior: {bb_upper_str}\n"
             f"🔹 Banda Inferior: {bb_lower_str}\n\n"
-            f"━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━\n"
             f"📈 INDICADORES\n"
-            f"━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━\n"
             f"🔹 EMA 200: {signal.ema_200:.5f}\n"
             f"🔹 EMA 50: {ema_50_str}\n"
             f"🔹 EMA 30: {ema_30_str}\n"
@@ -281,11 +281,9 @@ class TelegramService:
         # Verificar si hay datos mínimos (al menos 1 caso en by_range)
         if by_range.get('total_cases', 0) == 0:
             return (
-                f"━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                f"━━━━━━━━━━━━━━━━━━━━━━\n"
                 f"📊 PROBABILIDAD (30d)\n"
-                f"🕯️ Vela: {signal.pattern}\n"
-                f"{zone_emoji} Zona: {exhaustion_type}\n"
-                f"━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                f"━━━━━━━━━━━━━━━━━━━━━━\n"
                 f"⚠️  Sin datos históricos\n\n"
             )
         
@@ -343,11 +341,9 @@ class TelegramService:
             return ""
         
         header = (
-            f"━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━\n"
             f"📊 PROBABILIDAD (30d)\n"
-            f"🕯️ Vela: {signal.pattern}\n"
-            f"{zone_emoji} Zona: {exhaustion_type} (Estricto)\n"
-            f"━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━\n"
         )
         
         return header + "\n".join(lines) + "\n\n"
