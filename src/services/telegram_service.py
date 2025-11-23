@@ -291,7 +291,6 @@ class TelegramService:
         ema_20_str = f"{signal.ema_20:.5f}" if not math.isnan(signal.ema_20) else "N/A"
         ema_30_str = f"{signal.ema_30:.5f}" if not math.isnan(signal.ema_30) else "N/A"
         ema_50_str = f"{signal.ema_50:.5f}" if not math.isnan(signal.ema_50) else "N/A"
-        ema_100_str = f"{signal.ema_100:.5f}" if not math.isnan(signal.ema_100) else "N/A"
         
         # Determinar estructura de EMAs para mensaje
         if not math.isnan(signal.ema_20) and not math.isnan(signal.ema_200):
@@ -462,8 +461,7 @@ class TelegramService:
         await self._send_telegram_notification(
             title=title,
             subscription=Config.TELEGRAM.outcome_subscription,
-            message=message,
-            chart_base64=chart_base64
+            message=message
         )
     
     async def _send_telegram_notification(

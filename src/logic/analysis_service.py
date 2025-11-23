@@ -23,7 +23,7 @@ import numpy as np
 
 from config import Config
 from src.services.connection_service import CandleData
-from src.logic.candle import is_shooting_star, is_hanging_man, is_inverted_hammer, is_hammer
+from src.logic.candle import is_shooting_star, is_hanging_man, is_inverted_hammer, is_hammer, get_candle_direction
 from src.utils.logger import get_logger, log_exception
 from src.utils.charting import generate_chart_base64, validate_dataframe_for_chart
 
@@ -551,13 +551,8 @@ class AnalysisService:
             logger.warning(f"⚠️  Patrón desconocido: {pending_signal.pattern}")
             expected_direction = "UNKNOWN"
         
-        # Determinar dirección actual de la vela de resultado
-        if outcome_candle.close < outcome_candle.open:
-            actual_direction = "ROJO"  # Bajista
-        elif outcome_candle.close > outcome_candle.open:
-            actual_direction = "VERDE"  # Alcista
-        else:
-            actual_direction = "DOJI"  # Sin dirección clara
+        # Determinar dirección actual de la vela de resultado usando la función de candle.py
+        actual_direction = get_candle_direction(outcome_candle.open, outcome_candle.close)
         
         # Determinar éxito
         success = (expected_direction == actual_direction)
@@ -691,13 +686,11 @@ class AnalysisService:
         ema_20_val = last_closed.get('ema_20', np.nan)
         ema_30_val = last_closed.get('ema_30', np.nan)
         ema_50_val = last_closed.get('ema_50', np.nan)
-        ema_100_val = last_closed.get('ema_100', np.nan)
         
         # Formatear EMAs (convertir a string antes)
         ema_20_str = f"{ema_20_val:.5f}" if not pd.isna(ema_20_val) else "N/A"
         ema_30_str = f"{ema_30_val:.5f}" if not pd.isna(ema_30_val) else "N/A"
         ema_50_str = f"{ema_50_val:.5f}" if not pd.isna(ema_50_val) else "N/A"
-        ema_100_str = f"{ema_100_val:.5f}" if not pd.isna(ema_100_val) else "N/A"
         
         logger.info(
             f"\n\n"
@@ -710,7 +703,7 @@ class AnalysisService:
             f"💰 Mínimo: {last_closed['low']:.5f}\n"
             f"💰 Cierre: {last_closed['close']:.5f}\n"
             f"📊 Volumen: {last_closed['volume']:.2f}\n"
-            f"📉 EMAs: 20={ema_20_str} | 30={ema_30_str} | 50={ema_50_str} | 100={ema_100_str} | 200={last_closed['ema_200']:.5f}\n"
+            f"📉 EMAs: 20={ema_20_str} | 30={ema_30_str} | 50={ema_50_str} | 200={last_closed['ema_200']:.5f}\n"
             f"{'='*40}\n"
         )
         
@@ -718,7 +711,6 @@ class AnalysisService:
         emas_dict = {
             'ema_20': last_closed.get('ema_20', np.nan),
             'ema_50': last_closed.get('ema_50', np.nan),
-            'ema_100': last_closed.get('ema_100', np.nan),
             'ema_200': last_closed['ema_200']
         }
         trend_analysis = analyze_trend(last_closed["close"], emas_dict)
@@ -891,7 +883,6 @@ class AnalysisService:
                     symbol=current_candle.symbol
                 ),
                 ema_200=last_closed["ema_200"],
-                ema_100=last_closed.get("ema_100", np.nan),
                 ema_50=last_closed.get("ema_50", np.nan),
                 ema_30=last_closed.get("ema_30", np.nan),
                 ema_20=last_closed.get("ema_20", np.nan),

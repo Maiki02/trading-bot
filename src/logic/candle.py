@@ -19,6 +19,25 @@ from typing import Tuple
 from config import Config
 
 
+def get_candle_direction(open_price: float, close: float) -> str:
+    """
+    Determina la dirección de una vela basándose en apertura y cierre.
+    
+    Args:
+        open_price: Precio de apertura
+        close: Precio de cierre
+        
+    Returns:
+        str: "VERDE" (alcista), "ROJA" (bajista), o "DOJI" (neutral)
+    """
+    if close > open_price:
+        return "VERDE"
+    elif close < open_price:
+        return "ROJA"
+    else:
+        return "DOJI"
+
+
 def _calculate_candle_metrics(
     open_price: float,
     high: float,
