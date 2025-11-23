@@ -451,7 +451,7 @@ class TelegramService:
         else:
             logger.warning("⚠️  signal.statistics es None o no existe")
         
-        # Cuerpo del mensaje estructurado
+        # Cuerpo del mensaje estructurado (reducido para cumplir límite Telegram)
         body = (
             f"━━━━━━━━━━━━━━━━━━━━━━━━\n"
             f"📊 INFORMACIÓN DE LA VELA\n"
@@ -459,29 +459,15 @@ class TelegramService:
             f"🔹 Fuente: {signal.source}\n"
             f"🔹 Patrón: {signal.pattern}\n"
             f"🔹 Timestamp: {timestamp_str}\n"
-            f"🔹 Apertura: {signal.candle.open:.5f}\n"
-            f"🔹 Máximo: {signal.candle.high:.5f}\n"
-            f"🔹 Mínimo: {signal.candle.low:.5f}\n"
-            f"🔹 Cierre: {signal.candle.close:.5f}\n"
-            f"🔹 Confianza del Patrón: {signal.confidence:.0%}\n\n"
+            f"🔹 OHLC: O={signal.candle.open:.2f} | H={signal.candle.high:.2f} | L={signal.candle.low:.2f} | C={signal.candle.close:.2f}\n"
+            f"🔹 Confianza: {signal.confidence:.0%}\n\n"
             f"━━━━━━━━━━━━━━━━━━━━━━━━\n"
-            f"📉 ANÁLISIS DE EMAS\n"
+            f"🎯 TENDENCIA\n"
             f"━━━━━━━━━━━━━━━━━━━━━━━━\n"
-            f"° EMA 20: {ema_20_str}\n"
-            f"° EMA 30: {ema_30_str}\n"
-            f"° EMA 50: {ema_50_str}\n"
-            f"° EMA 200: {signal.ema_200:.5f}\n"
-            f"🔹 Estructura: {estructura}\n"
-            f"🔹 Alineación: {'✓ Confirmada' if signal.is_trend_aligned else '✗ No confirmada'}\n\n"
-            f"━━━━━━━━━━━━━━━━━━━━━━━━\n"
-            f"🎯 ANÁLISIS DE TENDENCIA\n"
-            f"━━━━━━━━━━━━━━━━━━━━━━━━\n"
-            f"🔹 Estado: {signal.trend}\n"
-            f"🔹 Score: {signal.trend_score:+d}/10\n"
-            f"🔹 Nota: Se sigue buscando la mejor forma de calcular el score.\n"
-            f"🔹 Interpretación: {trend_interpretation}\n\n"
+            f"🔹 Estado: {signal.trend} (Score: {signal.trend_score:+d}/10)\n"
+            f"🔹 Alineación: {'✓ Confirmada' if signal.is_trend_aligned else '✗ No confirmada'}\n"
+            f"🔹 {trend_interpretation}\n\n"
             f"{statistics_block}"
-            f"⚡ IMPORTANTE: Verificar gráfico y contexto de mercado antes de operar."
         )
         
         return AlertMessage(
