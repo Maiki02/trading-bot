@@ -67,6 +67,12 @@ class PatternSignal:
     trend_filtered: bool  # True si se aplicó filtro de tendencia
     chart_base64: Optional[str] = None  # Gráfico codificado en Base64
     statistics: Optional[Dict] = None  # Estadísticas históricas de probabilidad
+    # Nuevos campos para sistema de Bollinger Bands
+    signal_strength: str = "LOW"  # "HIGH", "MEDIUM", "LOW"
+    exhaustion_type: str = "NONE"  # "PEAK", "BOTTOM", "NONE"
+    is_counter_trend: bool = False  # True si patrón va contra la tendencia principal
+    bb_upper: Optional[float] = None  # Banda superior de Bollinger
+    bb_lower: Optional[float] = None  # Banda inferior de Bollinger
 
 
 # =============================================================================
@@ -85,6 +91,70 @@ def calculate_ema(series: pd.Series, period: int) -> pd.Series:
         pd.Series: Serie con valores de EMA
     """
     return series.ewm(span=period, adjust=False).mean()
+
+
+def calculate_bollinger_bands(series: pd.Series, period: int = 20, std_dev: float = 2.5) -> tuple[pd.Series, pd.Series, pd.Series]:
+    """
+    Calcula las Bandas de Bollinger (Upper, Middle, Lower).
+    
+    Args:
+        series: Serie de precios (típicamente Close)
+        period: Periodo de la media móvil (default: 20)
+        std_dev: Multiplicador de desviación estándar (default: 2.5 para agotamiento)
+        
+    Returns:
+        tuple: (middle_band, upper_band, lower_band)
+            - middle_band: Media móvil simple (SMA)
+            - upper_band: SMA + (std_dev * desviación estándar)
+            - lower_band: SMA - (std_dev * desviación estándar)
+    """
+    # Media móvil simple (línea central)
+    middle_band = series.rolling(window=period).mean()
+    
+    # Desviación estándar
+    rolling_std = series.rolling(window=period).std()
+    
+    # Bandas superior e inferior
+    upper_band = middle_band + (rolling_std * std_dev)
+    lower_band = middle_band - (rolling_std * std_dev)
+    
+    return middle_band, upper_band, lower_band
+
+
+def detect_exhaustion(candle_high: float, candle_low: float, candle_close: float, 
+                      upper_band: float, lower_band: float) -> str:
+    """
+    Detecta si una vela está en zona de agotamiento de tendencia (Cúspide o Base).
+    
+    Definiciones:
+    - PEAK (Cúspide): El High o Close de la vela toca/supera la banda superior.
+    - BOTTOM (Base): El Low o Close de la vela toca/perfora la banda inferior.
+    - NONE: La vela está en zona neutra (entre bandas).
+    
+    Args:
+        candle_high: Precio máximo de la vela
+        candle_low: Precio mínimo de la vela
+        candle_close: Precio de cierre de la vela
+        upper_band: Valor de la banda superior de Bollinger
+        lower_band: Valor de la banda inferior de Bollinger
+        
+    Returns:
+        str: "PEAK", "BOTTOM" o "NONE"
+    """
+    # Si alguna banda es NaN, no podemos determinar agotamiento
+    if pd.isna(upper_band) or pd.isna(lower_band):
+        return "NONE"
+    
+    # Verificar si está en Cúspide (agotamiento alcista)
+    if candle_high >= upper_band or candle_close >= upper_band:
+        return "PEAK"
+    
+    # Verificar si está en Base (agotamiento bajista)
+    if candle_low <= lower_band or candle_close <= lower_band:
+        return "BOTTOM"
+    
+    # Zona neutra
+    return "NONE"
 
 
 def analyze_trend(close: float, emas: Dict[str, float]) -> TrendAnalysis:

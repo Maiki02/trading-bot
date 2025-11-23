@@ -44,6 +44,10 @@ class CandleConfig:
     # Confianza base para patrones válidos
     BASE_CONFIDENCE: float = 0.70  # Confianza inicial (70%)
     BONUS_CONFIDENCE_PER_CONDITION: float = 0.10  # +10% por cada condición adicional cumplida
+    
+    # Bollinger Bands para detección de agotamiento de tendencia
+    BB_PERIOD: int = 20  # Periodo de la media móvil para Bollinger Bands
+    BB_STD_DEV: float = 2.5  # Desviación estándar (2.5 para asegurar agotamiento real)
 
 
 @dataclass(frozen=True)
