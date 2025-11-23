@@ -74,49 +74,46 @@ class StorageService:
         """
         Guarda un registro de {Señal, Resultado} en formato JSONL.
         
-        Estructura esperada del record:
+        Estructura esperada del record (OPTIMIZADA - DATOS CRUDOS):
         {
-            "timestamp": "ISO8601",
-            "signal": {
+            "timestamp": int,
+            "source": "BINANCE",
+            "symbol": "BTCUSDT",
+            "pattern_candle": {
+                "timestamp": int,
+                "open": float,
+                "high": float,
+                "low": float,
+                "close": float,
+                "volume": float,
                 "pattern": "SHOOTING_STAR",
-                "source": "FX",
-                "symbol": "EURUSD",
-                "confidence": 0.85,
-                "trend": "STRONG_BULLISH",
-                "trend_score": 6,
-                "is_trend_aligned": false
+                "confidence": float
             },
-            "trigger_candle": {
-                "timestamp": 1234567890,
-                "open": 1.05,
-                "high": 1.06,
-                "low": 1.04,
-                "close": 1.05,
-                "volume": 1000
+            "emas": {
+                "ema_200": float,
+                "ema_50": float,
+                "ema_30": float,
+                "ema_20": float,
+                "alignment": "BULLISH_ALIGNED|BEARISH_ALIGNED|MIXED|...",
+                "trend_score": int
             },
             "outcome_candle": {
-                "timestamp": 1234567950,
-                "open": 1.05,
-                "high": 1.055,
-                "low": 1.03,
-                "close": 1.03,
-                "volume": 1200
+                "timestamp": int,
+                "open": float,
+                "high": float,
+                "low": float,
+                "close": float,
+                "volume": float,
+                "direction": "VERDE|ROJA|DOJI"
             },
             "outcome": {
-                "expected_direction": "ROJO",  # Bajista
-                "actual_direction": "ROJO",
-                "success": true,
-                "pnl_pips": 20.0,
-                "outcome_timestamp": "ISO8601"
+                "expected_direction": "VERDE|ROJA",
+                "actual_direction": "VERDE|ROJA|DOJI",
+                "success": bool
             },
-            "raw_data": {
-                "ema_200": 1.0540,
-                "ema_50": 1.0542,
-                "ema_30": 1.0543,
-                "ema_20": 1.0544,
-                "close": 1.0545,
-                "open": 1.0540,
-                "algo_version": "v2.0"
+            "metadata": {
+                "algo_version": "v2.0",
+                "created_at": "ISO8601"
             }
         }
         
@@ -127,7 +124,7 @@ class StorageService:
             # Validar estructura mínima
             self._validate_record(record)
             
-            # Enriquecer con metadata
+            # Enriquecer con metadata adicional
             enriched_record = self._enrich_record(record)
             
             # Escribir de forma asíncrona
@@ -137,9 +134,9 @@ class StorageService:
             
             logger.info(
                 f"💾 Registro guardado | "
-                f"Patrón: {record['signal']['pattern']} | "
+                f"Patrón: {record['pattern_candle']['pattern']} | "
                 f"Éxito: {record['outcome']['success']} | "
-                f"PnL: {record['outcome']['pnl_pips']:.1f} pips | "
+                f"Confianza: {record['pattern_candle']['confidence']:.2f} | "
                 f"Total registros: {self.records_written}"
             )
             
@@ -157,18 +154,32 @@ class StorageService:
         Raises:
             ValueError: Si faltan campos críticos
         """
-        required_keys = ["timestamp", "signal", "trigger_candle", "outcome_candle", "outcome", "raw_data"]
+        required_keys = ["timestamp", "source", "symbol", "pattern_candle", "emas", "outcome_candle", "outcome", "metadata"]
         missing_keys = [key for key in required_keys if key not in record]
         
         if missing_keys:
             raise ValueError(f"Registro inválido. Faltan claves: {missing_keys}")
         
-        # Validar sub-estructura de signal
-        signal_keys = ["pattern", "source", "confidence"]
-        missing_signal = [key for key in signal_keys if key not in record["signal"]]
+        # Validar sub-estructura de pattern_candle
+        pattern_keys = ["timestamp", "open", "high", "low", "close", "volume", "pattern", "confidence"]
+        missing_pattern = [key for key in pattern_keys if key not in record["pattern_candle"]]
         
-        if missing_signal:
-            raise ValueError(f"Campo 'signal' inválido. Faltan: {missing_signal}")
+        if missing_pattern:
+            raise ValueError(f"Campo 'pattern_candle' inválido. Faltan: {missing_pattern}")
+        
+        # Validar sub-estructura de emas
+        emas_keys = ["ema_200", "ema_50", "ema_30", "ema_20", "alignment", "ema_order", "trend_score"]
+        missing_emas = [key for key in emas_keys if key not in record["emas"]]
+        
+        if missing_emas:
+            raise ValueError(f"Campo 'emas' inválido. Faltan: {missing_emas}")
+        
+        # Validar sub-estructura de outcome_candle
+        outcome_candle_keys = ["timestamp", "open", "high", "low", "close", "volume", "direction"]
+        missing_outcome_candle = [key for key in outcome_candle_keys if key not in record["outcome_candle"]]
+        
+        if missing_outcome_candle:
+            raise ValueError(f"Campo 'outcome_candle' inválido. Faltan: {missing_outcome_candle}")
         
         # Validar sub-estructura de outcome
         outcome_keys = ["expected_direction", "actual_direction", "success"]
@@ -177,15 +188,12 @@ class StorageService:
         if missing_outcome:
             raise ValueError(f"Campo 'outcome' inválido. Faltan: {missing_outcome}")
         
-        # Validar sub-estructura de raw_data
-        raw_data_keys = ["ema_200", "ema_50", "ema_30", "ema_20", "close", "open", "algo_version"]
-        missing_raw = [key for key in raw_data_keys if key not in record["raw_data"]]
+        # Validar sub-estructura de metadata
+        metadata_keys = ["algo_version", "created_at"]
+        missing_metadata = [key for key in metadata_keys if key not in record["metadata"]]
         
-        if missing_raw:
-            raise ValueError(f"Campo 'raw_data' inválido. Faltan: {missing_raw}")
-        
-        if missing_outcome:
-            raise ValueError(f"Campo 'outcome' inválido. Faltan: {missing_outcome}")
+        if missing_metadata:
+            raise ValueError(f"Campo 'metadata' inválido. Faltan: {missing_metadata}")
     
     def _enrich_record(self, record: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -199,11 +207,10 @@ class StorageService:
         """
         enriched = record.copy()
         
-        # Agregar metadata de escritura
-        enriched["_metadata"] = {
+        # Agregar metadata de escritura (sin duplicar metadata del usuario)
+        enriched["_storage_metadata"] = {
             "written_at": datetime.utcnow().isoformat() + "Z",
-            "record_id": self.records_written + 1,
-            "version": "1.0"
+            "record_id": self.records_written + 1
         }
         
         return enriched

@@ -57,8 +57,20 @@ SYMBOL = "BTCUSDT"
 EXCHANGE = "BINANCE"
 TIMEFRAME = "1"  # 1 minuto
 
-# Cantidad de velas
-TOTAL_CANDLES = 35000  # Total a descargar
+# Rango de fechas para backtesting
+# NOTA: TradingView tiene un límite de ~10,000 velas por request
+# Para 1 minuto: 10,000 velas = ~7 días de datos continuos
+# Sistema divide automáticamente en chunks de DAYS_PER_REQUEST días
+from datetime import datetime, timedelta
+
+END_DATE = datetime.now()  # Fecha final (ahora)
+DAYS_TO_FETCH = 30  # Días hacia atrás (último mes)
+START_DATE = END_DATE - timedelta(days=DAYS_TO_FETCH)
+
+DAYS_PER_REQUEST = 5  # Días por petición (5 días = ~7,200 velas para 1min)
+REQUEST_DELAY = 2  # Segundos entre peticiones (evitar rate limiting)
+
+# Buffer y skip
 SKIP_CANDLES = 1000    # Velas a saltar (para inicializar EMAs)
 BUFFER_SIZE = 1000     # Tamaño del buffer para cálculo de EMAs
 
@@ -67,33 +79,49 @@ BUFFER_SIZE = 1000     # Tamaño del buffer para cálculo de EMAs
 # PATTERN DETECTION
 # =============================================================================
 
-def detect_pattern(candle: HistoricalCandle) -> Optional[str]:
+def detect_pattern(candle: HistoricalCandle) -> Optional[tuple]:
     """
     Detecta si una vela tiene algún patrón válido.
+    
+    Optimización: Solo verifica patrones compatibles con el color de la vela.
+    - ROJA: Shooting Star o Hanging Man
+    - VERDE: Hammer o Inverted Hammer
+    - DOJI: No se analiza (sin patrón claro)
     
     Args:
         candle: Vela a analizar
         
     Returns:
-        str: Nombre del patrón ("SHOOTING_STAR", "HANGING_MAN", etc.) o None
+        tuple: (nombre_patrón, confianza) o None
     """
-    # Convertir a diccionario para compatibilidad con funciones de detección
-    candle_dict = {
-        'open': candle.open,
-        'high': candle.high,
-        'low': candle.low,
-        'close': candle.close
-    }
+    # Determinar color de la vela
+    direction = get_candle_direction(candle.open, candle.close)
     
-    # Intentar cada patrón
-    if is_shooting_star(candle_dict):
-        return "SHOOTING_STAR"
-    elif is_hanging_man(candle_dict):
-        return "HANGING_MAN"
-    elif is_inverted_hammer(candle_dict):
-        return "INVERTED_HAMMER"
-    elif is_hammer(candle_dict):
-        return "HAMMER"
+    # DOJI no tiene patrones claros
+    if direction == "DOJI":
+        return None
+    
+    # Las funciones de detección retornan (is_pattern: bool, confidence: float)
+    
+    if direction == "ROJA":
+        # Solo patrones bajistas para velas rojas
+        is_pattern, confidence = is_shooting_star(candle.open, candle.high, candle.low, candle.close)
+        if is_pattern:
+            return ("SHOOTING_STAR", confidence)
+        
+        is_pattern, confidence = is_hanging_man(candle.open, candle.high, candle.low, candle.close)
+        if is_pattern:
+            return ("HANGING_MAN", confidence)
+    
+    elif direction == "VERDE":
+        # Solo patrones alcistas para velas verdes
+        is_pattern, confidence = is_inverted_hammer(candle.open, candle.high, candle.low, candle.close)
+        if is_pattern:
+            return ("INVERTED_HAMMER", confidence)
+        
+        is_pattern, confidence = is_hammer(candle.open, candle.high, candle.low, candle.close)
+        if is_pattern:
+            return ("HAMMER", confidence)
     
     return None
 
@@ -165,20 +193,21 @@ class BacktestingEngine:
         logger.info("=" * 80)
         logger.info(f"📊 Instrumento: {EXCHANGE}:{SYMBOL}")
         logger.info(f"⏱️  Timeframe: {TIMEFRAME} minuto(s)")
-        logger.info(f"📈 Total de velas: {TOTAL_CANDLES:,}")
+        logger.info(f"📅 Rango: {START_DATE.strftime('%Y-%m-%d')} a {END_DATE.strftime('%Y-%m-%d')} ({DAYS_TO_FETCH} días)")
+        logger.info(f"📦 Estrategia: Peticiones de {DAYS_PER_REQUEST} días cada una")
         logger.info(f"⏭️  Velas a saltar: {SKIP_CANDLES:,}")
-        logger.info(f"🔍 Velas a analizar: {TOTAL_CANDLES - SKIP_CANDLES:,}")
         logger.info("=" * 80)
         
-        # Paso 1: Obtener velas históricas
+        # Paso 1: Obtener velas históricas por chunks
         logger.info("\n📥 PASO 1: Obteniendo datos históricos de TradingView...")
-        candles = await self._fetch_historical_data()
+        candles = await self._fetch_historical_data_in_chunks()
         
         if not candles or len(candles) < SKIP_CANDLES + 100:
             logger.error(f"❌ No se obtuvieron suficientes velas. Recibidas: {len(candles)}")
             return
         
-        logger.info(f"✅ Obtenidas {len(candles):,} velas históricas")
+        logger.info(f"✅ Total obtenidas: {len(candles):,} velas históricas")
+        logger.info(f"🔍 Velas a analizar: {len(candles) - SKIP_CANDLES:,}")
         
         # Paso 2: Procesar velas y detectar patrones
         logger.info("\n🔍 PASO 2: Procesando velas y detectando patrones...")
@@ -193,31 +222,91 @@ class BacktestingEngine:
         logger.info(f"📊 Dataset: data/trading_signals_dataset.jsonl")
         logger.info("=" * 80)
     
-    async def _fetch_historical_data(self) -> List[HistoricalCandle]:
+    
+    async def _fetch_historical_data_in_chunks(self) -> List[HistoricalCandle]:
         """
-        Obtiene velas históricas de TradingView.
+        Obtiene velas históricas de TradingView dividiendo en chunks por fecha.
+        
+        Estrategia:
+        1. Divide el rango total en chunks de DAYS_PER_REQUEST días
+        2. Solicita cada chunk secuencialmente
+        3. Espera REQUEST_DELAY segundos entre peticiones
+        4. Combina y ordena todas las velas
         
         Returns:
-            Lista de velas históricas
+            Lista de velas históricas ordenadas por timestamp
         """
+        all_candles = []
+        
+        # Calcular número de chunks necesarios
+        num_chunks = (DAYS_TO_FETCH + DAYS_PER_REQUEST - 1) // DAYS_PER_REQUEST
+        
+        logger.info(f"📦 Dividiendo {DAYS_TO_FETCH} días en {num_chunks} peticiones de ~{DAYS_PER_REQUEST} días")
+        
         service = TradingViewService()
         
-        try:
-            candles = await service.fetch_historical_candles(
-                symbol=SYMBOL,
-                exchange=EXCHANGE,
-                timeframe=TIMEFRAME,
-                num_candles=TOTAL_CANDLES
-            )
+        # Iterar sobre cada chunk
+        current_end = END_DATE
+        for chunk_num in range(num_chunks):
+            # Calcular rango de este chunk
+            chunk_start = max(START_DATE, current_end - timedelta(days=DAYS_PER_REQUEST))
+            chunk_days = (current_end - chunk_start).days
             
-            # Ordenar por timestamp (ascendente)
-            candles.sort(key=lambda c: c.timestamp)
+            # Calcular velas aproximadas (1 minuto = 1440 velas/día)
+            estimated_candles = chunk_days * 1440
             
-            return candles
+            logger.info(f"\n📥 Chunk {chunk_num + 1}/{num_chunks}: {chunk_start.strftime('%Y-%m-%d')} a {current_end.strftime('%Y-%m-%d')} (~{chunk_days} días, ~{estimated_candles:,} velas)")
+            
+            try:
+                # Solicitar velas (TradingView devuelve las más recientes)
+                candles = await service.fetch_historical_candles(
+                    symbol=SYMBOL,
+                    exchange=EXCHANGE,
+                    timeframe=TIMEFRAME,
+                    num_candles=estimated_candles + 500  # Buffer extra
+                )
+                
+                if candles:
+                    # Filtrar solo velas dentro del rango de fechas del chunk
+                    chunk_start_ts = int(chunk_start.timestamp())
+                    chunk_end_ts = int(current_end.timestamp())
+                    
+                    filtered_candles = [
+                        c for c in candles 
+                        if chunk_start_ts <= c.timestamp <= chunk_end_ts
+                    ]
+                    
+                    logger.info(f"✅ Recibidas: {len(candles):,} velas | Filtradas al rango: {len(filtered_candles):,} velas")
+                    all_candles.extend(filtered_candles)
+                else:
+                    logger.warning(f"⚠️  No se recibieron velas para este chunk")
+                
+                # Esperar entre peticiones (evitar rate limiting)
+                if chunk_num < num_chunks - 1:
+                    logger.info(f"⏳ Esperando {REQUEST_DELAY}s antes de la siguiente petición...")
+                    await asyncio.sleep(REQUEST_DELAY)
+                
+                # Mover al siguiente chunk
+                current_end = chunk_start
+            
+            except Exception as e:
+                logger.error(f"❌ Error en chunk {chunk_num + 1}: {e}")
+                continue
         
-        except Exception as e:
-            logger.error(f"❌ Error obteniendo datos históricos: {e}", exc_info=True)
-            return []
+        # Eliminar duplicados por timestamp y ordenar
+        if all_candles:
+            # Usar dict para eliminar duplicados (mantiene el último)
+            unique_candles = {c.timestamp: c for c in all_candles}
+            sorted_candles = sorted(unique_candles.values(), key=lambda c: c.timestamp)
+            
+            logger.info(f"\n📊 Resumen de obtención:")
+            logger.info(f"   Total recibidas: {len(all_candles):,} velas")
+            logger.info(f"   Duplicados eliminados: {len(all_candles) - len(sorted_candles):,}")
+            logger.info(f"   Total únicas: {len(sorted_candles):,} velas")
+            
+            return sorted_candles
+        
+        return []
     
     async def _process_candles(self, candles: List[HistoricalCandle]):
         """
@@ -239,9 +328,10 @@ class BacktestingEngine:
                 logger.info(f"📊 Progreso: {progress:.1f}% ({i - SKIP_CANDLES:,}/{total_to_analyze:,} velas procesadas)")
             
             # Detectar patrón
-            pattern = detect_pattern(current_candle)
+            pattern_result = detect_pattern(current_candle)
             
-            if pattern:
+            if pattern_result:
+                pattern, confidence = pattern_result
                 self.patterns_found += 1
                 
                 # Obtener buffer de 1000 velas anteriores
@@ -262,39 +352,61 @@ class BacktestingEngine:
                 )
                 
                 # Determinar dirección de la vela outcome
-                outcome_direction = get_candle_direction(next_candle.__dict__)
+                outcome_direction = get_candle_direction(next_candle.open, next_candle.close)
                 
                 # Determinar dirección esperada del patrón
                 expected_direction = self._get_expected_direction(pattern)
                 
                 # Calcular si fue acierto
-                outcome_result = "WIN" if outcome_direction == expected_direction else "LOSS"
+                outcome_result = outcome_direction == expected_direction
                 
-                # Calcular PnL (simplificado: diferencia close - open de outcome)
-                pnl = abs(next_candle.close - next_candle.open)
-                if outcome_result == "LOSS":
-                    pnl = -pnl
+                # Calcular alineación de EMAs en formato string
+                ema_alignment = self._get_ema_alignment(emas)
                 
-                # Preparar registro para dataset
+                # Calcular orden explícito de EMAs con precio
+                ema_order = self._get_ema_order(current_candle.close, emas)
+                
+                # Preparar registro para dataset con estructura optimizada
                 record = {
                     "timestamp": current_candle.timestamp,
-                    "pattern": pattern,
-                    "trend": trend.status,
-                    "trend_score": trend.score,
-                    "is_trend_aligned": trend.is_aligned,
-                    "outcome_timestamp": next_candle.timestamp,
-                    "outcome_direction": outcome_direction,
-                    "expected_direction": expected_direction,
-                    "outcome_result": outcome_result,
-                    "pnl": pnl,
-                    "raw_data": {
+                    "source": EXCHANGE,
+                    "symbol": SYMBOL,
+                    "pattern_candle": {
+                        "timestamp": current_candle.timestamp,
+                        "open": current_candle.open,
+                        "high": current_candle.high,
+                        "low": current_candle.low,
+                        "close": current_candle.close,
+                        "volume": current_candle.volume,
+                        "pattern": pattern,
+                        "confidence": confidence
+                    },
+                    "emas": {
                         "ema_200": emas['ema_200'],
                         "ema_50": emas['ema_50'],
                         "ema_30": emas['ema_30'],
                         "ema_20": emas['ema_20'],
-                        "close": current_candle.close,
-                        "open": current_candle.open,
-                        "algo_version": Config.ALGO_VERSION
+                        "alignment": ema_alignment,
+                        "ema_order": ema_order,
+                        "trend_score": trend.score
+                    },
+                    "outcome_candle": {
+                        "timestamp": next_candle.timestamp,
+                        "open": next_candle.open,
+                        "high": next_candle.high,
+                        "low": next_candle.low,
+                        "close": next_candle.close,
+                        "volume": next_candle.volume,
+                        "direction": outcome_direction
+                    },
+                    "outcome": {
+                        "expected_direction": expected_direction,
+                        "actual_direction": outcome_direction,
+                        "success": outcome_result
+                    },
+                    "metadata": {
+                        "algo_version": Config.ALGO_VERSION,
+                        "created_at": datetime.utcnow().isoformat() + "Z"
                     }
                 }
                 
@@ -303,9 +415,10 @@ class BacktestingEngine:
                     await self.storage_service.save_signal_outcome(record)
                     self.patterns_saved += 1
                     
+                    result_text = "WIN" if outcome_result else "LOSS"
                     logger.debug(
-                        f"💾 Patrón guardado: {pattern} | Score: {trend.score} | "
-                        f"Outcome: {outcome_result} | PnL: {pnl:.2f}"
+                        f"💾 Patrón guardado: {pattern} | Confianza: {confidence:.2f} | "
+                        f"Score: {trend.score} | Outcome: {result_text}"
                     )
                 
                 except Exception as e:
@@ -327,6 +440,82 @@ class BacktestingEngine:
             return "VERDE"  # Patrones alcistas
         else:
             return "DOJI"  # Fallback
+    
+    def _get_ema_alignment(self, emas: Dict[str, float]) -> str:
+        """
+        Determina la alineación de las EMAs en formato string.
+        
+        Args:
+            emas: Diccionario con valores de EMAs
+            
+        Returns:
+            String describiendo la alineación (ej: "BULLISH_ALIGNED", "BEARISH_ALIGNED", "MIXED")
+        """
+        ema_20 = emas.get('ema_20', np.nan)
+        ema_30 = emas.get('ema_30', np.nan)
+        ema_50 = emas.get('ema_50', np.nan)
+        ema_200 = emas.get('ema_200', np.nan)
+        
+        # Verificar que todas las EMAs tengan valores válidos
+        if any(np.isnan([ema_20, ema_30, ema_50, ema_200])):
+            return "INCOMPLETE"
+        
+        # Alineación alcista perfecta: 20 > 30 > 50 > 200
+        if ema_20 > ema_30 > ema_50 > ema_200:
+            return "BULLISH_ALIGNED"
+        
+        # Alineación bajista perfecta: 20 < 30 < 50 < 200
+        elif ema_20 < ema_30 < ema_50 < ema_200:
+            return "BEARISH_ALIGNED"
+        
+        # Alineación parcial alcista: 20 > 50 > 200
+        elif ema_20 > ema_50 > ema_200:
+            return "BULLISH_PARTIAL"
+        
+        # Alineación parcial bajista: 20 < 50 < 200
+        elif ema_20 < ema_50 < ema_200:
+            return "BEARISH_PARTIAL"
+        
+        # Sin alineación clara
+        else:
+            return "MIXED"
+    
+    def _get_ema_order(self, price: float, emas: Dict[str, float]) -> str:
+        """
+        Calcula el orden explícito de Precio y EMAs en formato string.
+        
+        Args:
+            price: Precio actual de cierre
+            emas: Diccionario con valores de EMAs
+            
+        Returns:
+            String con el orden explícito (ej: "P>20>30>50>200", "200>50>P>30>20")
+        """
+        ema_20 = emas.get('ema_20', np.nan)
+        ema_30 = emas.get('ema_30', np.nan)
+        ema_50 = emas.get('ema_50', np.nan)
+        ema_200 = emas.get('ema_200', np.nan)
+        
+        # Verificar que todas las EMAs tengan valores válidos
+        if any(np.isnan([ema_20, ema_30, ema_50, ema_200])):
+            return "INCOMPLETE"
+        
+        # Crear lista de tuplas (nombre, valor)
+        items = [
+            ('P', price),
+            ('20', ema_20),
+            ('30', ema_30),
+            ('50', ema_50),
+            ('200', ema_200)
+        ]
+        
+        # Ordenar por valor descendente (mayor a menor)
+        items_sorted = sorted(items, key=lambda x: x[1], reverse=True)
+        
+        # Construir string con el orden
+        order_string = '>'.join([item[0] for item in items_sorted])
+        
+        return order_string
 
 
 # =============================================================================

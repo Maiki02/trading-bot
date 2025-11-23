@@ -174,6 +174,73 @@ def analyze_trend(close: float, emas: Dict[str, float]) -> TrendAnalysis:
     )
 
 
+def get_ema_alignment_string(emas: Dict[str, float]) -> str:
+    """
+    Determina la alineación de las EMAs en formato string.
+    
+    Args:
+        emas: Diccionario con valores de EMAs (ema_20, ema_30, ema_50, ema_200)
+        
+    Returns:
+        String describiendo la alineación
+    """
+    ema_20 = emas.get('ema_20', np.nan)
+    ema_30 = emas.get('ema_30', np.nan)
+    ema_50 = emas.get('ema_50', np.nan)
+    ema_200 = emas.get('ema_200', np.nan)
+    
+    if any(np.isnan([ema_20, ema_30, ema_50, ema_200])):
+        return "INCOMPLETE"
+    
+    if ema_20 > ema_30 > ema_50 > ema_200:
+        return "BULLISH_ALIGNED"
+    elif ema_20 < ema_30 < ema_50 < ema_200:
+        return "BEARISH_ALIGNED"
+    elif ema_20 > ema_50 > ema_200:
+        return "BULLISH_PARTIAL"
+    elif ema_20 < ema_50 < ema_200:
+        return "BEARISH_PARTIAL"
+    else:
+        return "MIXED"
+
+
+def get_ema_order_string(price: float, emas: Dict[str, float]) -> str:
+    """
+    Calcula el orden explícito de Precio y EMAs en formato string.
+    
+    Args:
+        price: Precio actual de cierre
+        emas: Diccionario con valores de EMAs
+        
+    Returns:
+        String con el orden explícito (ej: "P>20>30>50>200", "200>50>P>30>20")
+    """
+    ema_20 = emas.get('ema_20', np.nan)
+    ema_30 = emas.get('ema_30', np.nan)
+    ema_50 = emas.get('ema_50', np.nan)
+    ema_200 = emas.get('ema_200', np.nan)
+    
+    if any(np.isnan([ema_20, ema_30, ema_50, ema_200])):
+        return "INCOMPLETE"
+    
+    # Crear lista de tuplas (nombre, valor)
+    items = [
+        ('P', price),
+        ('20', ema_20),
+        ('30', ema_30),
+        ('50', ema_50),
+        ('200', ema_200)
+    ]
+    
+    # Ordenar por valor descendente (mayor a menor)
+    items_sorted = sorted(items, key=lambda x: x[1], reverse=True)
+    
+    # Construir string con el orden
+    order_string = '>'.join([item[0] for item in items_sorted])
+    
+    return order_string
+
+
 # =============================================================================
 # ANALYSIS SERVICE
 # =============================================================================
@@ -573,26 +640,42 @@ class AnalysisService:
         else:
             pnl_pips = 0.0
         
-        # Construir registro completo
+        # Calcular alineación de EMAs en formato string
+        emas_dict = {
+            'ema_20': pending_signal.ema_20,
+            'ema_30': pending_signal.ema_30,
+            'ema_50': pending_signal.ema_50,
+            'ema_200': pending_signal.ema_200
+        }
+        ema_alignment = get_ema_alignment_string(emas_dict)
+        
+        # Calcular orden explícito de EMAs con precio
+        ema_order = get_ema_order_string(pending_signal.candle.close, emas_dict)
+        
+        # Construir registro completo con nueva estructura optimizada
         from datetime import datetime
         record = {
-            "timestamp": datetime.utcfromtimestamp(pending_signal.timestamp).isoformat() + "Z",
-            "signal": {
-                "pattern": pending_signal.pattern,
-                "source": pending_signal.source,
-                "symbol": pending_signal.symbol,
-                "confidence": pending_signal.confidence,
-                "trend": pending_signal.trend,
-                "trend_score": pending_signal.trend_score,
-                "is_trend_aligned": pending_signal.is_trend_aligned,
-            },
-            "trigger_candle": {
+            "timestamp": pending_signal.timestamp,
+            "source": pending_signal.source,
+            "symbol": pending_signal.symbol,
+            "pattern_candle": {
                 "timestamp": pending_signal.candle.timestamp,
                 "open": pending_signal.candle.open,
                 "high": pending_signal.candle.high,
                 "low": pending_signal.candle.low,
                 "close": pending_signal.candle.close,
                 "volume": pending_signal.candle.volume,
+                "pattern": pending_signal.pattern,
+                "confidence": pending_signal.confidence
+            },
+            "emas": {
+                "ema_200": pending_signal.ema_200,
+                "ema_50": pending_signal.ema_50,
+                "ema_30": pending_signal.ema_30,
+                "ema_20": pending_signal.ema_20,
+                "alignment": ema_alignment,
+                "ema_order": ema_order,
+                "trend_score": pending_signal.trend_score
             },
             "outcome_candle": {
                 "timestamp": outcome_candle.timestamp,
@@ -601,24 +684,16 @@ class AnalysisService:
                 "low": outcome_candle.low,
                 "close": outcome_candle.close,
                 "volume": outcome_candle.volume,
+                "direction": actual_direction
             },
             "outcome": {
                 "expected_direction": expected_direction,
                 "actual_direction": actual_direction,
-                "success": success,
-                "pnl_pips": round(pnl_pips, 1),
-                "outcome_timestamp": datetime.utcfromtimestamp(outcome_candle.timestamp).isoformat() + "Z"
+                "success": success
             },
-            "raw_data": {
-                "ema_200": pending_signal.ema_200,
-                "ema_50": pending_signal.ema_50,
-                "ema_30": pending_signal.ema_30,
-                "ema_20": pending_signal.ema_20,
-                "close": pending_signal.candle.close,
-                "open": pending_signal.candle.open,
-                "algo_version": Config.ALGO_VERSION
-            },
-            "_metadata": {
+            "metadata": {
+                "algo_version": Config.ALGO_VERSION,
+                "created_at": datetime.utcnow().isoformat() + "Z",
                 "timestamp_gap_seconds": timestamp_diff,
                 "expected_gap_seconds": expected_diff,
                 "has_skipped_candles": timestamp_diff != expected_diff
@@ -658,7 +733,6 @@ class AnalysisService:
         logger.info(
             f"✅ CICLO CERRADO | "
             f"Éxito: {'✓' if success else '✗'} | "
-            f"PnL: {pnl_pips:+.1f} pips | "
             f"Esperado: {expected_direction} | Actual: {actual_direction}\n"
             f"{'═'*60}\n"
         )

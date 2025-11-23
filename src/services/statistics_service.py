@@ -118,9 +118,9 @@ class StatisticsService:
         if self.df is None or self.df.empty:
             return
         
-        # Verificar que exista raw_data
-        if 'raw_data' not in self.df.columns:
-            logger.warning("⚠️  Columna 'raw_data' no existe. No se pueden recalcular scores.")
+        # Verificar que existan las columnas de estructura V2
+        if 'emas' not in self.df.columns or 'pattern_candle' not in self.df.columns:
+            logger.warning("⚠️  Estructura V2 no detectada. No se pueden recalcular scores.")
             self.df['calculated_score'] = np.nan
             return
         
@@ -128,15 +128,19 @@ class StatisticsService:
         
         for idx, row in self.df.iterrows():
             try:
-                raw = row['raw_data']
+                # Extraer datos de la nueva estructura V2
+                emas_data = row['emas']
+                pattern_candle = row['pattern_candle']
                 
-                # Extraer datos crudos
-                close = raw.get('close')
+                # Extraer close de pattern_candle
+                close = pattern_candle.get('close')
+                
+                # Extraer EMAs
                 emas = {
-                    'ema_200': raw.get('ema_200'),
-                    'ema_50': raw.get('ema_50'),
-                    'ema_30': raw.get('ema_30'),
-                    'ema_20': raw.get('ema_20')
+                    'ema_200': emas_data.get('ema_200'),
+                    'ema_50': emas_data.get('ema_50'),
+                    'ema_30': emas_data.get('ema_30'),
+                    'ema_20': emas_data.get('ema_20')
                 }
                 
                 # Validar que tengamos los datos necesarios
@@ -165,48 +169,50 @@ class StatisticsService:
         self,
         pattern: str,
         current_score: int,
+        current_alignment: Optional[str] = None,
+        current_ema_order: Optional[str] = None,
         lookback_days: int = 30,
         score_tolerance: int = 1
     ) -> Dict[str, any]:
         """
-        Calcula probabilidades de velas VERDE/ROJA/DOJI para opciones binarias.
+        Calcula probabilidades con 3 niveles de precisión:
+        1. EXACTO: Score exacto + EMA order exacto (máxima precisión)
+        2. BY_ALIGNMENT: Score similar + mismo alignment (precisión media)
+        3. BY_SCORE: Solo score similar (máxima muestra)
         
         Args:
             pattern: Tipo de patrón (ej: "SHOOTING_STAR", "HAMMER")
             current_score: Score de tendencia actual
+            current_alignment: Alineación actual (ej: "BULLISH_ALIGNED")
+            current_ema_order: Orden explícito actual (ej: "P>20>30>50>200")
             lookback_days: Ventana de tiempo en días (default: 30)
             score_tolerance: Tolerancia para fuzzy matching (default: ±1)
             
         Returns:
             Dict con estructura:
             {
-                "exact": {                # Estadísticas con score EXACTO
+                "exact_order": {          # Score exacto + EMA order exacto
                     "total_cases": int,
-                    "verde_count": int,   # Velas verdes
-                    "roja_count": int,    # Velas rojas
-                    "doji_count": int,    # Velas doji (empate)
-                    "verde_pct": float,   # % velas verdes
-                    "roja_pct": float,    # % velas rojas
-                    "doji_pct": float,    # % velas doji
-                    "expected_direction": str,  # Dirección esperada del patrón
-                    "success_rate": float,      # % acierto dirección esperada
-                    "ev": float           # Expected Value por apuesta (con payout)
+                    "win_rate": float,
+                    "wins": int,
+                    "losses": int
                 },
-                "similar": {              # Estadísticas con score SIMILAR (±tolerance)
+                "by_alignment": {         # Score similar + mismo alignment
                     "total_cases": int,
-                    "verde_count": int,
-                    "roja_count": int,
-                    "doji_count": int,
-                    "verde_pct": float,
-                    "roja_pct": float,
-                    "doji_pct": float,
-                    "expected_direction": str,
-                    "success_rate": float,
-                    "ev": float,
+                    "win_rate": float,
+                    "wins": int,
+                    "losses": int,
                     "score_range": tuple
                 },
-                "streak": list,           # Últimos 5 resultados ["VERDE", "ROJA", "DOJI", ...]
-                "lookback_days": int      # Días analizados
+                "by_score": {             # Solo score similar
+                    "total_cases": int,
+                    "win_rate": float,
+                    "wins": int,
+                    "losses": int,
+                    "score_range": tuple
+                },
+                "streak": list,
+                "lookback_days": int
             }
         """
         if self.df is None or self.df.empty:
@@ -228,13 +234,13 @@ class StatisticsService:
             logger.info(f"📊 No hay datos en ventana de {lookback_days} días")
             return self._empty_stats_response()
         
-        # Filtrar por patrón exacto
-        if 'signal' not in df_filtered.columns:
-            logger.warning("⚠️  Columna 'signal' no existe")
+        # Filtrar por patrón exacto (nueva estructura V2)
+        if 'pattern_candle' not in df_filtered.columns:
+            logger.warning("⚠️  Columna 'pattern_candle' no existe")
             return self._empty_stats_response()
         
-        # Extraer patrón del objeto signal
-        df_filtered['pattern'] = df_filtered['signal'].apply(
+        # Extraer patrón del objeto pattern_candle
+        df_filtered['pattern'] = df_filtered['pattern_candle'].apply(
             lambda x: x.get('pattern') if isinstance(x, dict) else None
         )
         
@@ -249,43 +255,50 @@ class StatisticsService:
             lambda x: x.get('success') if isinstance(x, dict) else False
         )
         
-        # ═════════════════════════════════════════════════════════
-        # ESTADÍSTICAS CON SCORE EXACTO
-        # ═════════════════════════════════════════════════════════
-        df_exact = df_filtered[df_filtered['calculated_score'] == current_score]
+        # Extraer ema_order y alignment de la estructura V2
+        df_filtered['ema_order'] = df_filtered['emas'].apply(
+            lambda x: x.get('ema_order') if isinstance(x, dict) else None
+        )
+        df_filtered['alignment'] = df_filtered['emas'].apply(
+            lambda x: x.get('alignment') if isinstance(x, dict) else None
+        )
         
-        exact_stats = {
+        # ═════════════════════════════════════════════════════════
+        # 1. EXACTO: Score exacto + EMA order exacto
+        # ═════════════════════════════════════════════════════════
+        exact_order_stats = {
             "total_cases": 0,
             "win_rate": 0.0,
             "wins": 0,
             "losses": 0
         }
         
-        if not df_exact.empty:
-            exact_total = len(df_exact)
-            exact_wins = df_exact['success'].sum()
-            exact_losses = exact_total - exact_wins
-            exact_win_rate = exact_wins / exact_total if exact_total > 0 else 0.0
+        if current_ema_order:
+            df_exact_order = df_filtered[
+                (df_filtered['calculated_score'] == current_score) &
+                (df_filtered['ema_order'] == current_ema_order)
+            ]
             
-            exact_stats = {
-                "total_cases": int(exact_total),
-                "win_rate": float(exact_win_rate),
-                "wins": int(exact_wins),
-                "losses": int(exact_losses)
-            }
+            if not df_exact_order.empty:
+                exact_total = len(df_exact_order)
+                exact_wins = df_exact_order['success'].sum()
+                exact_losses = exact_total - exact_wins
+                exact_win_rate = exact_wins / exact_total if exact_total > 0 else 0.0
+                
+                exact_order_stats = {
+                    "total_cases": int(exact_total),
+                    "win_rate": float(exact_win_rate),
+                    "wins": int(exact_wins),
+                    "losses": int(exact_losses)
+                }
         
         # ═════════════════════════════════════════════════════════
-        # ESTADÍSTICAS CON SCORE SIMILAR (Fuzzy Match)
+        # 2. BY_ALIGNMENT: Score similar + mismo alignment
         # ═════════════════════════════════════════════════════════
         score_min = current_score - score_tolerance
         score_max = current_score + score_tolerance
         
-        df_similar = df_filtered[
-            (df_filtered['calculated_score'] >= score_min) &
-            (df_filtered['calculated_score'] <= score_max)
-        ]
-        
-        similar_stats = {
+        by_alignment_stats = {
             "total_cases": 0,
             "win_rate": 0.0,
             "wins": 0,
@@ -293,33 +306,71 @@ class StatisticsService:
             "score_range": (int(score_min), int(score_max))
         }
         
-        if not df_similar.empty:
-            similar_total = len(df_similar)
-            similar_wins = df_similar['success'].sum()
-            similar_losses = similar_total - similar_wins
-            similar_win_rate = similar_wins / similar_total if similar_total > 0 else 0.0
+        if current_alignment:
+            df_by_alignment = df_filtered[
+                (df_filtered['calculated_score'] >= score_min) &
+                (df_filtered['calculated_score'] <= score_max) &
+                (df_filtered['alignment'] == current_alignment)
+            ]
             
-            similar_stats = {
-                "total_cases": int(similar_total),
-                "win_rate": float(similar_win_rate),
-                "wins": int(similar_wins),
-                "losses": int(similar_losses),
+            if not df_by_alignment.empty:
+                alignment_total = len(df_by_alignment)
+                alignment_wins = df_by_alignment['success'].sum()
+                alignment_losses = alignment_total - alignment_wins
+                alignment_win_rate = alignment_wins / alignment_total if alignment_total > 0 else 0.0
+                
+                by_alignment_stats = {
+                    "total_cases": int(alignment_total),
+                    "win_rate": float(alignment_win_rate),
+                    "wins": int(alignment_wins),
+                    "losses": int(alignment_losses),
+                    "score_range": (int(score_min), int(score_max))
+                }
+        
+        # ═════════════════════════════════════════════════════════
+        # 3. BY_SCORE: Solo score similar (máxima muestra)
+        # ═════════════════════════════════════════════════════════
+        df_by_score = df_filtered[
+            (df_filtered['calculated_score'] >= score_min) &
+            (df_filtered['calculated_score'] <= score_max)
+        ]
+        
+        by_score_stats = {
+            "total_cases": 0,
+            "win_rate": 0.0,
+            "wins": 0,
+            "losses": 0,
+            "score_range": (int(score_min), int(score_max))
+        }
+        
+        if not df_by_score.empty:
+            score_total = len(df_by_score)
+            score_wins = df_by_score['success'].sum()
+            score_losses = score_total - score_wins
+            score_win_rate = score_wins / score_total if score_total > 0 else 0.0
+            
+            by_score_stats = {
+                "total_cases": int(score_total),
+                "win_rate": float(score_win_rate),
+                "wins": int(score_wins),
+                "losses": int(score_losses),
                 "score_range": (int(score_min), int(score_max))
             }
         
         # ═════════════════════════════════════════════════════════
-        # RACHA RECIENTE (basada en score similar para mayor muestra)
+        # RACHA RECIENTE (basada en by_score para mayor muestra)
         # ═════════════════════════════════════════════════════════
         recent_results = []
-        if not df_similar.empty:
-            recent_results = df_similar.nlargest(5, 'timestamp_dt')['success'].tolist()
+        if not df_by_score.empty:
+            recent_results = df_by_score.nlargest(5, 'timestamp_dt')['success'].tolist()
         
         # ═════════════════════════════════════════════════════════
         # RESULTADO FINAL
         # ═════════════════════════════════════════════════════════
         stats = {
-            "exact": exact_stats,
-            "similar": similar_stats,
+            "exact_order": exact_order_stats,
+            "by_alignment": by_alignment_stats,
+            "by_score": by_score_stats,
             "streak": recent_results,
             "lookback_days": lookback_days
         }
@@ -328,8 +379,9 @@ class StatisticsService:
             f"📊 Estadísticas | "
             f"Patrón: {pattern} | "
             f"Score: {current_score} | "
-            f"Exactos: {exact_stats['total_cases']} (Acierto: {exact_stats['success_rate']:.1%}) | "
-            f"Similares: {similar_stats['total_cases']} (Acierto: {similar_stats['success_rate']:.1%})"
+            f"Orden exacto: {exact_order_stats['total_cases']} ({exact_order_stats['win_rate']:.1%}) | "
+            f"Por alignment: {by_alignment_stats['total_cases']} ({by_alignment_stats['win_rate']:.1%}) | "
+            f"Por score: {by_score_stats['total_cases']} ({by_score_stats['win_rate']:.1%})"
         )
         
         return stats
@@ -391,8 +443,8 @@ class StatisticsService:
                 "overall_win_rate": 0.0
             }
         
-        # Contar patrones
-        patterns = self.df['signal'].apply(
+        # Contar patrones (nueva estructura V2)
+        patterns = self.df['pattern_candle'].apply(
             lambda x: x.get('pattern') if isinstance(x, dict) else None
         ).value_counts().to_dict()
         
