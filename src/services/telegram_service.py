@@ -282,7 +282,8 @@ class TelegramService:
         if by_range.get('total_cases', 0) == 0:
             return (
                 f"━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                f"📊 PROBABILIDAD (30d) | {signal.pattern}\n"
+                f"📊 PROBABILIDAD (30d)\n"
+                f"🕯️ Vela: {signal.pattern}\n"
                 f"{zone_emoji} Zona: {exhaustion_type}\n"
                 f"━━━━━━━━━━━━━━━━━━━━━━━━\n"
                 f"⚠️  Sin datos históricos\n\n"
@@ -343,7 +344,8 @@ class TelegramService:
         
         header = (
             f"━━━━━━━━━━━━━━━━━━━━━━━━\n"
-            f"📊 PROBABILIDAD (30d) | {signal.pattern}\n"
+            f"📊 PROBABILIDAD (30d)\n"
+            f"🕯️ Vela: {signal.pattern}\n"
             f"{zone_emoji} Zona: {exhaustion_type} (Estricto)\n"
             f"━━━━━━━━━━━━━━━━━━━━━━━━\n"
         )
