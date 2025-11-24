@@ -141,40 +141,71 @@ class TelegramService:
         # ═════════════════════════════════════════════════════════════════════
 
   # Definir título según fuerza y dirección esperada
-        if signal.signal_strength == "HIGH":
-            # 🚨 ALERTA FUERTE (Cúspide o Base confirmada + Patrón Ideal)
-            # 
+        if signal.signal_strength == "VERY_HIGH":
+            # 🔥 ALERTA MUY FUERTE (Patrón Principal + Ambos Exhaustion)
             if signal.pattern in ["SHOOTING_STAR"]:
                 icon = "🔴"
                 text = "Siguiente operación a la BAJA"
             elif signal.pattern in ["HAMMER"]:
                 icon = "🟢"
                 text = "Siguiente operación al ALZA"
+            else:
+                icon = "⚪"
+                text = "Vela no reconocida"
 
-            title= f"🚨{icon} ALERTA | *{signal.symbol}* {icon}🚨\n{icon} {text}.\n"
+            title = f"{icon * 3} *{signal.symbol}* {icon * 3}\n{icon} {text}.\nPROBABILIDAD MUY ALTA\n"
+
+        elif signal.signal_strength == "HIGH":
+            # 🚨 ALERTA FUERTE (Patrón Principal + Bollinger Exhaustion)
+            if signal.pattern in ["SHOOTING_STAR"]:
+                icon = "🔴"
+                text = "Siguiente operación a la BAJA"
+            elif signal.pattern in ["HAMMER"]:
+                icon = "🟢"
+                text = "Siguiente operación al ALZA"
+            else:
+                icon = "⚪"
+                text = "Vela no reconocida"
+
+            title = f"{icon * 2} *{signal.symbol}* {icon * 2}\n{icon} {text}.\nPROBABILIDAD ALTA\n"
 
         elif signal.signal_strength == "MEDIUM":
-            # ⚠️ AVISO (Cúspide o Base confirmada + Patrón Débil)
+            # ⚠️ AVISO (Patrón Secundario + Ambos Exhaustion)
             
-            # Patrones Bajistas (Reversión en Techo)
-            if signal.pattern in ["SHOOTING_STAR", "INVERTED_HAMMER"]:
-                title = f"⚠️🔴 AVISO | *{signal.symbol}* 🔴⚠️\n📉 Posible operación a la BAJA (Riesgo Medio)\n"
+            # Patrones Bajistas
+            if signal.pattern in ["INVERTED_HAMMER"]:
+                title = f"⚠️ *{signal.symbol}* ⚠️\n🔴 Posible operación a la BAJA\nPROBABILIDAD MEDIA\n"
             
-            # Patrones Alcistas (Reversión en Piso)
-            else:  # HAMMER, HANGING_MAN
-                title = f"⚠️🟢  AVISO | *{signal.symbol}* 🟢⚠️\n📈 Posible operación al ALZA (Riesgo Medio)\n"
+            # Patrones Alcistas
+            elif signal.pattern in ["HANGING_MAN"]:
+                title = f"⚠️ *{signal.symbol}* ⚠️\n🟢 Posible operación al ALZA\nPROBABILIDAD MEDIA\n"
+            else:
+                title = f"⚠️ *{signal.symbol}* ⚠️\n⚪Vela no reconocida\nPROBABILIDAD MEDIA\n"
 
-        elif signal.signal_strength == "LOW":  # LOW
-
+        elif signal.signal_strength == "LOW":
+            # ℹ️ SEÑAL BAJA
             if signal.pattern in ["SHOOTING_STAR", "INVERTED_HAMMER"]:
-                text="🔴 Posible operación a la BAJA"
+                text = "🔴 Posible operación a la BAJA"
             elif signal.pattern in ["HAMMER", "HANGING_MAN"]:
-                text="🟢 Posible operación al ALZA"
+                text = "🟢 Posible operación al ALZA"
+            else:
+                text = "⚪ Vela no reconocida"
 
-            # ℹ️ INFORMATIVO (Sin zona de agotamiento clara)
-            title = f"🔔 PATRON ENCONTRADO | *{signal.symbol}* 🔔\n{text}.\nNo hay agotamiento detectado - Requiere análisis adicional\n"
-        else: #NONE
-            title = f"ℹ️ INFO | *{signal.symbol}* ℹ️ \nNo hay combinaciones de fuerza suficientes\n"
+            title = f"ℹ️ *{signal.symbol}* ℹ️\n{text}.\nFalta confirmación de agotamiento.\nProbabilidad baja."
+        
+        elif signal.signal_strength == "VERY_LOW":
+            # ⚪ SEÑAL MUY BAJA
+            if signal.pattern in ["SHOOTING_STAR", "INVERTED_HAMMER"]:
+                text = "🔴 Posible operación a la BAJA"
+            elif signal.pattern in ["HAMMER", "HANGING_MAN"]:
+                text = "🟢 Posible operación al ALZA"
+            else:
+                text = "⚪ Vela no reconocida"
+
+            title = f"⚪ *{signal.symbol}* ⚪\n{text}.\nSin agotamiento detectado - Analizar con precaución\nPobabilidad bajísima."
+        
+        else:  # NONE
+            title = f"*{signal.symbol}*\nMensaje informativo. No hay nada importante detectado.\n"
 
         # Formatear EMAs (mostrar N/A si no están disponibles)
         import math
@@ -214,13 +245,17 @@ class TelegramService:
         exhaustion_text = ""
         if signal.exhaustion_type == "PEAK":
             exhaustion_emoji = "🔺"
-            exhaustion_text = "Señal de agotamiento, pico alcanzado"
+            exhaustion_text = "Señal de agotamiento alcista (Techo)"
         elif signal.exhaustion_type == "BOTTOM":
             exhaustion_emoji = "🔻"
-            exhaustion_text = "Señal de agotamiento, pico alcanzado"
+            exhaustion_text = "Señal de agotamiento bajista (Piso)"
         else:
             exhaustion_emoji = "➖"
-            exhaustion_text = "Zona Neutra - Sin agotamiento"
+            exhaustion_text = "Zona Neutra - Sin agotamiento Bollinger"
+        
+        # Emoji de Candle Exhaustion
+        candle_exh_emoji = "💥" if signal.candle_exhaustion else "⚪"
+        candle_exh_text = "Rompió nivel anterior" if signal.candle_exhaustion else "Sin ruptura de nivel"
         
         # Construir bloque de estadísticas si hay datos suficientes
         statistics_block = ""
@@ -229,41 +264,31 @@ class TelegramService:
         else:
             logger.warning("⚠️  signal.statistics es None o no existe")
         
-        # Cuerpo del mensaje estructurado (reducido para cumplir límite Telegram)
+        # Construir descripción visual de EMAs con colores y pesos
+        # emas_visual = (
+        #     f"\n📊 SISTEMA DE PUNTUACIÓN (Max: 10.0pts)\n"
+        #     f"🔴 EMA 5: {signal.ema_5:.5f} (2.0pts)\n"
+        #     f"🟣 EMA 7: {signal.ema_7:.5f} (2.0pts)\n"
+        #     f"🟠 EMA 10: {signal.ema_10:.5f} (1.5pts)\n"
+        #     f"🟡 EMA 15: {signal.ema_15:.5f} (1.5pts)\n"
+        #     f"🟢 EMA 20: {signal.ema_20:.5f} (1.0pt)\n"
+        #     f"🔵 EMA 30: {signal.ema_30:.5f} (1.0pt)\n"
+        #     f"🔷 EMA 50: {signal.ema_50:.5f} (1.0pt)\n"
+        # )
+        
+        # Cuerpo del mensaje estructurado
         body = (
             f"━━━━━━━━━━━━━━━━━━━━━━\n"
-            #f"📊 INFO DE VELA\n"
-            # f"━━━━━━━━━━━━━━━━━━━━━━\n"
-            f"🔹 Señal: {signal.signal_strength}\n\n"
+            # f"🔹 Señal: {signal.signal_strength}\n\n"
             f"🔹 Fuente: {signal.source}\n"
             f"🔹 Patrón: {signal.pattern}\n"
             f"🔹 Fecha: {timestamp_str}\n"
-            # f"🔹 OHLC: O={signal.candle.open:.2f} | H={signal.candle.high:.2f} | L={signal.candle.low:.2f} | C={signal.candle.close:.2f}\n"
             f"{exhaustion_emoji} {exhaustion_text}\n"
+            f"{candle_exh_emoji} {candle_exh_text}\n"
             f"🔹 Tendencia: {signal.trend}\n"
-            f"🔹 Score: {signal.trend_score:+d}/10\n"
+            f"🔹 Score: {signal.trend_score:+.1f}/10.0\n"
+            # f"{emas_visual}"
             f"━━━━━━━━━━━━━━━━━━━━━━\n"
-            #f"\n"
-            #f"🎯 TENDENCIA Y AGOTAMIENTO\n"
-            #f"━━━━━━━━━━━━━━━━━━━━━━\n"
-            # f"🔹 Interpretación: {trend_interpretation}\n"
-            # f"🔹 Estructura: {estructura}\n"
-            #f"\n"
-            # f"━━━━━━━━━━━━━━━━━━━━━━\n"
-            # f"📉 BOLLINGER BANDS\n"
-            # f"━━━━━━━━━━━━━━━━━━━━━━\n"
-            # f"{exhaustion_emoji} Zona: {exhaustion_text}\n"
-            # f"🔹 Banda Superior: {bb_upper_str}\n"
-            # f"🔹 Banda Inferior: {bb_lower_str}\n\n"
-            # # f"━━━━━━━━━━━━━━━━━━━━━━\n"
-            # f"📈 INDICADORES\n"
-            # f"━━━━━━━━━━━━━━━━━━━━━━\n"
-            # f"🔹 EMA 200: {signal.ema_200:.5f}\n"
-            # f"🔹 EMA 50: {ema_50_str}\n"
-            # f"🔹 EMA 30: {ema_30_str}\n"
-            # f"🔹 EMA 20: {ema_20_str}\n\n"
-            # f"{statistics_block}"
-            #f"⚡ *Verificar gráfico manualmente antes de operar.*\n"
         )
         
         return AlertMessage(

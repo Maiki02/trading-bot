@@ -37,15 +37,15 @@ logger = get_logger(__name__)
 
 @dataclass
 class TrendAnalysis:
-    """Análisis completo de tendencia basado en múltiples EMAs."""
+    """Análisis completo de tendencia basado en sistema de puntuación ponderada."""
     status: str      # "STRONG_BULLISH", "WEAK_BULLISH", "NEUTRAL", "WEAK_BEARISH", "STRONG_BEARISH"
-    score: int       # De -10 a +10
-    is_aligned: bool # True si EMAs están ordenadas correctamente (EMA20 > EMA50 > EMA200 o inversa)
+    score: float     # De -10.0 a +10.0 (weighted score)
+    is_aligned: bool # True si EMAs están ordenadas correctamente
     
     def __str__(self) -> str:
         """Representación legible para logs."""
         alignment_str = "Alineadas" if self.is_aligned else "Desalineadas"
-        return f"{self.status} (Score: {self.score:+d}, {alignment_str})"
+        return f"{self.status} (Score: {self.score:+.1f}, {alignment_str})"
 
 
 @dataclass
@@ -56,21 +56,24 @@ class PatternSignal:
     pattern: str  # "SHOOTING_STAR", "HANGING_MAN", "INVERTED_HAMMER", "HAMMER"
     timestamp: int
     candle: CandleData
-    ema_200: float
-    ema_50: float
-    ema_30: float
+    ema_5: float
+    ema_7: float
+    ema_10: float
+    ema_15: float
     ema_20: float
-    ema_7: float  # Nueva EMA rápida para detección de agotamiento
+    ema_30: float
+    ema_50: float
     trend: str  # "STRONG_BULLISH", "WEAK_BULLISH", "NEUTRAL", "WEAK_BEARISH", "STRONG_BEARISH"
-    trend_score: int  # Score numérico de -10 a +10
+    trend_score: float  # Score numérico de -10.0 a +10.0 (weighted)
     is_trend_aligned: bool  # Si las EMAs están alineadas correctamente
-    confidence: float  # 0.0 - 1.0
+    confidence: float  # 0.0 - 1.0 (del patrón de vela)
     trend_filtered: bool  # True si se aplicó filtro de tendencia
     chart_base64: Optional[str] = None  # Gráfico codificado en Base64
     statistics: Optional[Dict] = None  # Estadísticas históricas de probabilidad
-    # Nuevos campos para sistema de Bollinger Bands
-    signal_strength: str = "NONE"  # "HIGH", "MEDIUM", "LOW", "NONE"
-    exhaustion_type: str = "NONE"  # "PEAK", "BOTTOM", "NONE"
+    # Sistema de scoring matricial
+    signal_strength: str = "NONE"  # "VERY_HIGH", "HIGH", "MEDIUM", "LOW", "VERY_LOW", "NONE"
+    exhaustion_type: str = "NONE"  # "PEAK", "BOTTOM", "NONE" (Bollinger Exhaustion)
+    candle_exhaustion: bool = False  # True si rompe high/low de vela anterior
     is_counter_trend: bool = False  # True si patrón va contra la tendencia principal
     bb_upper: Optional[float] = None  # Banda superior de Bollinger
     bb_lower: Optional[float] = None  # Banda inferior de Bollinger
@@ -160,89 +163,94 @@ def detect_exhaustion(candle_high: float, candle_low: float, candle_close: float
 
 def analyze_trend(close: float, emas: Dict[str, float]) -> TrendAnalysis:
     """
-    Analiza AGOTAMIENTO/SOBRE-EXTENSIÓN optimizado para M1 (Binarias).
-    Sensibilidad ajustada a movimientos de 2-5 pips.
-    """
-    score = 0
+    Analiza tendencia usando sistema de PUNTUACIÓN PONDERADA.
+    Cada EMA contribuye con un peso específico al score total.
     
-    # Extraer EMAs
+    SISTEMA DE PESOS (Total: 10.0):
+    - EMA 5:  2.0 puntos
+    - EMA 7:  2.0 puntos
+    - EMA 10: 1.5 puntos
+    - EMA 15: 1.5 puntos
+    - EMA 20: 1.0 punto
+    - EMA 30: 1.0 punto
+    - EMA 50: 1.0 punto
+    
+    CLASIFICACIÓN:
+    - [6.0 a 10.0]:   STRONG_BULLISH
+    - [2.0 a 6.0):    WEAK_BULLISH
+    - (-2.0 a 2.0):   NEUTRAL
+    - (-6.0 a -2.0]:  WEAK_BEARISH
+    - [-10.0 a -6.0]: STRONG_BEARISH
+    
+    Args:
+        close: Precio de cierre actual
+        emas: Diccionario con valores de EMAs (ema_5, ema_7, ema_10, ema_15, ema_20, ema_30, ema_50)
+        
+    Returns:
+        TrendAnalysis con estado, score (float) e is_aligned
+    """
+    # Definir pesos de EMAs (Total: 10.0)
+    ema_weights = {
+        'ema_5': 2.5,
+        'ema_7': 2.0,
+        'ema_10': 1.5,
+        'ema_15': 1.5,
+        'ema_20': 1.0,
+        'ema_30': 1.0,
+        'ema_50': 0.5
+    }
+    
+    # Inicializar score
+    score = 0.0
+    
+    # Calcular score ponderado iterando sobre cada EMA
+    for ema_key, weight in ema_weights.items():
+        ema_value = emas.get(ema_key, np.nan)
+        
+        # Si la EMA no existe o es NaN, omitir (no afecta el score)
+        if pd.isna(ema_value):
+            continue
+        
+        # Comparar precio con EMA y sumar/restar peso
+        if close > ema_value:
+            score += weight  # Alcista
+        elif close < ema_value:
+            score -= weight  # Bajista
+        # Si close == ema_value, no suma ni resta (neutral)
+    
+    # Redondear score a 1 decimal
+    score = round(score, 1)
+    
+    # Clasificar tendencia según umbrales
+    if score >= 6.0:
+        status = "STRONG_BULLISH"
+    elif score >= 2.0:
+        status = "WEAK_BULLISH"
+    elif score > -2.0:
+        status = "NEUTRAL"
+    elif score > -6.0:
+        status = "WEAK_BEARISH"
+    else:  # score <= -6.0
+        status = "STRONG_BEARISH"
+    
+    # Verificar alineación perfecta (Fanning)
+    # Para considerar alineado, las EMAs deben estar en orden estricto
+    is_aligned = False
+    
+    # Obtener EMAs principales para verificar alineación
+    ema_5 = emas.get('ema_5', np.nan)
     ema_7 = emas.get('ema_7', np.nan)
+    ema_10 = emas.get('ema_10', np.nan)
     ema_20 = emas.get('ema_20', np.nan)
     ema_50 = emas.get('ema_50', np.nan)
     
-    # ---------------------------------------------------------
-    # 1. POSICIÓN Y SOBRE-EXTENSIÓN (EMA 7)
-    # ---------------------------------------------------------
-    if not np.isnan(ema_7):
-        deviation = abs(close - ema_7) / ema_7
-        
-        # SCORE BASE: Solo por estar arriba/abajo ya asignamos dirección
-        if close > ema_7:
-            score -= 1 # Levemente alcista (posible reversión si aumenta)
-        else:
-            score += 1 # Levemente bajista
-            
-        # UMBRALES M1 (Ajustados):
-        # 0.02% ~= 2 Pips (EURUSD) -> Extensión Normal
-        # 0.05% ~= 5 Pips (EURUSD) -> Extensión Fuerte
-        
-        if deviation >= 0.0005:  # 0.05% (Extensión Fuerte ~5 pips)
-            if close > ema_7:
-                score -= 4  # Total acumulado: -5
-            else:
-                score += 4  # Total acumulado: +5
-        elif deviation >= 0.0002:  # 0.02% (Extensión Moderada ~2 pips)
-            if close > ema_7:
-                score -= 2  # Total acumulado: -3
-            else:
-                score += 2  # Total acumulado: +3
-            
-    # ---------------------------------------------------------
-    # 2. MOMENTUM (EMA 7 vs EMA 20)
-    # ---------------------------------------------------------
-    if not np.isnan(ema_7) and not np.isnan(ema_20):
-        separation = abs(ema_7 - ema_20) / ema_20
-        
-        # Validar dirección del cruce
-        if ema_7 > ema_20:
-            score -= 1
-        else:
-            score += 1
-
-        # UMBRALES M1:
-        # 0.03% ~= 3 Pips de separación entre medias
-        if separation >= 0.0003: 
-            if ema_7 > ema_20:
-                score -= 2 
-            else:
-                score += 2
-
-    # ---------------------------------------------------------
-    # 3. CONTEXTO (EMA 20 vs EMA 50)
-    # ---------------------------------------------------------
-    if not np.isnan(ema_20) and not np.isnan(ema_50):
-        if ema_20 > ema_50:
-            score -= 1
-        else:
-            score += 1
-    
-    # Clasificación (Escala ajustada a la nueva suma)
-    # Rango máximo teórico: ±9 puntos
-    if score <= -6:
-        status = "STRONG_BEARISH"   # Sobre-extensión alcista EXTREMA
-    elif score <= -3:
-        status = "WEAK_BEARISH"     # Sobre-extensión alcista moderada
-    elif score >= -2 and score <= 2:
-        status = "NEUTRAL"          # Rango / Sin fuerza
-    elif score >= 3 and score <= 6:
-        status = "WEAK_BULLISH"     # Sobre-extensión bajista moderada
-    else:
-        status = "STRONG_BULLISH"   # Sobre-extensión bajista EXTREMA
-    
-    is_aligned = False
-    if not any(np.isnan([ema_7, ema_20, ema_50])):
-        # Alineación simple para validar tendencia
-        if (ema_7 > ema_20 > ema_50) or (ema_7 < ema_20 < ema_50):
+    # Verificar si todas las EMAs críticas están disponibles
+    if not any(np.isnan([ema_5, ema_7, ema_10, ema_20, ema_50])):
+        # Alineación alcista perfecta: Precio > EMA5 > EMA7 > EMA10 > EMA20 > EMA50
+        if close > ema_5 > ema_7 > ema_10 > ema_20 > ema_50:
+            is_aligned = True
+        # Alineación bajista perfecta: Precio < EMA5 < EMA7 < EMA10 < EMA20 < EMA50
+        elif close < ema_5 < ema_7 < ema_10 < ema_20 < ema_50:
             is_aligned = True
     
     return TrendAnalysis(
@@ -545,7 +553,7 @@ class AnalysisService:
         """
         self.dataframes[source_key] = pd.DataFrame(columns=[
             "timestamp", "open", "high", "low", "close", "volume", 
-            "ema_200", "ema_50", "ema_30", "ema_20", "ema_7",
+            "ema_5", "ema_7", "ema_10", "ema_15", "ema_20", "ema_30", "ema_50",
             "bb_middle", "bb_upper", "bb_lower"
         ])
         logger.debug(f"📋 DataFrame inicializado para {source_key}")
@@ -581,11 +589,13 @@ class AnalysisService:
             "low": candle.low,
             "close": candle.close,
             "volume": candle.volume,
-            "ema_200": np.nan,  # Se calculará después
-            "ema_50": np.nan,
-            "ema_30": np.nan,
-            "ema_20": np.nan,
+            "ema_5": np.nan,
             "ema_7": np.nan,
+            "ema_10": np.nan,
+            "ema_15": np.nan,
+            "ema_20": np.nan,
+            "ema_30": np.nan,
+            "ema_50": np.nan,
             "bb_middle": np.nan,
             "bb_upper": np.nan,
             "bb_lower": np.nan
@@ -625,38 +635,48 @@ class AnalysisService:
         """
         Recalcula los indicadores técnicos para estrategia Mean Reversion.
         
-        EMAs Calculadas:
-        - EMA 7: CRÍTICA para detección de sobre-extensión (cambio de Trend Following a Mean Reversion)
-        - EMA 20: Confirmación de momentum de corto plazo
-        - EMA 50: Validación de tendencia establecida (no operar en lateral)
-        - EMA 30, EMA 200: Solo para visualización (NO usadas en lógica)
+        EMAs Calculadas (Sistema Ponderado):
+        - EMA 5:  2.0 puntos - Ultra rápida
+        - EMA 7:  2.0 puntos - Muy rápida
+        - EMA 10: 1.5 puntos - Rápida
+        - EMA 15: 1.5 puntos - Rápida-Media
+        - EMA 20: 1.0 punto  - Media
+        - EMA 30: 1.0 punto  - Media-Lenta
+        - EMA 50: 1.0 punto  - Lenta
         
         Args:
             source_key: Clave de la fuente
         """
         df = self.dataframes[source_key]
         
-        # Calcular EMAs sobre precios de cierre
-        # EMA 7 - CRÍTICA para Mean Reversion (detección de sobre-extensión)
-        ema_fast_period = Config.EMA_FAST_PERIOD
-        if len(df) >= ema_fast_period:
-            df["ema_7"] = calculate_ema(df["close"], ema_fast_period)
+        # Calcular EMAs sobre precios de cierre (sistema ponderado)
+        # EMA 5 - Ultra rápida (peso: 2.0)
+        if len(df) >= 5:
+            df["ema_5"] = calculate_ema(df["close"], 5)
         
-        # EMA 20 - Confirmación de momentum
+        # EMA 7 - Muy rápida (peso: 2.0)
+        if len(df) >= 7:
+            df["ema_7"] = calculate_ema(df["close"], 7)
+        
+        # EMA 10 - Rápida (peso: 1.5)
+        if len(df) >= 10:
+            df["ema_10"] = calculate_ema(df["close"], 10)
+        
+        # EMA 15 - Rápida-Media (peso: 1.5)
+        if len(df) >= 15:
+            df["ema_15"] = calculate_ema(df["close"], 15)
+        
+        # EMA 20 - Media (peso: 1.0)
         if len(df) >= 20:
             df["ema_20"] = calculate_ema(df["close"], 20)
         
-        # EMA 30 - Solo visualización
+        # EMA 30 - Media-Lenta (peso: 1.0)
         if len(df) >= 30:
             df["ema_30"] = calculate_ema(df["close"], 30)
         
-        # EMA 50 - Validación de tendencia (evitar laterales)
+        # EMA 50 - Lenta (peso: 1.0)
         if len(df) >= 50:
             df["ema_50"] = calculate_ema(df["close"], 50)
-        
-        # EMA 200 - Solo visualización (ya NO se usa en scoring)
-        if len(df) >= self.ema_period:
-            df["ema_200"] = calculate_ema(df["close"], self.ema_period)
         
         # Calcular Bollinger Bands (requiere al menos BB_PERIOD velas)
         bb_period = Config.CANDLE.BB_PERIOD
@@ -889,13 +909,19 @@ class AnalysisService:
         #     return
         
         # LOG: Información de la vela cerrada con todas las EMAs
+        ema_5_val = last_closed.get('ema_5', np.nan)
         ema_7_val = last_closed.get('ema_7', np.nan)
+        ema_10_val = last_closed.get('ema_10', np.nan)
+        ema_15_val = last_closed.get('ema_15', np.nan)
         ema_20_val = last_closed.get('ema_20', np.nan)
         ema_30_val = last_closed.get('ema_30', np.nan)
         ema_50_val = last_closed.get('ema_50', np.nan)
         
         # Formatear EMAs (convertir a string antes)
+        ema_5_str = f"{ema_5_val:.5f}" if not pd.isna(ema_5_val) else "N/A"
         ema_7_str = f"{ema_7_val:.5f}" if not pd.isna(ema_7_val) else "N/A"
+        ema_10_str = f"{ema_10_val:.5f}" if not pd.isna(ema_10_val) else "N/A"
+        ema_15_str = f"{ema_15_val:.5f}" if not pd.isna(ema_15_val) else "N/A"
         ema_20_str = f"{ema_20_val:.5f}" if not pd.isna(ema_20_val) else "N/A"
         ema_30_str = f"{ema_30_val:.5f}" if not pd.isna(ema_30_val) else "N/A"
         ema_50_str = f"{ema_50_val:.5f}" if not pd.isna(ema_50_val) else "N/A"
@@ -911,14 +937,18 @@ class AnalysisService:
             f"💰 Mínimo: {last_closed['low']:.5f}\n"
             f"💰 Cierre: {last_closed['close']:.5f}\n"
             f"📊 Volumen: {last_closed['volume']:.2f}\n"
-            f"📉 EMAs: 7={ema_7_str} | 20={ema_20_str} | 30={ema_30_str} | 50={ema_50_str} | 200={last_closed['ema_200']:.5f}\n"
+            f"📉 EMAs: 5={ema_5_str} | 7={ema_7_str} | 10={ema_10_str} | 15={ema_15_str} | 20={ema_20_str} | 30={ema_30_str} | 50={ema_50_str}\n"
             f"{'='*40}\n"
         )
         
-        # Analizar tendencia con sistema de scoring (Mean Reversion)
+        # Analizar tendencia con sistema de scoring ponderado
         emas_dict = {
+            'ema_5': last_closed.get('ema_5', np.nan),
             'ema_7': last_closed.get('ema_7', np.nan),
+            'ema_10': last_closed.get('ema_10', np.nan),
+            'ema_15': last_closed.get('ema_15', np.nan),
             'ema_20': last_closed.get('ema_20', np.nan),
+            'ema_30': last_closed.get('ema_30', np.nan),
             'ema_50': last_closed.get('ema_50', np.nan)
         }
         trend_analysis = analyze_trend(last_closed["close"], emas_dict)
@@ -945,7 +975,7 @@ class AnalysisService:
         logger.info(
             f"📈 Análisis de Tendencia: {trend_analysis}\n"
             f"   • Status: {trend_analysis.status}\n"
-            f"   • Score: {trend_analysis.score:+d}/10\n"
+            f"   • Score: {trend_analysis.score:+.1f}/10.0 (weighted)\n"
             f"   • Alineación EMAs: {'✓' if trend_analysis.is_aligned else '✗'}\n"
             f"📊 Bollinger Bands:\n"
             f"   • Superior: {bb_upper_str}\n"
@@ -1034,149 +1064,188 @@ class AnalysisService:
             return
         
         # ═════════════════════════════════════════════════════════════════════
-        # CLASIFICACIÓN DE FUERZA DE SEÑAL - Mean Reversion Strategy
+        # CLASIFICACIÓN DE FUERZA DE SEÑAL - Mean Reversion Strategy (NUEVO)
         # ═════════════════════════════════════════════════════════════════════
         
-        # FILOSOFÍA CORREGIDA:
-        # - HIGH: Patrón + Agotamiento perfecto (PEAK+Bajista o BOTTOM+Alcista)
-        # - MEDIUM: Patrón correcto + Agotamiento moderado
-        # - LOW: Patrón correcto sin agotamiento
-        # - NONE: Patrón incorrecto para la estrategia (contra-lógica)
+        # NUEVA MATRIZ DE DECISIÓN con Candle Exhaustion
+        # Importar función de candle.py
+        from src.logic.candle import detect_candle_exhaustion
         
-        # Patrones bajistas: SHOOTING_STAR, HANGING_MAN
-        # Patrones alcistas: HAMMER, INVERTED_HAMMER
+        # Obtener vela anterior para cálculo de Candle Exhaustion
+        prev_candle_high = None
+        prev_candle_low = None
+        if len(df) >= 2:
+            prev_row = df.iloc[-2]
+            prev_candle_high = prev_row["high"]
+            prev_candle_low = prev_row["low"]
+        
+        # Calcular Candle Exhaustion
+        candle_exhaustion = False
+        if prev_candle_high is not None and prev_candle_low is not None:
+            candle_exhaustion = detect_candle_exhaustion(
+                pattern=pattern_detected,
+                current_high=last_closed["high"],
+                current_low=last_closed["low"],
+                prev_high=prev_candle_high,
+                prev_low=prev_candle_low
+            )
+        
+        # Determinar Bollinger Exhaustion (PEAK o BOTTOM)
+        bollinger_exhaustion = exhaustion_type in ["PEAK", "BOTTOM"]
+        
+        # Clasificar patrones por tipo
         pattern_is_bearish = pattern_detected in ["SHOOTING_STAR", "HANGING_MAN"]
         pattern_is_bullish = pattern_detected in ["HAMMER", "INVERTED_HAMMER"]
+        pattern_is_primary = pattern_detected in ["SHOOTING_STAR", "HAMMER"]
         
         # Determinar contexto de tendencia
         current_status = trend_analysis.status
-        is_bearish_trend = "BEARISH" in current_status
-        is_bullish_trend = "BULLISH" in current_status
+        is_strong_bullish = current_status == "STRONG_BULLISH"
+        is_weak_bullish = current_status == "WEAK_BULLISH"
+        is_strong_bearish = current_status == "STRONG_BEARISH"
+        is_weak_bearish = current_status == "WEAK_BEARISH"
+        is_neutral = current_status == "NEUTRAL"
+        
+        is_bullish_trend = is_strong_bullish or is_weak_bullish
+        is_bearish_trend = is_strong_bearish or is_weak_bearish
+        
+        # Variable de scoring
+        signal_strength = "NONE"
         
         # ═════════════════════════════════════════════════════════════════════
-        # MATRIZ DE CLASIFICACIÓN - Mean Reversion (8 ESCENARIOS VÁLIDOS)
+        # CASO A: TENDENCIA ALCISTA (Buscamos VENTAS - Patrones Bajistas)
         # ═════════════════════════════════════════════════════════════════════
-        
-        signal_strength = "NONE"  # Default: Patrón no válido para estrategia
-        
-        # CONTEXTO: TENDENCIA ALCISTA (Buscar reversiones bajistas)
         if is_bullish_trend:
             if pattern_detected == "SHOOTING_STAR":
-                if exhaustion_type == "PEAK":
+                # Patrón PRINCIPAL bajista
+                if bollinger_exhaustion and candle_exhaustion:
+                    signal_strength = "VERY_HIGH"
+                    logger.info(f"🔥 VERY HIGH | Shooting Star + Bollinger + Candle Exhaustion en tendencia alcista")
+                elif bollinger_exhaustion:
                     signal_strength = "HIGH"
-                    logger.info(
-                        f"🚨 SEÑAL HIGH | {pattern_detected} en PEAK | "
-                        f"Reversión bajista en agotamiento alcista | Mean Reversion PERFECTA"
-                    )
-                else:  # NONE o BOTTOM
+                    logger.info(f"🚨 HIGH | Shooting Star + Bollinger Exhaustion en tendencia alcista")
+                elif candle_exhaustion:
                     signal_strength = "LOW"
-                    logger.info(
-                        f"ℹ️  SEÑAL LOW | {pattern_detected} sin agotamiento | "
-                        f"Reversión bajista posible pero sin confirmación"
-                    )
-            elif pattern_detected == "HANGING_MAN":
-                if exhaustion_type == "PEAK":
-                    signal_strength = "MEDIUM"
-                    logger.info(
-                        f"⚠️  SEÑAL MEDIUM | {pattern_detected} en PEAK | "
-                        f"Reversión bajista en agotamiento moderado"
-                    )
-                else:  # NONE o BOTTOM
-                    signal_strength = "LOW"
-                    logger.info(
-                        f"ℹ️  SEÑAL LOW | {pattern_detected} sin agotamiento | "
-                        f"Reversión bajista posible pero sin confirmación"
-                    )
-            elif pattern_detected == "INVERTED_HAMMER":
-                if exhaustion_type == "PEAK":
-                    signal_strength = "MEDIUM"
-                    logger.info(
-                        f"⚠️  SEÑAL MEDIUM | {pattern_detected} en PEAK | "
-                        f"Continuación alcista en agotamiento (precaución)"
-                    )
+                    logger.info(f"ℹ️  LOW | Shooting Star + Candle Exhaustion (sin Bollinger)")
                 else:
+                    signal_strength = "VERY_LOW"
+                    logger.info(f"⚪ VERY LOW | Shooting Star sin exhaustion")
+            
+            elif pattern_detected == "INVERTED_HAMMER":
+                # Patrón SECUNDARIO bajista
+                if bollinger_exhaustion and candle_exhaustion:
+                    signal_strength = "MEDIUM"
+                    logger.info(f"⚠️  MEDIUM | Inverted Hammer + ambos exhaustion en tendencia alcista")
+                elif bollinger_exhaustion:
                     signal_strength = "LOW"
-                    logger.info(
-                        f"ℹ️  SEÑAL LOW | {pattern_detected} sin agotamiento | "
-                        f"Continuación alcista débil"
-                    )
-            # HAMMER en tendencia alcista = NONE (contra-estrategia)
+                    logger.info(f"ℹ️  LOW | Inverted Hammer + Bollinger Exhaustion")
+                elif candle_exhaustion:
+                    signal_strength = "VERY_LOW"
+                    logger.info(f"⚪ VERY LOW | Inverted Hammer + Candle Exhaustion solamente")
+                else:
+                    signal_strength = "NONE"
+                    logger.info(f"⛔ NONE | Inverted Hammer sin exhaustion - Descartado")
+            
+            # HANGING_MAN y HAMMER no son válidos en tendencia alcista para Mean Reversion
+            elif pattern_detected == "HANGING_MAN":
+                signal_strength = "NONE"
+                logger.info(f"⛔ NONE | Hanging Man en tendencia alcista - Patrón no aplicable")
+            
             elif pattern_detected == "HAMMER":
                 signal_strength = "NONE"
-                logger.info(
-                    f"⚪ SEÑAL NONE | {pattern_detected} en tendencia ALCISTA | "
-                    f"Patrón alcista en tendencia alcista - Contra-estrategia Mean Reversion"
-                )
+                logger.info(f"⛔ NONE | Hammer en tendencia alcista - Contra-estrategia Mean Reversion")
         
-        # CONTEXTO: TENDENCIA BAJISTA (Buscar reversiones alcistas)
+        # ═════════════════════════════════════════════════════════════════════
+        # CASO B: TENDENCIA BAJISTA (Buscamos COMPRAS - Patrones Alcistas)
+        # ═════════════════════════════════════════════════════════════════════
         elif is_bearish_trend:
             if pattern_detected == "HAMMER":
-                if exhaustion_type == "BOTTOM":
+                # Patrón PRINCIPAL alcista
+                if bollinger_exhaustion and candle_exhaustion:
+                    signal_strength = "VERY_HIGH"
+                    logger.info(f"🔥 VERY HIGH | Hammer + Bollinger + Candle Exhaustion en tendencia bajista")
+                elif bollinger_exhaustion:
                     signal_strength = "HIGH"
-                    logger.info(
-                        f"🚨 SEÑAL HIGH | {pattern_detected} en BOTTOM | "
-                        f"Reversión alcista en agotamiento bajista | Mean Reversion PERFECTA"
-                    )
-                else:  # NONE o PEAK
+                    logger.info(f"🚨 HIGH | Hammer + Bollinger Exhaustion en tendencia bajista")
+                elif candle_exhaustion:
                     signal_strength = "LOW"
-                    logger.info(
-                        f"ℹ️  SEÑAL LOW | {pattern_detected} sin agotamiento | "
-                        f"Reversión alcista posible pero sin confirmación"
-                    )
-            elif pattern_detected == "INVERTED_HAMMER":
-                if exhaustion_type == "BOTTOM":
-                    signal_strength = "MEDIUM"
-                    logger.info(
-                        f"⚠️  SEÑAL MEDIUM | {pattern_detected} en BOTTOM | "
-                        f"Reversión alcista en agotamiento moderado"
-                    )
-                else:  # NONE o PEAK
-                    signal_strength = "LOW"
-                    logger.info(
-                        f"ℹ️  SEÑAL LOW | {pattern_detected} sin agotamiento | "
-                        f"Reversión alcista posible pero sin confirmación"
-                    )
-            elif pattern_detected == "HANGING_MAN":
-                if exhaustion_type == "BOTTOM":
-                    signal_strength = "MEDIUM"
-                    logger.info(
-                        f"⚠️  SEÑAL MEDIUM | {pattern_detected} en BOTTOM | "
-                        f"Continuación bajista en agotamiento (precaución)"
-                    )
+                    logger.info(f"ℹ️  LOW | Hammer + Candle Exhaustion (sin Bollinger)")
                 else:
+                    signal_strength = "VERY_LOW"
+                    logger.info(f"⚪ VERY LOW | Hammer sin exhaustion")
+            
+            elif pattern_detected == "HANGING_MAN":
+                # Patrón SECUNDARIO alcista
+                if bollinger_exhaustion and candle_exhaustion:
+                    signal_strength = "MEDIUM"
+                    logger.info(f"⚠️  MEDIUM | Hanging Man + ambos exhaustion en tendencia bajista")
+                elif bollinger_exhaustion:
                     signal_strength = "LOW"
-                    logger.info(
-                        f"ℹ️  SEÑAL LOW | {pattern_detected} sin agotamiento | "
-                        f"Continuación bajista débil"
-                    )
-            # SHOOTING_STAR en tendencia bajista = NONE (contra-estrategia)
+                    logger.info(f"ℹ️  LOW | Hanging Man + Bollinger Exhaustion")
+                elif candle_exhaustion:
+                    signal_strength = "VERY_LOW"
+                    logger.info(f"⚪ VERY LOW | Hanging Man + Candle Exhaustion solamente")
+                else:
+                    signal_strength = "NONE"
+                    logger.info(f"⛔ NONE | Hanging Man sin exhaustion - Descartado")
+            
+            # SHOOTING_STAR e INVERTED_HAMMER no son válidos en tendencia bajista para Mean Reversion
             elif pattern_detected == "SHOOTING_STAR":
                 signal_strength = "NONE"
-                logger.info(
-                    f"⚪ SEÑAL NONE | {pattern_detected} en tendencia BAJISTA | "
-                    f"Patrón bajista en tendencia bajista - Contra-estrategia Mean Reversion"
-                )
+                logger.info(f"⛔ NONE | Shooting Star en tendencia bajista - Contra-estrategia Mean Reversion")
+            
+            elif pattern_detected == "INVERTED_HAMMER":
+                signal_strength = "NONE"
+                logger.info(f"⛔ NONE | Inverted Hammer en tendencia bajista - Patrón no aplicable")
         
-        # CONTEXTO: NEUTRAL (sin tendencia clara)
-        else:
-            # En neutral, degradar todas las señales a LOW
-            if pattern_is_bearish or pattern_is_bullish:
-                signal_strength = "LOW"
-                logger.info(
-                    f"ℹ️  SEÑAL LOW | {pattern_detected} en tendencia NEUTRAL | "
-                    f"Sin contexto de tendencia clara"
-                )
-        
-        # VALIDACIÓN ADICIONAL: Verificar que hay tendencia clara (no lateral)
-        # Si trend_analysis.is_aligned == False, degradar HIGH/MEDIUM a LOW
-        if signal_strength in ["HIGH", "MEDIUM"] and not trend_analysis.is_aligned:
-            original_strength = signal_strength
-            signal_strength = "LOW"
-            logger.warning(
-                f"⚠️  DEGRADACIÓN {original_strength} → LOW | "
-                f"No hay tendencia clara (posible lateral) | "
-                f"Recomendación: Esperar confirmación"
-            )
+        # ═════════════════════════════════════════════════════════════════════
+        # CASO C: NEUTRAL (Reducir un nivel de fuerza)
+        # ═════════════════════════════════════════════════════════════════════
+        elif is_neutral:
+            logger.info(f"⚖️  Tendencia NEUTRAL detectada - Reduciendo scoring un nivel")
+            
+            # Evaluar igual que si hubiera tendencia, pero degradar resultado
+            temp_strength = "NONE"
+            
+            if pattern_detected == "SHOOTING_STAR":
+                if bollinger_exhaustion and candle_exhaustion:
+                    temp_strength = "HIGH"  # Se degradará a MEDIUM
+                elif bollinger_exhaustion:
+                    temp_strength = "MEDIUM"  # Se degradará a LOW
+                elif candle_exhaustion:
+                    temp_strength = "VERY_LOW"  # Se degradará a NONE
+                else:
+                    temp_strength = "NONE"
+            
+            elif pattern_detected == "HAMMER":
+                if bollinger_exhaustion and candle_exhaustion:
+                    temp_strength = "HIGH"  # Se degradará a MEDIUM
+                elif bollinger_exhaustion:
+                    temp_strength = "MEDIUM"  # Se degradará a LOW
+                elif candle_exhaustion:
+                    temp_strength = "VERY_LOW"  # Se degradará a NONE
+                else:
+                    temp_strength = "NONE"
+            
+            elif pattern_detected in ["INVERTED_HAMMER", "HANGING_MAN"]:
+                if bollinger_exhaustion and candle_exhaustion:
+                    temp_strength = "LOW"  # Se degradará a VERY_LOW
+                elif bollinger_exhaustion:
+                    temp_strength = "VERY_LOW"  # Se degradará a NONE
+                else:
+                    temp_strength = "NONE"
+            
+            # Degradar un nivel
+            downgrade_map = {
+                "VERY_HIGH": "HIGH",
+                "HIGH": "MEDIUM",
+                "MEDIUM": "LOW",
+                "LOW": "VERY_LOW",
+                "VERY_LOW": "NONE",
+                "NONE": "NONE"
+            }
+            signal_strength = downgrade_map.get(temp_strength, "NONE")
+            logger.info(f"➡️  Score degradado de {temp_strength} a {signal_strength} por tendencia NEUTRAL")
         
         # Determinar si el patrón es "contra-tendencia" (para compatibilidad con storage)
         is_counter_trend = False
@@ -1197,10 +1266,11 @@ class AnalysisService:
             f"🎯 PATRÓN DETECTADO: {pattern_detected}\n"
             f"{'═'*60}\n"
             f"📊 Confianza Técnica: {pattern_confidence:.1%}\n"
-            f"📈 Tendencia: {trend_analysis.status} (Score: {trend_analysis.score:+d}/10)\n"
+            f"📈 Tendencia: {trend_analysis.status} (Score: {trend_analysis.score:+.1f}/10.0)\n"
             f"🔄 Alineación: {'✓ Alineado' if is_trend_aligned else '✗ No alineado'}\n"
+            f"💥 Candle Exhaustion: {'✅ SÍ' if candle_exhaustion else '❌ NO'}\n"
+            f"📍 Bollinger Exhaustion: {'✅ ' + exhaustion_type if bollinger_exhaustion else '❌ NONE'}\n"
             f"🎚️  Fuerza de Señal: {signal_strength}\n"
-            f"📍 Zona Bollinger: {exhaustion_type}\n"
             f"⚠️  Contra-Tendencia: {'SÍ' if is_counter_trend else 'NO'}\n"
         )
         
@@ -1310,11 +1380,13 @@ class AnalysisService:
                     source=current_candle.source,
                     symbol=current_candle.symbol
                 ),
-                ema_200=last_closed["ema_200"],
-                ema_50=last_closed.get("ema_50", np.nan),
-                ema_30=last_closed.get("ema_30", np.nan),
-                ema_20=last_closed.get("ema_20", np.nan),
+                ema_5=last_closed.get("ema_5", np.nan),
                 ema_7=last_closed.get("ema_7", np.nan),
+                ema_10=last_closed.get("ema_10", np.nan),
+                ema_15=last_closed.get("ema_15", np.nan),
+                ema_20=last_closed.get("ema_20", np.nan),
+                ema_30=last_closed.get("ema_30", np.nan),
+                ema_50=last_closed.get("ema_50", np.nan),
                 trend=trend_analysis.status,
                 trend_score=trend_analysis.score,
                 is_trend_aligned=trend_analysis.is_aligned,
@@ -1322,9 +1394,10 @@ class AnalysisService:
                 trend_filtered=Config.USE_TREND_FILTER,
                 chart_base64=chart_base64,
                 statistics=statistics,
-                # Nuevos campos de Bollinger Bands
+                # Campos del nuevo sistema de scoring
                 signal_strength=signal_strength,
                 exhaustion_type=exhaustion_type,
+                candle_exhaustion=candle_exhaustion,
                 is_counter_trend=is_counter_trend,
                 bb_upper=float(bb_upper) if not pd.isna(bb_upper) else None,
                 bb_lower=float(bb_lower) if not pd.isna(bb_lower) else None
@@ -1332,7 +1405,7 @@ class AnalysisService:
             
             logger.info(
                 f"🎯 PATTERN DETECTED | {signal.source} | {signal.pattern} | "
-                f"Trend={trend_analysis.status} (Score: {trend_analysis.score:+d}) | "
+                f"Trend={trend_analysis.status} (Score: {trend_analysis.score:+.1f}/10.0) | "
                 f"Strength={signal_strength} | Exhaustion={exhaustion_type} | "
                 f"Close={signal.candle.close:.5f} | Confidence={signal.confidence:.2f} | "
                 f"Chart={'✓' if chart_base64 else '✗'}"

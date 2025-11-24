@@ -76,62 +76,99 @@ def generate_chart_base64(
     df_plot.columns = ['Open', 'High', 'Low', 'Close', 'Volume']
     
     # Preparar EMAs como additional plots
-    # Estrategia Mean Reversion: Priorizar EMAs cortas (7, 20, 50)
+    # Sistema de Puntuación Ponderada - Todas las EMAs con colores únicos
     additional_plots = []
     
-    # EMA 7 - CRÍTICA para Mean Reversion (Magenta/Fucsia)
+    # EMA 5 - Ultra Rápida (Peso: 2.0) - Rojo brillante
+    if 'ema_5' in df_subset.columns and not df_subset['ema_5'].isna().all():
+        ema_5_data = df_subset['ema_5'].copy()
+        ema_5_plot = mpf.make_addplot(
+            ema_5_data,
+            color='#FF0000',  # Rojo brillante
+            width=3.0,
+            panel=0,
+            secondary_y=False,
+            label='EMA 5 (2.0pts)'
+        )
+        additional_plots.append(ema_5_plot)
+    
+    # EMA 7 - Muy Rápida (Peso: 2.0) - Magenta
     if 'ema_7' in df_subset.columns and not df_subset['ema_7'].isna().all():
         ema_7_data = df_subset['ema_7'].copy()
         ema_7_plot = mpf.make_addplot(
             ema_7_data,
             color='#FF00FF',  # Magenta brillante
-            width=2.5,
+            width=2.8,
             panel=0,
             secondary_y=False,
-            label='EMA 7'
+            label='EMA 7 (2.0pts)'
         )
         additional_plots.append(ema_7_plot)
     
-    # EMA 20 - Confirmación Momentum (Naranja)
+    # EMA 10 - Rápida (Peso: 1.5) - Naranja
+    if 'ema_10' in df_subset.columns and not df_subset['ema_10'].isna().all():
+        ema_10_data = df_subset['ema_10'].copy()
+        ema_10_plot = mpf.make_addplot(
+            ema_10_data,
+            color='#FF8000',  # Naranja
+            width=2.5,
+            panel=0,
+            secondary_y=False,
+            label='EMA 10 (1.5pts)'
+        )
+        additional_plots.append(ema_10_plot)
+    
+    # EMA 15 - Rápida-Media (Peso: 1.5) - Amarillo
+    if 'ema_15' in df_subset.columns and not df_subset['ema_15'].isna().all():
+        ema_15_data = df_subset['ema_15'].copy()
+        ema_15_plot = mpf.make_addplot(
+            ema_15_data,
+            color='#FFD700',  # Amarillo dorado
+            width=2.2,
+            panel=0,
+            secondary_y=False,
+            label='EMA 15 (1.5pts)'
+        )
+        additional_plots.append(ema_15_plot)
+    
+    # EMA 20 - Media (Peso: 1.0) - Verde Lima
     if 'ema_20' in df_subset.columns and not df_subset['ema_20'].isna().all():
         ema_20_data = df_subset['ema_20'].copy()
         ema_20_plot = mpf.make_addplot(
             ema_20_data,
-            color='#FF8000',  # Naranja
+            color='#00FF00',  # Verde lima
             width=2.0,
             panel=0,
             secondary_y=False,
-            label='EMA 20'
+            label='EMA 20 (1.0pt)'
         )
         additional_plots.append(ema_20_plot)
     
-    # EMA 50 - Validación Tendencia (Verde)
+    # EMA 30 - Media-Lenta (Peso: 1.0) - Cyan
+    if 'ema_30' in df_subset.columns and not df_subset['ema_30'].isna().all():
+        ema_30_data = df_subset['ema_30'].copy()
+        ema_30_plot = mpf.make_addplot(
+            ema_30_data,
+            color='#00FFFF',  # Cyan
+            width=1.8,
+            panel=0,
+            secondary_y=False,
+            label='EMA 30 (1.0pt)'
+        )
+        additional_plots.append(ema_30_plot)
+    
+    # EMA 50 - Lenta (Peso: 1.0) - Azul
     if 'ema_50' in df_subset.columns and not df_subset['ema_50'].isna().all():
         ema_50_data = df_subset['ema_50'].copy()
         ema_50_plot = mpf.make_addplot(
             ema_50_data,
-            color='#00FF80',  # Verde brillante
+            color='#0080FF',  # Azul brillante
             width=1.5,
             panel=0,
             secondary_y=False,
-            label='EMA 50'
+            label='EMA 50 (1.0pt)'
         )
         additional_plots.append(ema_50_plot)
-    
-    # EMA 200 - Solo Referencia Visual (Cyan, opcional)
-    # Nota: Ya NO se usa en lógica de Mean Reversion, solo visualización
-    if 'ema_200' in df_subset.columns and not df_subset['ema_200'].isna().all():
-        ema_200_data = df_subset['ema_200'].copy()
-        ema_200_plot = mpf.make_addplot(
-            ema_200_data,
-            color='#00D4FF',  # Cyan brillante (más tenue)
-            width=1.0,
-            panel=0,
-            secondary_y=False,
-            label='EMA 200',
-            alpha=0.6  # Semi-transparente para no distraer
-        )
-        additional_plots.append(ema_200_plot)
     
     # Configurar estilo del gráfico
     # Colores: Velas alcistas (verdes), velas bajistas (rojas)
@@ -188,17 +225,23 @@ def generate_chart_base64(
         
         # Agregar leyenda para las EMAs en el panel principal (axes[0])
         if additional_plots:
-            # Crear handles de leyenda manualmente (orden de prioridad)
+            # Crear handles de leyenda manualmente (orden por peso descendente)
             legend_elements = []
             
+            if 'ema_5' in df_subset.columns and not df_subset['ema_5'].isna().all():
+                legend_elements.append(Line2D([0], [0], color='#FF0000', lw=3.0, label='EMA 5 (2.0pts)'))
             if 'ema_7' in df_subset.columns and not df_subset['ema_7'].isna().all():
-                legend_elements.append(Line2D([0], [0], color='#FF00FF', lw=2.5, label='EMA 7 (Agotamiento)'))
+                legend_elements.append(Line2D([0], [0], color='#FF00FF', lw=2.8, label='EMA 7 (2.0pts)'))
+            if 'ema_10' in df_subset.columns and not df_subset['ema_10'].isna().all():
+                legend_elements.append(Line2D([0], [0], color='#FF8000', lw=2.5, label='EMA 10 (1.5pts)'))
+            if 'ema_15' in df_subset.columns and not df_subset['ema_15'].isna().all():
+                legend_elements.append(Line2D([0], [0], color='#FFD700', lw=2.2, label='EMA 15 (1.5pts)'))
             if 'ema_20' in df_subset.columns and not df_subset['ema_20'].isna().all():
-                legend_elements.append(Line2D([0], [0], color='#FF8000', lw=2.0, label='EMA 20 (Momentum)'))
+                legend_elements.append(Line2D([0], [0], color='#00FF00', lw=2.0, label='EMA 20 (1.0pt)'))
+            if 'ema_30' in df_subset.columns and not df_subset['ema_30'].isna().all():
+                legend_elements.append(Line2D([0], [0], color='#00FFFF', lw=1.8, label='EMA 30 (1.0pt)'))
             if 'ema_50' in df_subset.columns and not df_subset['ema_50'].isna().all():
-                legend_elements.append(Line2D([0], [0], color='#00FF80', lw=1.5, label='EMA 50 (Tendencia)'))
-            if 'ema_200' in df_subset.columns and not df_subset['ema_200'].isna().all():
-                legend_elements.append(Line2D([0], [0], color='#00D4FF', lw=1.0, label='EMA 200 (Referencia)', alpha=0.6))
+                legend_elements.append(Line2D([0], [0], color='#0080FF', lw=1.5, label='EMA 50 (1.0pt)'))
             
             # Agregar leyenda en la esquina superior izquierda
             axes[0].legend(
@@ -207,8 +250,9 @@ def generate_chart_base64(
                 frameon=True,
                 fancybox=True,
                 shadow=True,
-                fontsize=9,
-                framealpha=0.9
+                fontsize=8,
+                framealpha=0.95,
+                ncol=2  # 2 columnas para mejor aprovechamiento del espacio
             )
         
         # Guardar figura en buffer

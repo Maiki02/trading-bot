@@ -38,6 +38,49 @@ def get_candle_direction(open_price: float, close: float) -> str:
         return "DOJI"
 
 
+def detect_candle_exhaustion(
+    pattern: str,
+    current_high: float,
+    current_low: float,
+    prev_high: float,
+    prev_low: float
+) -> bool:
+    """
+    Detecta si una vela muestra agotamiento (Candle Exhaustion) al romper
+    y ser rechazada del nivel de la vela anterior.
+    
+    LÓGICA:
+    - Para patrones BAJISTAS (Shooting Star, Hanging Man):
+      Exhaustion = Current_High > Prev_High (Rompió máximo y fue rechazado)
+    
+    - Para patrones ALCISTAS (Hammer, Inverted Hammer):
+      Exhaustion = Current_Low < Prev_Low (Rompió mínimo y fue rechazado)
+    
+    Esta condición indica que el precio intentó continuar la tendencia
+    pero fue fuertemente rechazado, aumentando probabilidad de reversión.
+    
+    Args:
+        pattern: Tipo de patrón ("SHOOTING_STAR", "HANGING_MAN", "HAMMER", "INVERTED_HAMMER")
+        current_high: Precio máximo de la vela actual
+        current_low: Precio mínimo de la vela actual
+        prev_high: Precio máximo de la vela anterior
+        prev_low: Precio mínimo de la vela anterior
+        
+    Returns:
+        bool: True si detecta Candle Exhaustion, False en caso contrario
+    """
+    # Patrones bajistas: verificar ruptura y rechazo del máximo
+    if pattern in ["SHOOTING_STAR", "HANGING_MAN"]:
+        return current_high > prev_high
+    
+    # Patrones alcistas: verificar ruptura y rechazo del mínimo
+    elif pattern in ["HAMMER", "INVERTED_HAMMER"]:
+        return current_low < prev_low
+    
+    # Patrón no reconocido
+    return False
+
+
 def _calculate_candle_metrics(
     open_price: float,
     high: float,
