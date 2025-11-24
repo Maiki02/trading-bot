@@ -139,33 +139,43 @@ class TelegramService:
         # ═════════════════════════════════════════════════════════════════════
         # TÍTULO BASADO EN SIGNAL_STRENGTH (Nuevo Sistema)
         # ═════════════════════════════════════════════════════════════════════
-        logger.debug(f"🔹 Formateando mensaje para señal con fuerza: {signal.signal_strength}")
 
+  # Definir título según fuerza y dirección esperada
         if signal.signal_strength == "HIGH":
-            # 🚨 ALERTA FUERTE - Patrón en zona de agotamiento (Cúspide o Base)
+            # 🚨 ALERTA FUERTE (Cúspide o Base confirmada + Patrón Ideal)
+            
+            # Patrones Bajistas (Reversión en Techo)
             if signal.pattern in ["SHOOTING_STAR", "HANGING_MAN"]:
-                title = f"🚨 ALERTA FUERTE | {signal.symbol}\nAgotamiento ALCISTA confirmado (Cúspide)\n"
+                title = f"🚨🔴 ALERTA FUERTE | *{signal.symbol}*\nPosible operación a la BAJA.\n"
+            
+            # Patrones Alcistas (Reversión en Piso)
             else:  # HAMMER, INVERTED_HAMMER
-                title = f"🚨 ALERTA FUERTE | {signal.symbol}\nAgotamiento BAJISTA confirmado (Base)\n"
+                title = f"🚨🟢 ALERTA FUERTE | *{signal.symbol}*\nPosible operación al ALZA.\n"
+
         elif signal.signal_strength == "MEDIUM":
-            # ⚠️ AVISO - Posible debilitamiento
+            # ⚠️ AVISO (Cúspide o Base confirmada + Patrón Débil)
+            
+            # Patrones Bajistas (Reversión en Techo)
             if signal.pattern in ["SHOOTING_STAR", "INVERTED_HAMMER"]:
-                title = f"⚠️ AVISO | {signal.symbol}\nPosible debilitamiento alcista\n"
+                title = f"⚠️🔴 AVISO | *{signal.symbol}*\n📉 Posible operación a la BAJA (Riesgo Medio)\n"
+            
+            # Patrones Alcistas (Reversión en Piso)
             else:  # HAMMER, HANGING_MAN
-                title = f"⚠️ AVISO | {signal.symbol}\nPosible debilitamiento bajista\n"
+                title = f"⚠️🟢 AVISO | *{signal.symbol}*\n📈 Posible operación al ALZA (Riesgo Medio)\n"
+
         else:  # LOW
-            # ℹ️ INFORMATIVO - Sin agotamiento claro
-            title = f"ℹ️ PATRÓN DETECTADO | {signal.symbol}\nSolo informativo - Requiere análisis adicional\n"
+            # ℹ️ INFORMATIVO (Sin zona de agotamiento clara)
+            title = f"ℹ️ PATRÓN DETECTADO | *{signal.symbol}*\nSolo informativo - Requiere análisis adicional\n"
         
         # Formatear EMAs (mostrar N/A si no están disponibles)
         import math
-        ema_20_str = f"{signal.ema_20:.5f}" if not math.isnan(signal.ema_20) else "N/A"
-        ema_30_str = f"{signal.ema_30:.5f}" if not math.isnan(signal.ema_30) else "N/A"
-        ema_50_str = f"{signal.ema_50:.5f}" if not math.isnan(signal.ema_50) else "N/A"
+        # ema_20_str = f"{signal.ema_20:.5f}" if not math.isnan(signal.ema_20) else "N/A"
+        # ema_30_str = f"{signal.ema_30:.5f}" if not math.isnan(signal.ema_30) else "N/A"
+        # ema_50_str = f"{signal.ema_50:.5f}" if not math.isnan(signal.ema_50) else "N/A"
         
-        # Formatear Bollinger Bands
-        bb_upper_str = f"{signal.bb_upper:.5f}" if signal.bb_upper is not None else "N/A"
-        bb_lower_str = f"{signal.bb_lower:.5f}" if signal.bb_lower is not None else "N/A"
+        # # Formatear Bollinger Bands
+        # bb_upper_str = f"{signal.bb_upper:.5f}" if signal.bb_upper is not None else "N/A"
+        # bb_lower_str = f"{signal.bb_lower:.5f}" if signal.bb_lower is not None else "N/A"
         
         # Determinar estructura de EMAs para mensaje
         if not math.isnan(signal.ema_20) and not math.isnan(signal.ema_200):
@@ -178,27 +188,27 @@ class TelegramService:
         else:
             estructura = "Datos insuficientes"
         
-        # Determinar interpretación de tendencia
-        if signal.trend_score >= 6:
-            trend_interpretation = "Tendencia alcista muy fuerte"
-        elif signal.trend_score >= 1:
-            trend_interpretation = "Tendencia alcista débil"
-        elif signal.trend_score >= -1:
-            trend_interpretation = "Sin tendencia clara (Mercado lateral)"
-        elif signal.trend_score >= -5:
-            trend_interpretation = "Tendencia bajista débil"
-        else:
-            trend_interpretation = "Tendencia bajista muy fuerte"
+        # # Determinar interpretación de tendencia
+        # if signal.trend_score >= 6:
+        #     trend_interpretation = "Tendencia alcista muy fuerte"
+        # elif signal.trend_score >= 1:
+        #     trend_interpretation = "Tendencia alcista débil"
+        # elif signal.trend_score >= -1:
+        #     trend_interpretation = "Sin tendencia clara (Mercado lateral)"
+        # elif signal.trend_score >= -5:
+        #     trend_interpretation = "Tendencia bajista débil"
+        # else:
+        #     trend_interpretation = "Tendencia bajista muy fuerte"
         
         # Emoji de zona de agotamiento
         exhaustion_emoji = ""
         exhaustion_text = ""
         if signal.exhaustion_type == "PEAK":
             exhaustion_emoji = "🔺"
-            exhaustion_text = "Cúspide de Bollinger"
+            exhaustion_text = "Señal de agotamiento"
         elif signal.exhaustion_type == "BOTTOM":
             exhaustion_emoji = "🔻"
-            exhaustion_text = "Base de Bollinger"
+            exhaustion_text = "Señal de agotamiento"
         else:
             exhaustion_emoji = "➖"
             exhaustion_text = "Zona Neutra"
@@ -214,26 +224,29 @@ class TelegramService:
         body = (
             f"━━━━━━━━━━━━━━━━━━━━━━\n"
             f"📊 INFO DE VELA\n"
-            f"━━━━━━━━━━━━━━━━━━━━━━\n"
+            # f"━━━━━━━━━━━━━━━━━━━━━━\n"
             f"🔹 Fuente: {signal.source}\n"
             f"🔹 Patrón: {signal.pattern}\n"
             f"🔹 Timestamp: {timestamp_str}\n"
-            f"🔹 OHLC: O={signal.candle.open:.2f} | H={signal.candle.high:.2f} | L={signal.candle.low:.2f} | C={signal.candle.close:.2f}\n"
+            # f"🔹 OHLC: O={signal.candle.open:.2f} | H={signal.candle.high:.2f} | L={signal.candle.low:.2f} | C={signal.candle.close:.2f}\n"
             f"🔹 Confianza Técnica: {signal.confidence:.0%}\n"
             f"🔹 Fuerza de Señal: {signal.signal_strength}\n\n"
             f"━━━━━━━━━━━━━━━━━━━━━━\n"
-            f"🎯 TENDENCIA\n"
-            f"━━━━━━━━━━━━━━━━━━━━━━\n"
+            #f"\n"
+            f"🎯 TENDENCIA Y AGOTAMIENTO\n"
+            #f"━━━━━━━━━━━━━━━━━━━━━━\n"
             f"🔹 Estado: {signal.trend} (Score: {signal.trend_score:+d}/10)\n"
-            f"🔹 Interpretación: {trend_interpretation}\n"
-            f"🔹 Estructura: {estructura}\n\n"
-            f"━━━━━━━━━━━━━━━━━━━━━━\n"
-            f"📉 BOLLINGER BANDS\n"
-            f"━━━━━━━━━━━━━━━━━━━━━━\n"
+            # f"🔹 Interpretación: {trend_interpretation}\n"
+            f"🔹 Estructura: {estructura}\n"
             f"{exhaustion_emoji} Zona: {exhaustion_text}\n"
-            f"🔹 Banda Superior: {bb_upper_str}\n"
-            f"🔹 Banda Inferior: {bb_lower_str}\n\n"
+            f"\n"
             # f"━━━━━━━━━━━━━━━━━━━━━━\n"
+            # f"📉 BOLLINGER BANDS\n"
+            # f"━━━━━━━━━━━━━━━━━━━━━━\n"
+            # f"{exhaustion_emoji} Zona: {exhaustion_text}\n"
+            # f"🔹 Banda Superior: {bb_upper_str}\n"
+            # f"🔹 Banda Inferior: {bb_lower_str}\n\n"
+            # # f"━━━━━━━━━━━━━━━━━━━━━━\n"
             # f"📈 INDICADORES\n"
             # f"━━━━━━━━━━━━━━━━━━━━━━\n"
             # f"🔹 EMA 200: {signal.ema_200:.5f}\n"
@@ -282,9 +295,10 @@ class TelegramService:
         # Verificar si hay datos mínimos (al menos 1 caso en by_range)
         if by_range.get('total_cases', 0) == 0:
             return (
+                f"\n"
                 f"━━━━━━━━━━━━━━━━━━━━━━\n"
                 f"📊 PROBABILIDAD (30d)\n"
-                f"━━━━━━━━━━━━━━━━━━━━━━\n"
+                #f"━━━━━━━━━━━━━━━━━━━━━━\n"
                 f"⚠️  Sin datos históricos\n\n"
             )
         
@@ -344,7 +358,7 @@ class TelegramService:
         header = (
             f"━━━━━━━━━━━━━━━━━━━━━━\n"
             f"📊 PROBABILIDAD (30d)\n"
-            f"━━━━━━━━━━━━━━━━━━━━━━\n"
+            #f"━━━━━━━━━━━━━━━━━━━━━━\n"
         )
         
         return header + "\n".join(lines) + "\n\n"
@@ -432,7 +446,7 @@ class TelegramService:
         payload = {
             "first_message": title,
             "image_base64": chart_base64 if chart_base64 else "",
-            #"message_type": "standard",
+            #"message_type": "markdown",
             "entries": [
                 {
                     "subscription": subscription,

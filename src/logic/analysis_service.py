@@ -1045,15 +1045,10 @@ class AnalysisService:
         
         signal_strength = "LOW"  # Default
         
-        if is_counter_trend:
-            # CONTEXTO: Patrón va contra la tendencia (no operar)
-            signal_strength = "LOW"
-            logger.info(
-                f"⚠️  PATRÓN CONTRA-TENDENCIA DETECTADO | "
-                f"{pattern_detected} en tendencia {current_status} | "
-                f"Clasificado como LOW (no operar)"
-            )
-        elif is_bullish_trend:
+        # PRIORIDAD 1: Evaluar patrones en zonas de agotamiento primero
+        # (antes de descartar por contra-tendencia)
+        
+        if is_bullish_trend:
             # CONTEXTO A: TENDENCIA ALCISTA (Bullish)
             if pattern_detected == "SHOOTING_STAR":
                 if exhaustion_type == "PEAK":
@@ -1072,13 +1067,22 @@ class AnalysisService:
                     signal_strength = "MEDIUM"  # 🟠 Aviso
                     logger.info(
                         f"⚠️  AVISO | INVERTED_HAMMER en CÚSPIDE | "
-                        f"Posible debilitamiento | Strength: MEDIUM"
+                        f"Posible debilitamiento alcista | Strength: MEDIUM"
                     )
                 else:
                     signal_strength = "LOW"  # 🔵 Informativo
                     logger.info(
                         f"ℹ️  INVERTED_HAMMER en Zona Neutra | Strength: LOW"
                     )
+            elif is_counter_trend:
+                # Patrones alcistas (HAMMER) en tendencia alcista → contra-tendencia
+                signal_strength = "LOW"
+                logger.info(
+                    f"⚠️  PATRÓN CONTRA-TENDENCIA | "
+                    f"{pattern_detected} en tendencia {current_status} | "
+                    f"Clasificado como LOW (no operar)"
+                )
+                
         elif is_bearish_trend:
             # CONTEXTO B: TENDENCIA BAJISTA (Bearish)
             if pattern_detected == "HAMMER":
@@ -1098,13 +1102,21 @@ class AnalysisService:
                     signal_strength = "MEDIUM"  # 🟠 Aviso
                     logger.info(
                         f"⚠️  AVISO | HANGING_MAN en BASE | "
-                        f"Posible debilitamiento | Strength: MEDIUM"
+                        f"Posible debilitamiento bajista | Strength: MEDIUM"
                     )
                 else:
                     signal_strength = "LOW"  # 🔵 Informativo
                     logger.info(
                         f"ℹ️  HANGING_MAN en Zona Neutra | Strength: LOW"
                     )
+            elif is_counter_trend:
+                # Patrones bajistas (SHOOTING_STAR) en tendencia bajista → contra-tendencia
+                signal_strength = "LOW"
+                logger.info(
+                    f"⚠️  PATRÓN CONTRA-TENDENCIA | "
+                    f"{pattern_detected} en tendencia {current_status} | "
+                    f"Clasificado como LOW (no operar)"
+                )
         
         logger.info(
             f"\n{'═'*60}\n"

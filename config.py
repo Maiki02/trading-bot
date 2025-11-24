@@ -47,7 +47,7 @@ class CandleConfig:
     
     # Bollinger Bands para detección de agotamiento de tendencia
     BB_PERIOD: int = 20  # Periodo de la media móvil para Bollinger Bands
-    BB_STD_DEV: float = 2.5  # Desviación estándar (2.5 para asegurar agotamiento real)
+    BB_STD_DEV: float = 2.0  # Desviación estándar (2.0 para asegurar agotamiento real)
 
 
 @dataclass(frozen=True)
@@ -199,10 +199,18 @@ class Config:
     # "sol": InstrumentConfig(symbol="SOLUSDT", exchange="BINANCE", timeframe="1", full_symbol="BINANCE:SOLUSDT"),
 
     # FOREX (Ojo: El mercado cierra fines de semana)
-    "eurusd": InstrumentConfig(symbol="EURUSD", exchange="OANDA", timeframe="1", full_symbol="OANDA:EURUSD"),
-    "gbpusd": InstrumentConfig(symbol="GBPUSD", exchange="OANDA", timeframe="1", full_symbol="OANDA:GBPUSD"),
-    "usdjpy": InstrumentConfig(symbol="USDJPY", exchange="OANDA", timeframe="1", full_symbol="OANDA:USDJPY"),
-    "usdchf": InstrumentConfig(symbol="USDCHF", exchange="OANDA", timeframe="1", full_symbol="OANDA:USDCHF"),
+    # "eurusd": InstrumentConfig(symbol="EURUSD", exchange="OANDA", timeframe="1", full_symbol="OANDA:EURUSD"),
+    # "gbpusd": InstrumentConfig(symbol="GBPUSD", exchange="OANDA", timeframe="1", full_symbol="OANDA:GBPUSD"),
+    # "usdjpy": InstrumentConfig(symbol="USDJPY", exchange="OANDA", timeframe="1", full_symbol="OANDA:USDJPY"),
+    # "usdchf": InstrumentConfig(symbol="USDCHF", exchange="OANDA", timeframe="1", full_symbol="OANDA:USDCHF"),
+    
+    # FXCM 
+    "eurusd": InstrumentConfig(symbol="EURUSD", exchange="FXCM", timeframe="1", full_symbol="FXCM:EURUSD"),
+    "gbpusd": InstrumentConfig(symbol="GBPUSD", exchange="FXCM", timeframe="1", full_symbol="FXCM:GBPUSD"),
+    "usdjpy": InstrumentConfig(symbol="USDJPY", exchange="FXCM", timeframe="1", full_symbol="FXCM:USDJPY"),
+    "usdchf": InstrumentConfig(symbol="USDCHF", exchange="FXCM", timeframe="1", full_symbol="FXCM:USDCHF"),
+    
+    
     }
     
     @classmethod
