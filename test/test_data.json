@@ -5647,5 +5647,40 @@
     "maximo": 1.15222,
     "minimo": 1.15213,
     "tipo_vela": "hanging_man"
+  },
+  {
+    "apertura": 156.905,
+    "cierre": 156.903,
+    "maximo": 156.90599999999998,
+    "minimo": 156.896,
+    "tipo_vela": "hanging_man"
+  },
+  {
+    "apertura": 156.897,
+    "cierre": 156.895,
+    "maximo": 156.904,
+    "minimo": 156.894,
+    "tipo_vela": "shooting_star"
+  },
+  {
+    "apertura": 1.31077,
+    "cierre": 1.31076,
+    "maximo": 1.31077,
+    "minimo": 1.31073,
+    "tipo_vela": "hanging_man"
+  },
+  {
+    "apertura": 156.891,
+    "cierre": 156.892,
+    "maximo": 156.896,
+    "minimo": 156.891,
+    "tipo_vela": "inverted_hammer"
+  },
+  {
+    "apertura": 1.15209,
+    "cierre": 1.15211,
+    "maximo": 1.15217,
+    "minimo": 1.15208,
+    "tipo_vela": "inverted_hammer"
   }
 ]

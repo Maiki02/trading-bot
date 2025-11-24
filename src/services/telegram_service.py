@@ -251,7 +251,7 @@ class TelegramService:
             exhaustion_text = "Señal de piso"
         else:
             exhaustion_emoji = "➖"
-            exhaustion_text = "Zona Neutra - Sin agotamiento"
+            exhaustion_text = "Sin agotamiento"
         
         # Emoji de Candle Exhaustion
         candle_exh_emoji = "💥" if signal.candle_exhaustion else "⚪"
