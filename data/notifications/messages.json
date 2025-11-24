@@ -1993,5 +1993,152 @@
     "title": "ℹ️ *EURUSD* ℹ️\n🔴 Posible operación a la BAJA.\nFalta confirmación de agotamiento.\nProbabilidad baja.",
     "message": "━━━━━━━━━━━━━━━━━━━━━━\n🔹 Señal: LOW\n🔹 Fuente: FX_IDC\n🔹 Patrón: INVERTED_HAMMER\n🔹 Fecha: 2025-11-24 18:44:00\n🔺 Señal de techo\n⚪ Sin ruptura de nivel\n🔹 Tendencia: STRONG_BULLISH\n🔹 Score: +9.0/10.0\n🔍 Mensaje de info\n✅ Cumple Tendencia Alcista\n✅ Agotamiento Bollinger (PEAK/BOTTOM)\n❌ Agotamiento de Vela (NO)\n/n━━━━━━━━━━━━━━━━━━━━━━\n",
     "image_name": "chart_20251124_184501_313853.png"
+  },
+  {
+    "timestamp": "20251124_184601_852379",
+    "datetime": "2025-11-24T18:46:01.859112",
+    "title": "*EURUSD*\nMensaje informativo. No hay nada importante detectado.\n",
+    "message": "━━━━━━━━━━━━━━━━━━━━━━\n🔹 Señal: NONE\n🔹 Fuente: FX_IDC\n🔹 Patrón: HAMMER\n🔹 Fecha: 2025-11-24 18:45:00\n➖ Sin agotamiento\n⚪ Sin ruptura de nivel\n🔹 Tendencia: STRONG_BULLISH\n🔹 Score: +10.0/10.0\n🔍 Mensaje de info\n❌ Cumple Tendencia bajista\n❌ Agotamiento Bollinger (NO)\n❌ Agotamiento de Vela (NO)\n/n━━━━━━━━━━━━━━━━━━━━━━\n",
+    "image_name": "chart_20251124_184601_852379.png"
+  },
+  {
+    "timestamp": "20251124_184601_925321",
+    "datetime": "2025-11-24T18:46:01.937660",
+    "title": "*EURUSD*\nMensaje informativo. No hay nada importante detectado.\n",
+    "message": "━━━━━━━━━━━━━━━━━━━━━━\n🔹 Señal: NONE\n🔹 Fuente: FX\n🔹 Patrón: HAMMER\n🔹 Fecha: 2025-11-24 18:45:00\n➖ Sin agotamiento\n⚪ Sin ruptura de nivel\n🔹 Tendencia: STRONG_BULLISH\n🔹 Score: +10.0/10.0\n🔍 Mensaje de info\n❌ Cumple Tendencia bajista\n❌ Agotamiento Bollinger (NO)\n❌ Agotamiento de Vela (NO)\n/n━━━━━━━━━━━━━━━━━━━━━━\n",
+    "image_name": "chart_20251124_184601_925321.png"
+  },
+  {
+    "timestamp": "20251124_184702_093487",
+    "datetime": "2025-11-24T18:47:02.098215",
+    "title": "*USDJPY*\nMensaje informativo. No hay nada importante detectado.\n",
+    "message": "━━━━━━━━━━━━━━━━━━━━━━\n🔹 Señal: NONE\n🔹 Fuente: FX\n🔹 Patrón: INVERTED_HAMMER\n🔹 Fecha: 2025-11-24 18:46:00\n➖ Sin agotamiento\n⚪ Sin ruptura de nivel\n🔹 Tendencia: STRONG_BULLISH\n🔹 Score: +10.0/10.0\n🔍 Mensaje de info\n✅ Cumple Tendencia Alcista\n❌ Agotamiento Bollinger (NO)\n❌ Agotamiento de Vela (NO)\n/n━━━━━━━━━━━━━━━━━━━━━━\n",
+    "image_name": "chart_20251124_184702_093487.png"
+  },
+  {
+    "timestamp": "20251124_185101_077153",
+    "datetime": "2025-11-24T18:51:01.077153",
+    "title": "ℹ️ *EURUSD* ℹ️\n🟢 Posible operación al ALZA.\nFalta confirmación de agotamiento.\nProbabilidad baja.",
+    "message": "━━━━━━━━━━━━━━━━━━━━━━\n🔹 Señal: LOW\n🔹 Fuente: FX_IDC\n🔹 Patrón: HANGING_MAN\n🔹 Fecha: 2025-11-24 18:50:00\n🔺 Señal de techo\n⚪ Sin ruptura de nivel\n🔹 Tendencia: STRONG_BEARISH\n🔹 Score: -10.0/10.0\n🔍 Mensaje de info\n✅ Cumple Tendencia Bajista\n✅ Agotamiento Bollinger (PEAK/BOTTOM)\n❌ Agotamiento de Vela (NO)\n/n━━━━━━━━━━━━━━━━━━━━━━\n",
+    "image_name": "chart_20251124_185101_077153.png"
+  },
+  {
+    "timestamp": "20251124_185301_073193",
+    "datetime": "2025-11-24T18:53:01.083496",
+    "title": "*EURUSD*\nMensaje informativo. No hay nada importante detectado.\n",
+    "message": "━━━━━━━━━━━━━━━━━━━━━━\n🔹 Señal: NONE\n🔹 Fuente: FX_IDC\n🔹 Patrón: INVERTED_HAMMER\n🔹 Fecha: 2025-11-24 18:52:00\n➖ Sin agotamiento\n⚪ Sin ruptura de nivel\n🔹 Tendencia: STRONG_BEARISH\n🔹 Score: -6.0/10.0\n\n\n🔍 Mensaje de info\n❌ Cumple Tendencia alcista\n❌ Agotamiento Bollinger (NO)\n❌ Agotamiento de Vela (NO)\n\n━━━━━━━━━━━━━━━━━━━━━━\n",
+    "image_name": "chart_20251124_185301_073193.png"
+  },
+  {
+    "timestamp": "20251124_185600_413745",
+    "datetime": "2025-11-24T18:56:00.419908",
+    "title": "*USDJPY*\nMensaje informativo. No hay nada importante detectado.\n",
+    "message": "━━━━━━━━━━━━━━━━━━━━━━\n🔹 Señal: NONE\n🔹 Fuente: FX_IDC\n🔹 Patrón: HAMMER\n🔹 Fecha: 2025-11-24 18:55:00\n🔻 Señal de piso\n⚪ Sin ruptura de nivel\n🔹 Tendencia: STRONG_BULLISH\n🔹 Score: +10.0/10.0\n\n\n🔍 Mensaje de info\n❌ Cumple Tendencia bajista\n✅ Agotamiento Bollinger (PEAK/BOTTOM)\n❌ Agotamiento de Vela (NO)\n\n━━━━━━━━━━━━━━━━━━━━━━\n",
+    "image_name": "chart_20251124_185600_413745.png"
+  },
+  {
+    "timestamp": "20251124_185612_652425",
+    "datetime": "2025-11-24T18:56:12.668949",
+    "title": "*EURUSD*\nMensaje informativo. No hay nada importante detectado.\n",
+    "message": "━━━━━━━━━━━━━━━━━━━━━━\n🔹 Señal: NONE\n🔹 Fuente: FX\n🔹 Patrón: HANGING_MAN\n🔹 Fecha: 2025-11-24 18:55:00\n➖ Sin agotamiento\n⚪ Sin ruptura de nivel\n🔹 Tendencia: WEAK_BEARISH\n🔹 Score: -3.0/10.0\n\n\n🔍 Mensaje de info\n✅ Cumple Tendencia Bajista\n❌ Agotamiento Bollinger (NO)\n❌ Agotamiento de Vela (NO)\n\n━━━━━━━━━━━━━━━━━━━━━━\n",
+    "image_name": "chart_20251124_185612_652425.png"
+  },
+  {
+    "timestamp": "20251124_185800_668940",
+    "datetime": "2025-11-24T18:58:00.674513",
+    "title": "*EURUSD*\nMensaje informativo. No hay nada importante detectado.\n",
+    "message": "━━━━━━━━━━━━━━━━━━━━━━\n🔹 Señal: NONE\n🔹 Fuente: FX\n🔹 Patrón: HANGING_MAN\n🔹 Fecha: 2025-11-24 18:57:00\n➖ Sin agotamiento\n⚪ Sin ruptura de nivel\n🔹 Tendencia: STRONG_BEARISH\n🔹 Score: -6.0/10.0\n\n\n🔍 Mensaje de info\n✅ Cumple Tendencia Bajista\n❌ Agotamiento Bollinger (NO)\n❌ Agotamiento de Vela (NO)\n\n━━━━━━━━━━━━━━━━━━━━━━\n",
+    "image_name": "chart_20251124_185800_668940.png"
+  },
+  {
+    "timestamp": "20251124_185901_762441",
+    "datetime": "2025-11-24T18:59:01.773071",
+    "title": "ℹ️ *EURUSD* ℹ️\n🟢 Posible operación al ALZA.\nFalta confirmación de agotamiento.\nProbabilidad baja.",
+    "message": "━━━━━━━━━━━━━━━━━━━━━━\n🔹 Señal: LOW\n🔹 Fuente: FX\n🔹 Patrón: HANGING_MAN\n🔹 Fecha: 2025-11-24 18:58:00\n🔻 Señal de piso\n⚪ Sin ruptura de nivel\n🔹 Tendencia: STRONG_BEARISH\n🔹 Score: -10.0/10.0\n\n\n🔍 Mensaje de info\n✅ Cumple Tendencia Bajista\n✅ Agotamiento Bollinger (PEAK/BOTTOM)\n❌ Agotamiento de Vela (NO)\n\n━━━━━━━━━━━━━━━━━━━━━━\n",
+    "image_name": "chart_20251124_185901_762441.png"
+  },
+  {
+    "timestamp": "20251124_190000_680426",
+    "datetime": "2025-11-24T19:00:00.693429",
+    "title": "🟢🟢 *GBPUSD* 🟢🟢\n🟢 Siguiente operación al ALZA.\nPROBABILIDAD ALTA\n",
+    "message": "━━━━━━━━━━━━━━━━━━━━━━\n🔹 Señal: HIGH\n🔹 Fuente: FX\n🔹 Patrón: HAMMER\n🔹 Fecha: 2025-11-24 18:59:00\n🔻 Señal de piso\n⚪ Sin ruptura de nivel\n🔹 Tendencia: STRONG_BEARISH\n🔹 Score: -10.0/10.0\n\n\n🔍 Mensaje de info\n✅ Cumple Tendencia Bajista\n✅ Agotamiento Bollinger (PEAK/BOTTOM)\n❌ Agotamiento de Vela (NO)\n\n━━━━━━━━━━━━━━━━━━━━━━\n",
+    "image_name": "chart_20251124_190000_680426.png"
+  },
+  {
+    "timestamp": "20251124_190306_655486",
+    "datetime": "2025-11-24T19:03:06.673608",
+    "title": "*EURUSD*\nMensaje informativo. No hay nada importante detectado.\n",
+    "message": "━━━━━━━━━━━━━━━━━━━━━━\n🔹 Señal: NONE\n🔹 Fuente: FX\n🔹 Patrón: SHOOTING_STAR\n🔹 Fecha: 2025-11-24 19:02:00\n🔻 Señal de piso\n⚪ Sin ruptura de nivel\n🔹 Tendencia: STRONG_BEARISH\n🔹 Score: -10.0/10.0\n\n\n🔍 Mensaje de info\n❌ Cumple Tendencia alcista\n✅ Agotamiento Bollinger (PEAK/BOTTOM)\n❌ Agotamiento de Vela (NO)\n\n━━━━━━━━━━━━━━━━━━━━━━\n",
+    "image_name": "chart_20251124_190306_655486.png"
+  },
+  {
+    "timestamp": "20251124_190811_119507",
+    "datetime": "2025-11-24T19:08:11.123057",
+    "title": "🟢🟢 *USDJPY* 🟢🟢\n🟢 Siguiente operación al ALZA.\nPROBABILIDAD ALTA\n",
+    "message": "━━━━━━━━━━━━━━━━━━━━━━\n🔹 Señal: HIGH\n🔹 Fuente: FX\n🔹 Patrón: HAMMER\n🔹 Fecha: 2025-11-24 19:07:00\n🔻 Señal de piso\n⚪ Sin ruptura de nivel\n🔹 Tendencia: STRONG_BEARISH\n🔹 Score: -10.0/10.0\n\n\n🔍 Mensaje de info\n✅ Cumple Tendencia Bajista\n✅ Agotamiento Bollinger (PEAK/BOTTOM)\n❌ Agotamiento de Vela (NO)\n\n━━━━━━━━━━━━━━━━━━━━━━\n",
+    "image_name": "chart_20251124_190811_119507.png"
+  },
+  {
+    "timestamp": "20251124_190914_359746",
+    "datetime": "2025-11-24T19:09:14.363850",
+    "title": "*USDJPY*\nMensaje informativo. No hay nada importante detectado.\n",
+    "message": "━━━━━━━━━━━━━━━━━━━━━━\n🔹 Señal: NONE\n🔹 Fuente: FX_IDC\n🔹 Patrón: HAMMER\n🔹 Fecha: 2025-11-24 19:08:00\n➖ Sin agotamiento\n⚪ Sin ruptura de nivel\n🔹 Tendencia: STRONG_BULLISH\n🔹 Score: +10.0/10.0\n\n\n🔍 Mensaje de info\n❌ Cumple Tendencia bajista\n❌ Agotamiento Bollinger (NO)\n❌ Agotamiento de Vela (NO)\n\n━━━━━━━━━━━━━━━━━━━━━━\n",
+    "image_name": "chart_20251124_190914_359746.png"
+  },
+  {
+    "timestamp": "20251124_191000_524818",
+    "datetime": "2025-11-24T19:10:00.539282",
+    "title": "*EURUSD*\nMensaje informativo. No hay nada importante detectado.\n",
+    "message": "━━━━━━━━━━━━━━━━━━━━━━\n🔹 Señal: NONE\n🔹 Fuente: FX_IDC\n🔹 Patrón: SHOOTING_STAR\n🔹 Fecha: 2025-11-24 19:09:00\n➖ Sin agotamiento\n⚪ Sin ruptura de nivel\n🔹 Tendencia: STRONG_BEARISH\n🔹 Score: -10.0/10.0\n\n\n🔍 Mensaje de info\n❌ Cumple Tendencia alcista\n❌ Agotamiento Bollinger (NO)\n❌ Agotamiento de Vela (NO)\n\n━━━━━━━━━━━━━━━━━━━━━━\n",
+    "image_name": "chart_20251124_191000_524818.png"
+  },
+  {
+    "timestamp": "20251124_191100_560011",
+    "datetime": "2025-11-24T19:11:00.561960",
+    "title": "*USDJPY*\nMensaje informativo. No hay nada importante detectado.\n",
+    "message": "━━━━━━━━━━━━━━━━━━━━━━\n🔹 Señal: NONE\n🔹 Fuente: FX\n🔹 Patrón: HANGING_MAN\n🔹 Fecha: 2025-11-24 19:10:00\n➖ Sin agotamiento\n⚪ Sin ruptura de nivel\n🔹 Tendencia: STRONG_BEARISH\n🔹 Score: -10.0/10.0\n\n\n🔍 Mensaje de info\n✅ Cumple Tendencia Bajista\n❌ Agotamiento Bollinger (NO)\n❌ Agotamiento de Vela (NO)\n\n━━━━━━━━━━━━━━━━━━━━━━\n",
+    "image_name": "chart_20251124_191100_560011.png"
+  },
+  {
+    "timestamp": "20251124_191102_468350",
+    "datetime": "2025-11-24T19:11:02.477855",
+    "title": "*USDJPY*\nMensaje informativo. No hay nada importante detectado.\n",
+    "message": "━━━━━━━━━━━━━━━━━━━━━━\n🔹 Señal: NONE\n🔹 Fuente: FX_IDC\n🔹 Patrón: SHOOTING_STAR\n🔹 Fecha: 2025-11-24 19:10:00\n➖ Sin agotamiento\n⚪ Sin ruptura de nivel\n🔹 Tendencia: STRONG_BEARISH\n🔹 Score: -10.0/10.0\n\n\n🔍 Mensaje de info\n❌ Cumple Tendencia alcista\n❌ Agotamiento Bollinger (NO)\n❌ Agotamiento de Vela (NO)\n\n━━━━━━━━━━━━━━━━━━━━━━\n",
+    "image_name": "chart_20251124_191102_468350.png"
+  },
+  {
+    "timestamp": "20251124_191301_237266",
+    "datetime": "2025-11-24T19:13:01.250643",
+    "title": "*USDJPY*\nMensaje informativo. No hay nada importante detectado.\n",
+    "message": "━━━━━━━━━━━━━━━━━━━━━━\n🔹 Señal: NONE\n🔹 Fuente: FX_IDC\n🔹 Patrón: INVERTED_HAMMER\n🔹 Fecha: 2025-11-24 19:12:00\n➖ Sin agotamiento\n⚪ Sin ruptura de nivel\n🔹 Tendencia: STRONG_BEARISH\n🔹 Score: -10.0/10.0\n\n\n🔍 Mensaje de info\n❌ Cumple Tendencia alcista\n❌ Agotamiento Bollinger (NO)\n❌ Agotamiento de Vela (NO)\n\n━━━━━━━━━━━━━━━━━━━━━━\n",
+    "image_name": "chart_20251124_191301_237266.png"
+  },
+  {
+    "timestamp": "20251124_191400_726774",
+    "datetime": "2025-11-24T19:14:00.744829",
+    "title": "*GBPUSD*\nMensaje informativo. No hay nada importante detectado.\n",
+    "message": "━━━━━━━━━━━━━━━━━━━━━━\n🔹 Señal: NONE\n🔹 Fuente: FX_IDC\n🔹 Patrón: SHOOTING_STAR\n🔹 Fecha: 2025-11-24 19:13:00\n🔺 Señal de techo\n⚪ Sin ruptura de nivel\n🔹 Tendencia: STRONG_BEARISH\n🔹 Score: -10.0/10.0\n\n\n🔍 Mensaje de info\n❌ Cumple Tendencia alcista\n✅ Agotamiento Bollinger (PEAK/BOTTOM)\n❌ Agotamiento de Vela (NO)\n\n━━━━━━━━━━━━━━━━━━━━━━\n",
+    "image_name": "chart_20251124_191400_726774.png"
+  },
+  {
+    "timestamp": "20251124_191401_725175",
+    "datetime": "2025-11-24T19:14:01.742217",
+    "title": "⚪ *GBPUSD* ⚪\n🔴 Posible operación a la BAJA.\nSin agotamiento detectado - Analizar con precaución\nPobabilidad bajísima.",
+    "message": "━━━━━━━━━━━━━━━━━━━━━━\n🔹 Señal: VERY_LOW\n🔹 Fuente: FX\n🔹 Patrón: SHOOTING_STAR\n🔹 Fecha: 2025-11-24 19:13:00\n➖ Sin agotamiento\n⚪ Sin ruptura de nivel\n🔹 Tendencia: STRONG_BULLISH\n🔹 Score: +7.0/10.0\n\n\n🔍 Mensaje de info\n✅ Cumple Tendencia Alcista\n❌ Agotamiento Bollinger (NO)\n❌ Agotamiento de Vela (NO)\n\n━━━━━━━━━━━━━━━━━━━━━━\n",
+    "image_name": "chart_20251124_191401_725175.png"
+  },
+  {
+    "timestamp": "20251124_191412_366416",
+    "datetime": "2025-11-24T19:14:12.373288",
+    "title": "*EURUSD*\nMensaje informativo. No hay nada importante detectado.\n",
+    "message": "━━━━━━━━━━━━━━━━━━━━━━\n🔹 Señal: NONE\n🔹 Fuente: FX\n🔹 Patrón: INVERTED_HAMMER\n🔹 Fecha: 2025-11-24 19:13:00\n➖ Sin agotamiento\n⚪ Sin ruptura de nivel\n🔹 Tendencia: STRONG_BULLISH\n🔹 Score: +10.0/10.0\n\n\n🔍 Mensaje de info\n✅ Cumple Tendencia Alcista\n❌ Agotamiento Bollinger (NO)\n❌ Agotamiento de Vela (NO)\n\n━━━━━━━━━━━━━━━━━━━━━━\n",
+    "image_name": "chart_20251124_191412_366416.png"
+  },
+  {
+    "timestamp": "20251124_191502_510242",
+    "datetime": "2025-11-24T19:15:02.541802",
+    "title": "*GBPUSD*\nMensaje informativo. No hay nada importante detectado.\n",
+    "message": "━━━━━━━━━━━━━━━━━━━━━━\n🔹 Señal: NONE\n🔹 Fuente: FX\n🔹 Patrón: HAMMER\n🔹 Fecha: 2025-11-24 19:14:00\n➖ Sin agotamiento\n⚪ Sin ruptura de nivel\n🔹 Tendencia: STRONG_BULLISH\n🔹 Score: +7.0/10.0\n\n\n🔍 Mensaje de info\n❌ Cumple Tendencia bajista\n❌ Agotamiento Bollinger (NO)\n❌ Agotamiento de Vela (NO)\n\n━━━━━━━━━━━━━━━━━━━━━━\n",
+    "image_name": "chart_20251124_191502_510242.png"
   }
 ]

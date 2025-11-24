@@ -190,7 +190,7 @@ def get_candle_result_debug(
     
     # Construir mensaje
     lines = []
-    # lines.append("\n")
+    lines.append("\n")
     lines.append("🔍 Mensaje de info")
     
     # 1. Verificar tendencia requerida
@@ -221,7 +221,7 @@ def get_candle_result_debug(
     else:
         lines.append("❌ Agotamiento de Vela (NO)")
 
-    lines.append("/n")
+    lines.append("\n")
     
     return "\n".join(lines)
 

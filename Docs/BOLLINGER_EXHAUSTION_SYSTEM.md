@@ -1,23 +1,26 @@
-# Sistema de Mean Reversion con Agotamiento de Volatilidad (Bollinger Bands)
+# Sistema de Scoring Matricial - Bollinger & Candle Exhaustion
 
-## 📋 Overview
+## Descripción General
+Sistema de puntuación y clasificación de señales basado en la combinación de:
+1. **Bollinger Exhaustion**: Precio toca/rompe bandas de Bollinger
+2. **Candle Exhaustion**: Vela actual rompe high/low de vela anterior
+3. **Patrón de Vela**: Shooting Star, Hanging Man, Hammer, Inverted Hammer
+4. **Tendencia**: 5 estados basados en **scoring ponderado de EMAs**
 
-Sistema refactorizado en **v0.0.5** para operar **CONTRA-TENDENCIA** (Mean Reversion) en zonas de agotamiento extremo determinadas por las Bandas de Bollinger.
-
-**🔄 CAMBIO CRÍTICO:** La estrategia cambió de "Trend Following" a "Mean Reversion / Contratendencia".
-
-**Nueva Filosofía:** Operar CONTRA la tendencia cuando se detecta agotamiento extremo (Cúspide o Base de Bollinger) combinado con patrones de reversión. El objetivo es capturar el rebote/retroceso inmediato tras sobre-extensión del precio.
+**Fecha de Implementación:** 24 de Noviembre de 2025  
+**Versión:** v4.1 - Sistema Matricial con Puntuación Ponderada
 
 ---
 
-## 🎯 Conceptos Clave
+## Componentes del Sistema
 
-### 1. Bandas de Bollinger (Configuración)
+### 1. Bollinger Exhaustion (Zona de Agotamiento)
 
-**Parámetros:**
-- **Periodo:** 20 velas (1 minuto cada una)
-- **Desviación Estándar:** 2.0σ (estándar para detección de agotamiento)
-- **Línea Central:** SMA(20)
+#### Configuración
+```python
+BB_PERIOD = 20  # SMA, NO EMA
+BB_STD_DEV = 2.0  # Desviaciones estándar
+```
 
 **Fórmula:**
 ```
@@ -26,155 +29,438 @@ BB_Upper = BB_Middle + (2.0 × σ)
 BB_Lower = BB_Middle - (2.0 × σ)
 ```
 
-**Justificación de 2.0σ:** La desviación estándar de 2.0 captura aproximadamente el 95% de los movimientos de precio, permitiendo identificar sobre-extensiones reales sin ser demasiado restrictivo.
+**Justificación de 2.0σ:** Captura aproximadamente el 95% de los movimientos de precio, permitiendo identificar sobre-extensiones reales sin ser demasiado restrictivo.
 
----
-
-### 2. Zonas de Agotamiento
-
-#### 🔺 PEAK (Cúspide - Sobre-extensión Alcista)
-**Definición:** La vela toca o supera la banda superior.
-
-**Condición:**
+#### Detección
 ```python
-candle.high >= bb_upper OR candle.close >= bb_upper
+def detect_exhaustion(candle_high, candle_low, candle_close, upper_band, lower_band):
+    # PEAK (Cúspide): Agotamiento alcista
+    if candle_high >= upper_band or candle_close >= upper_band:
+        return "PEAK"
+    
+    # BOTTOM (Base): Agotamiento bajista
+    if candle_low <= lower_band or candle_close <= lower_band:
+        return "BOTTOM"
+    
+    # Zona neutra
+    return "NONE"
 ```
 
-**Interpretación Mean Reversion:** El precio está sobre-extendido al alza. **Buscar patrones BAJISTAS** (Shooting Star, Hanging Man) para reversión bajista.
+**Zonas:**
+- **PEAK** (Cúspide): Sobre-extensión alcista → Buscar patrones BAJISTAS
+- **BOTTOM** (Base): Sobre-extensión bajista → Buscar patrones ALCISTAS
+- **NONE**: Sin sobre-extensión clara
 
 ---
 
-#### 🔻 BOTTOM (Base - Sobre-extensión Bajista)
-**Definición:** La vela toca o perfora la banda inferior.
+### 2. Candle Exhaustion (Ruptura de Nivel)
 
-**Condición:**
+#### Lógica
 ```python
-candle.low <= bb_lower OR candle.close <= bb_lower
+def detect_candle_exhaustion(pattern, current_high, current_low, prev_high, prev_low):
+    # Patrones BAJISTAS: verificar ruptura de máximo
+    if pattern in ["SHOOTING_STAR", "HANGING_MAN"]:
+        return current_high > prev_high
+    
+    # Patrones ALCISTAS: verificar ruptura de mínimo
+    elif pattern in ["HAMMER", "INVERTED_HAMMER"]:
+        return current_low < prev_low
+    
+    return False
 ```
 
-**Interpretación Mean Reversion:** El precio está sobre-extendido a la baja. **Buscar patrones ALCISTAS** (Hammer, Inverted Hammer) para reversión alcista.
+**Significado:**
+- El precio intentó continuar la tendencia
+- Fue **rechazado** creando una mecha larga
+- Aumenta probabilidad de reversión
 
 ---
 
-#### ➖ NONE (Zona Neutra)
-**Definición:** La vela está entre las bandas.
+### 3. Tendencia (Sistema de Puntuación Ponderada)
 
-**Condición:**
-```python
-bb_lower < candle.close < bb_upper
+**5 Estados basados en scoring de 7 EMAs:**
+
+| Score Range | Estado | EMAs Totales |
+|-------------|--------|--------------|
+| [6.0 a 10.0] | STRONG_BULLISH | 10.0 pts |
+| [2.0 a 6.0) | WEAK_BULLISH | 10.0 pts |
+| (-2.0 a 2.0) | NEUTRAL | 10.0 pts |
+| (-6.0 a -2.0] | WEAK_BEARISH | 10.0 pts |
+| [-10.0 a -6.0] | STRONG_BEARISH | 10.0 pts |
+
+Ver `tendencia.md` para detalles completos del sistema ponderado.
+
+---
+
+## Niveles de Señal
+
+| Nivel | Descripción | Probabilidad | Emoji |
+|-------|-------------|--------------|-------|
+| **VERY_HIGH** | Patrón Principal + Ambos Exhaustion | Muy Alta | 🔥 |
+| **HIGH** | Patrón Principal + Bollinger Exhaustion | Alta | 🚨 |
+| **MEDIUM** | Patrón Secundario + Ambos Exhaustion | Media | ⚠️ |
+| **LOW** | Patrón Principal + Candle Exhaustion | Baja | ℹ️ |
+| **VERY_LOW** | Patrón Principal sin Exhaustion | Muy Baja | ⚪ |
+| **NONE** | Patrón inválido o contra-estrategia | Ninguna | ❌ |
+
+---
+
+## CASO A: TENDENCIA ALCISTA (Buscamos VENTAS)
+
+### Objetivo
+Detectar reversiones bajistas en zonas de sobre-compra.
+
+### Patrones Válidos
+- **Principal:** Shooting Star (patrón bajista)
+- **Secundario:** Inverted Hammer (patrón bajista débil)
+
+### Matriz de Decisión
+
+#### Shooting Star (Patrón Principal)
+
+| Bollinger Exhaustion | Candle Exhaustion | SCORE | Interpretación |
+|---------------------|-------------------|-------|----------------|
+| ✅ SÍ (PEAK) | ✅ SÍ | **VERY_HIGH** | 🔥 Reversión bajista con confirmación máxima |
+| ✅ SÍ (PEAK) | ❌ NO | **HIGH** | 🚨 Reversión bajista en agotamiento alcista |
+| ❌ NO | ✅ SÍ | **LOW** | ℹ️ Posible reversión (sin Bollinger) |
+| ❌ NO | ❌ NO | **VERY_LOW** | ⚪ Patrón detectado pero sin exhaustion |
+
+**Ejemplo VERY_HIGH:**
+```
+Precio toca Banda Superior (PEAK) ✅
+Shooting Star rompe high de vela anterior ✅
+Tendencia: STRONG_BULLISH (score +8.0) ✅
+→ Señal: 🔥 VERY_HIGH (operar PUT)
 ```
 
-**Interpretación:** No hay sobre-extensión clara. La probabilidad de reversión es menor.
+---
+
+#### Inverted Hammer (Patrón Secundario)
+
+| Bollinger Exhaustion | Candle Exhaustion | SCORE | Interpretación |
+|---------------------|-------------------|-------|----------------|
+| ✅ SÍ (PEAK) | ✅ SÍ | **MEDIUM** | ⚠️ Reversión bajista moderada |
+| ✅ SÍ (PEAK) | ❌ NO | **LOW** | ℹ️ Reversión bajista débil |
+| ❌ NO | ✅ SÍ | **VERY_LOW** | ⚪ Patrón débil con ruptura |
+| ❌ NO | ❌ NO | **NONE** | ❌ Descartado (patrón secundario sin exhaustion) |
+
+**Ejemplo MEDIUM:**
+```
+Precio toca Banda Superior (PEAK) ✅
+Inverted Hammer rompe high de vela anterior ✅
+Tendencia: WEAK_BULLISH (score +3.5) ✅
+→ Señal: ⚠️ MEDIUM (operar PUT con precaución)
+```
 
 ---
 
-## 📊 Matriz de Clasificación de Fuerza (Mean Reversion) - 4 Niveles
-
-### 🔥 SEÑALES HIGH (Máxima Prioridad - Reversión Perfecta)
-
-| Patrón | Contexto | Zona | Signal Strength | Interpretación |
-|--------|----------|------|-----------------|----------------|
-| **SHOOTING_STAR** | Tendencia Alcista | **PEAK** | **HIGH** 🚨 | **Reversión bajista en sobre-extensión alcista** - IDEAL para Mean Reversion |
-| **HANGING_MAN** | Tendencia Alcista | **PEAK** | **MEDIUM** ⚠️ | **Reversión bajista en agotamiento moderado** |
-| **HAMMER** | Tendencia Bajista | **BOTTOM** | **HIGH** 🚨 | **Reversión alcista en sobre-extensión bajista** - IDEAL para Mean Reversion |
-| **INVERTED_HAMMER** | Tendencia Bajista | **BOTTOM** | **MEDIUM** ⚠️ | **Reversión alcista en agotamiento moderado** |
-
-**Criterio:** Patrón de reversión correcto + Zona de agotamiento perfecta = Mayor probabilidad de éxito.
+### Patrones NO Válidos en Tendencia Alcista
+| Patrón | Score | Razón |
+|--------|-------|-------|
+| **Hammer** | **NONE** | ❌ Patrón alcista en tendencia alcista = Contra-estrategia |
+| **Hanging Man** | **NONE** | ❌ No aplicable en tendencia alcista |
 
 ---
 
-### ℹ️ SEÑALES LOW (Señal Válida pero Débil)
+## CASO B: TENDENCIA BAJISTA (Buscamos COMPRAS)
 
-| Patrón | Contexto | Zona | Signal Strength | Interpretación |
-|--------|----------|------|-----------------|----------------|
-| SHOOTING_STAR | Tendencia Alcista | NONE/BOTTOM | LOW ℹ️ | Reversión bajista posible pero sin confirmación de agotamiento |
-| HANGING_MAN | Tendencia Alcista | NONE/BOTTOM | LOW ℹ️ | Reversión bajista posible pero sin confirmación de agotamiento |
-| HAMMER | Tendencia Bajista | NONE/PEAK | LOW ℹ️ | Reversión alcista posible pero sin confirmación de agotamiento |
-| INVERTED_HAMMER | Tendencia Bajista | NONE/PEAK | LOW ℹ️ | Reversión alcista posible pero sin confirmación de agotamiento |
-| INVERTED_HAMMER | Tendencia Alcista | PEAK | LOW ℹ️ | Continuación alcista en agotamiento (precaución) |
-| HANGING_MAN | Tendencia Bajista | BOTTOM | LOW ℹ️ | Continuación bajista en agotamiento (precaución) |
+### Objetivo
+Detectar reversiones alcistas en zonas de sobre-venta.
 
-**Criterio:** Patrón correcto pero sin agotamiento extremo. Esperar confirmación adicional antes de operar.
+### Patrones Válidos
+- **Principal:** Hammer (patrón alcista)
+- **Secundario:** Hanging Man (patrón alcista débil)
 
----
+### Matriz de Decisión
 
-### ⚪ SEÑALES NONE (No Operar - Contra-Estrategia)
+#### Hammer (Patrón Principal)
 
-| Patrón | Contexto | Zona | Signal Strength | Interpretación |
-|--------|----------|------|-----------------|----------------|
-| **HAMMER** | Tendencia Alcista | Cualquiera | **NONE** ⚪ | Patrón alcista en tendencia alcista - Contra-estrategia Mean Reversion |
-| **INVERTED_HAMMER** | Tendencia Alcista | BOTTOM | **NONE** ⚪ | Patrón alcista en agotamiento bajista dentro de tendencia alcista - Confuso |
-| **SHOOTING_STAR** | Tendencia Bajista | Cualquiera | **NONE** ⚪ | Patrón bajista en tendencia bajista - Contra-estrategia Mean Reversion |
-| **HANGING_MAN** | Tendencia Bajista | PEAK | **NONE** ⚪ | Patrón bajista en agotamiento alcista dentro de tendencia bajista - Confuso |
+| Bollinger Exhaustion | Candle Exhaustion | SCORE | Interpretación |
+|---------------------|-------------------|-------|----------------|
+| ✅ SÍ (BOTTOM) | ✅ SÍ | **VERY_HIGH** | 🔥 Reversión alcista con confirmación máxima |
+| ✅ SÍ (BOTTOM) | ❌ NO | **HIGH** | 🚨 Reversión alcista en agotamiento bajista |
+| ❌ NO | ✅ SÍ | **LOW** | ℹ️ Posible reversión (sin Bollinger) |
+| ❌ NO | ❌ NO | **VERY_LOW** | ⚪ Patrón detectado pero sin exhaustion |
 
-**Criterio:** Patrón NO válido para la estrategia Mean Reversion. Estos casos son ruido y deben ser ignorados.
-
-**Justificación:**
-- **Mean Reversion busca reversiones**, no continuaciones
-- Un Hammer en tendencia alcista sugiere continuación (no reversión)
-- Un Shooting Star en tendencia bajista sugiere continuación (no reversión)
-- Estos patrones contradicen la filosofía de "operar contra-tendencia en agotamiento"
+**Ejemplo VERY_HIGH:**
+```
+Precio toca Banda Inferior (BOTTOM) ✅
+Hammer rompe low de vela anterior ✅
+Tendencia: STRONG_BEARISH (score -9.0) ✅
+→ Señal: 🔥 VERY_HIGH (operar CALL)
+```
 
 ---
 
-## 🎯 Resumen de los 4 Niveles
+#### Hanging Man (Patrón Secundario)
 
-| Nivel | Emoji | Condición | Acción Recomendada |
-|-------|-------|-----------|-------------------|
-| **HIGH** | 🚨 | Reversión + Agotamiento perfecto (PEAK o BOTTOM) | **Operar inmediatamente** - Máxima probabilidad |
-| **MEDIUM** | ⚠️ | Reversión + Agotamiento moderado | **Considerar entrada** con stop loss ajustado |
-| **LOW** | ℹ️ | Reversión sin agotamiento confirmado | **Esperar confirmación** (siguiente vela) |
-| **NONE** | ⚪ | Patrón contra-estrategia | **NO OPERAR** - Ignorar señal |
+| Bollinger Exhaustion | Candle Exhaustion | SCORE | Interpretación |
+|---------------------|-------------------|-------|----------------|
+| ✅ SÍ (BOTTOM) | ✅ SÍ | **MEDIUM** | ⚠️ Reversión alcista moderada |
+| ✅ SÍ (BOTTOM) | ❌ NO | **LOW** | ℹ️ Reversión alcista débil |
+| ❌ NO | ✅ SÍ | **VERY_LOW** | ⚪ Patrón débil con ruptura |
+| ❌ NO | ❌ NO | **NONE** | ❌ Descartado (patrón secundario sin exhaustion) |
+
+**Ejemplo MEDIUM:**
+```
+Precio toca Banda Inferior (BOTTOM) ✅
+Hanging Man rompe low de vela anterior ✅
+Tendencia: WEAK_BEARISH (score -4.0) ✅
+→ Señal: ⚠️ MEDIUM (operar CALL con precaución)
+```
 
 ---
 
-## 🔍 Lógica de Detección (Mean Reversion)
+### Patrones NO Válidos en Tendencia Bajista
+| Patrón | Score | Razón |
+|--------|-------|-------|
+| **Shooting Star** | **NONE** | ❌ Patrón bajista en tendencia bajista = Contra-estrategia |
+| **Inverted Hammer** | **NONE** | ❌ No aplicable en tendencia bajista |
 
+---
+
+## CASO C: TENDENCIA NEUTRAL (Degradación Automática)
+
+### Regla de Degradación
+Cuando la tendencia es **NEUTRAL** (score entre -2.0 y 2.0), todas las señales se **degradan un nivel**:
+
+| Score Original | Score Degradado |
+|----------------|-----------------|
+| VERY_HIGH | → HIGH |
+| HIGH | → MEDIUM |
+| MEDIUM | → LOW |
+| LOW | → VERY_LOW |
+| VERY_LOW | → NONE |
+| NONE | → NONE |
+
+**Ejemplo:**
 ```python
-# 1. Analizar sobre-extensión (Mean Reversion Score)
-trend_analysis = analyze_trend(close, emas)  # Mide sobre-extensión, NO tendencia
+# Caso: Shooting Star + Ambos Exhaustion + Tendencia NEUTRAL (score +1.0)
+if tendencia == "NEUTRAL":
+    # Normalmente sería VERY_HIGH
+    signal_strength = downgrade("VERY_HIGH")  # → HIGH
+```
 
-# 2. Calcular Bandas de Bollinger
-bb_upper, bb_lower = calculate_bollinger_bands(df['close'], period=20, std_dev=2.0)
+**Razón:** Sin tendencia clara, la probabilidad de reversión efectiva disminuye.
 
-# 3. Detectar zona de agotamiento
-exhaustion_type = detect_exhaustion(candle.high, candle.low, candle.close, bb_upper, bb_lower)
+---
 
-# 4. Determinar contexto de tendencia
-is_bullish_trend = "BULLISH" in trend_analysis.status
-is_bearish_trend = "BEARISH" in trend_analysis.status
+## Resumen de Todas las Combinaciones Válidas
 
-# 5. Clasificar fuerza según estrategia Mean Reversion (4 NIVELES)
-signal_strength = "NONE"  # Default: Patrón no válido
+### Tendencia ALCISTA (STRONG/WEAK_BULLISH)
 
-# CONTEXTO: TENDENCIA ALCISTA (Buscar reversiones bajistas)
-if is_bullish_trend:
-    if pattern == "SHOOTING_STAR":
-        if exhaustion_type == "PEAK":
-            signal_strength = "HIGH"  # 🚨 Reversión perfecta
-        else:
-            signal_strength = "LOW"   # ℹ️ Sin agotamiento
-    elif pattern == "HANGING_MAN":
-        if exhaustion_type == "PEAK":
-            signal_strength = "MEDIUM"  # ⚠️ Reversión moderada
-        else:
-            signal_strength = "LOW"
-    elif pattern == "INVERTED_HAMMER":
-        if exhaustion_type == "PEAK":
-            signal_strength = "MEDIUM"  # ⚠️ Continuación alcista
-        else:
-            signal_strength = "LOW"
-    elif pattern == "HAMMER":
-        signal_strength = "NONE"  # ⚪ Contra-estrategia
+| Patrón | Bollinger | Candle | Score | Dir. |
+|--------|-----------|--------|-------|------|
+| Shooting Star | ✅ PEAK | ✅ SÍ | VERY_HIGH | 🔴 VENTA |
+| Shooting Star | ✅ PEAK | ❌ NO | HIGH | 🔴 VENTA |
+| Shooting Star | ❌ NONE | ✅ SÍ | LOW | 🔴 VENTA |
+| Shooting Star | ❌ NONE | ❌ NO | VERY_LOW | 🔴 VENTA |
+| Inverted Hammer | ✅ PEAK | ✅ SÍ | MEDIUM | 🔴 VENTA |
+| Inverted Hammer | ✅ PEAK | ❌ NO | LOW | 🔴 VENTA |
+| Inverted Hammer | ❌ NONE | ✅ SÍ | VERY_LOW | 🔴 VENTA |
+| Inverted Hammer | ❌ NONE | ❌ NO | NONE | ❌ Descartado |
+| **Hammer** | - | - | **NONE** | ❌ Contra-estrategia |
+| **Hanging Man** | - | - | **NONE** | ❌ No aplicable |
 
-# CONTEXTO: TENDENCIA BAJISTA (Buscar reversiones alcistas)
-elif is_bearish_trend:
-    if pattern == "HAMMER":
-        if exhaustion_type == "BOTTOM":
-            signal_strength = "HIGH"  # 🚨 Reversión perfecta
-        else:
-            signal_strength = "LOW"   # ℹ️ Sin agotamiento
-    elif pattern == "INVERTED_HAMMER":
+## Ejemplos Prácticos Completos
+
+### Ejemplo 1: VERY_HIGH en Tendencia Alcista 🔥
+
+**Contexto:**
+```
+Símbolo: EUR/USD
+Timeframe: 1 minuto
+Tendencia: STRONG_BULLISH (Score: +10.0)
+EMAs: Precio por encima de todas las EMAs (Fanning perfecto)
+```
+
+**Vela Anterior:**
+```
+Open: 1.10400
+High: 1.10450 ← Máximo anterior
+Low: 1.10390
+Close: 1.10440
+```
+
+**Vela Actual (Shooting Star):**
+```
+Open: 1.10440
+High: 1.10520 ← Rompe máximo anterior ✅
+Low: 1.10430
+Close: 1.10445 ← Cerca del Open (cuerpo pequeño)
+Upper Wick: 0.00075 (largo)
+Lower Wick: 0.00015 (pequeño)
+```
+
+**Bollinger Bands:**
+```
+Upper Band: 1.10515
+Lower Band: 1.10300
+Candle High (1.10520) > Upper Band ✅ → PEAK
+```
+
+**Resultado:**
+- ✅ Patrón: Shooting Star (Principal)
+- ✅ Bollinger Exhaustion: PEAK
+- ✅ Candle Exhaustion: 1.10520 > 1.10450
+- ✅ Tendencia: STRONG_BULLISH
+- **Score: VERY_HIGH 🔥**
+- **Acción: Operar PUT con alta confianza**
+
+---
+
+### Ejemplo 2: MEDIUM en Tendencia Bajista ⚠️
+
+**Contexto:**
+```
+Símbolo: EUR/USD
+Timeframe: 1 minuto
+Tendencia: WEAK_BEARISH (Score: -3.5)
+EMAs: Precio por debajo de EMAs 5, 7, 10 pero por encima de 20, 30
+```
+
+**Vela Anterior:**
+```
+Open: 1.09850
+High: 1.09870
+Low: 1.09820 ← Mínimo anterior
+Close: 1.09830
+```
+
+**Vela Actual (Hanging Man):**
+```
+Open: 1.09830
+High: 1.09850
+Low: 1.09780 ← Rompe mínimo anterior ✅
+Close: 1.09840 ← Cerca del High (cuerpo pequeño)
+Upper Wick: 0.00010 (pequeño)
+Lower Wick: 0.00060 (largo)
+```
+
+**Bollinger Bands:**
+```
+Upper Band: 1.09950
+Lower Band: 1.09790
+Candle Low (1.09780) < Lower Band ✅ → BOTTOM
+```
+
+**Resultado:**
+- ✅ Patrón: Hanging Man (Secundario)
+- ✅ Bollinger Exhaustion: BOTTOM
+- ✅ Candle Exhaustion: 1.09780 < 1.09820
+- ⚠️ Tendencia: WEAK_BEARISH (no STRONG)
+- **Score: MEDIUM ⚠️**
+- **Acción: Operar CALL con precaución moderada**
+
+---
+
+### Ejemplo 3: NONE - Patrón Contra-Estrategia ❌
+
+**Contexto:**
+```
+Símbolo: EUR/USD
+Timeframe: 1 minuto
+Tendencia: STRONG_BULLISH (Score: +10.0)
+```
+
+**Vela Actual (Hammer):**
+```
+Open: 1.10400
+High: 1.10420
+Low: 1.10350 ← Mecha inferior larga
+Close: 1.10410 ← Vela verde
+```
+
+**Bollinger Bands:**
+```
+Lower Band: 1.10300
+Candle Low (1.10350) > Lower Band → NONE (no agotamiento)
+```
+
+**Resultado:**
+- ❌ Patrón: Hammer (Alcista)
+- ❌ Tendencia: STRONG_BULLISH (Alcista)
+- ❌ Conflicto: Patrón alcista EN tendencia alcista
+- **Score: NONE ❌**
+- **Razón: Contra-estrategia Mean Reversion**
+- **Acción: NO operar**
+
+---
+
+## Integración con Telegram
+
+### Formato de Notificaciones
+
+```markdown
+🔥🔴 SEÑAL MUY FUERTE | *EURUSD* 🔴🔥
+🔴 Siguiente operación a la BAJA (Alta Probabilidad).
+
+━━━━━━━━━━━━━━━━━━━━━━
+🔹 Señal: VERY_HIGH
+
+🔹 Fuente: OANDA
+🔹 Patrón: SHOOTING_STAR
+🔹 Fecha: 2025-11-24 15:30:45
+🔺 Señal de agotamiento alcista (Cúspide)
+💥 Rompió nivel anterior
+🔹 Tendencia: STRONG_BULLISH
+🔹 Score: +10.0/10.0
+━━━━━━━━━━━━━━━━━━━━━━
+
+📊 SISTEMA DE PUNTUACIÓN
+━━━━━━━━━━━━━━━━━━━━━━
+Precio > EMA5: +2.5
+Precio > EMA7: +2.0
+Precio > EMA10: +1.5
+Precio > EMA15: +1.5
+Precio > EMA20: +1.0
+Precio > EMA30: +1.0
+Precio > EMA50: +0.5
+━━━━━━━━━━━━━━━━━━━━━━
+Score Total: +10.0 → STRONG_BULLISH
+━━━━━━━━━━━━━━━━━━━━━━
+```
+
+---
+
+## Implementación Técnica
+
+### Archivos Modificados
+```
+src/logic/analysis_service.py
+  - analyze_trend(): Sistema de puntuación ponderada con 7 EMAs
+  - detect_bollinger_exhaustion(): Detección de PEAK/BOTTOM/NONE
+  - detect_candle_exhaustion(): Verificación de ruptura de nivel
+  - _calculate_signal_strength(): Matriz de scoring completa
+
+src/services/telegram_service.py
+  - _format_standard_message(): Mensajes con scoring detallado
+  - Emojis diferenciados por nivel (🔥, 🚨, ⚠️, ℹ️, ⚪)
+
+src/utils/charting.py
+  - Visualización de 7 EMAs con colores distintivos
+  - Bandas de Bollinger en gráfico
+```
+
+---
+
+## Conclusión
+
+El **Sistema de Scoring Matricial** combina:
+1. ✅ **Puntuación Ponderada de Tendencia**: 7 EMAs con pesos específicos (total 10.0 pts)
+2. ✅ **Bollinger Exhaustion**: Detección de sobre-extensión (PEAK/BOTTOM)
+3. ✅ **Candle Exhaustion**: Ruptura de niveles anteriores
+4. ✅ **Clasificación en 6 Niveles**: VERY_HIGH, HIGH, MEDIUM, LOW, VERY_LOW, NONE
+5. ✅ **Degradación Automática**: En tendencias NEUTRAL
+
+**Próximos pasos:**
+- Validar win rate por nivel de señal mediante backtesting
+- Ajustar pesos de EMAs según resultados en producción
+- Considerar añadir RSI como factor adicional de confirmación
+
+**Referencias:**
+- Ver `tendencia.md` para detalles del sistema de puntuación ponderada
+- Ver `candle.md` para validación matemática de patrones
         if exhaustion_type == "BOTTOM":
             signal_strength = "MEDIUM"  # ⚠️ Reversión moderada
         else:
