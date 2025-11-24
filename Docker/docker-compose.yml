@@ -1,0 +1,87 @@
+# =============================================================================
+# Docker Compose - Trading Bot Production Configuration
+# =============================================================================
+# High-Frequency Trading Bot - 24/7 Runtime with Data Persistence
+# Version: 3.8 (Requires Docker Engine 19.03.0+)
+# =============================================================================
+
+version: '3.8'
+
+services:
+  trading-bot:
+    # =========================================================================
+    # Build Configuration
+    # =========================================================================
+    build:
+      context: .
+      dockerfile: Dockerfile
+    
+    container_name: trading-bot
+    
+    # =========================================================================
+    # Restart Policy - Critical for 24/7 uptime
+    # =========================================================================
+    # 'unless-stopped': Survives Docker daemon restarts (system reboots)
+    # Won't restart if manually stopped with 'docker stop'
+    # =========================================================================
+    restart: unless-stopped
+    
+    # =========================================================================
+    # Environment Configuration
+    # =========================================================================
+    environment:
+      # Timezone sync with Argentina market (UTC-3)
+      # Critical for candle timestamp alignment with local trading hours
+      TZ: America/Argentina/Buenos_Aires
+    
+    # =========================================================================
+    # Environment File - Secrets Management
+    # =========================================================================
+    # Maps .env file with API keys (TELEGRAM_BOT_TOKEN, etc.)
+    # Ensure .env is in .gitignore and never committed to repo
+    # =========================================================================
+    env_file:
+      - .env
+    
+    # =========================================================================
+    # Volume Mapping - Data Persistence (CRITICAL)
+    # =========================================================================
+    # ./data (host) <-> /app/data (container)
+    # Ensures trading_signals_dataset.jsonl survives container restarts/crashes
+    # Logs and notifications also persist on host filesystem
+    # =========================================================================
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+    
+    # =========================================================================
+    # Logging Configuration - Prevent Disk Exhaustion
+    # =========================================================================
+    # json-file driver with automatic rotation:
+    # - max-size: 10MB per log file (adjustable based on bot verbosity)
+    # - max-file: Keep last 3 rotated files (~30MB total max)
+    # =========================================================================
+    # Access logs: docker logs -f trading-bot
+    # =========================================================================
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    
+    # =========================================================================
+    # Network Configuration (Optional)
+    # =========================================================================
+    # Default bridge network is sufficient for single-service bot
+    # No exposed ports needed (bot connects outbound to TradingView/Telegram)
+    # =========================================================================
+    # Uncomment if you need internal network isolation:
+    # networks:
+    #   - trading-network
+
+# =============================================================================
+# Optional: Custom Network Definition
+# =============================================================================
+# networks:
+#   trading-network:
+#     driver: bridge

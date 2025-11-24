@@ -3,8 +3,22 @@
 ## 1. Objetivo del Proyecto
 Integrar un monitor automatizado 24/7 que capture datos de mercado en tiempo real de TradingView mediante ingeniería inversa de WebSocket. El sistema identificará patrones de velas japonesas en temporalidad de 1 minuto y, al detectar una configuración válida alineada con la tendencia, enviará alertas inmediatas vía Telegram con gráfico visual adjunto. **Adicionalmente, envía notificaciones de resultado** cuando cierra la vela siguiente, informando si el patrón tuvo éxito (VERDE/ROJA/DOJI).
 
-### 1.1. Objetivo Versión 0.0.3 (Sistema de Agotamiento de Volatilidad) 🆕
-**Nueva Funcionalidad:** Sistema de **Clasificación de Fuerza de Señal** basado en **Bollinger Bands** para filtrar señales de alta calidad.
+### 1.1. Objetivo Versión 0.0.4 (Sistema de Probabilidad Histórica en Tiempo Real) 🆕
+**Nueva Funcionalidad:** Sistema de **Probabilidades Históricas** que consulta el dataset JSONL para mostrar win rate, PnL promedio y racha reciente en las alertas de Telegram.
+
+**Cambios principales:**
+- ✅ **StatisticsService** - Servicio de consulta de probabilidades históricas
+- ✅ **Fuzzy Matching** - Busca señales con score similar (±1 tolerancia)
+- ✅ **Raw Data Preservation** - Campo `raw_data` en JSONL permite recalcular scores retroactivamente
+- ✅ **Alertas Enriquecidas** - Win rate, PnL promedio, racha reciente mostrados en tiempo real
+- ✅ **Dockerización Completa** - Dockerfile + docker-compose.yml con logs rotativos y volúmenes persistentes
+
+**Filosofía:** No todas las señales tienen la misma probabilidad de éxito. Consultar el historial de señales similares (mismo patrón + score similar) permite tomar decisiones más informadas basadas en datos reales.
+
+Ver documentación completa en: `Docs/sistema_probabilidad_historica.md`
+
+### 1.2. Objetivo Versión 0.0.3 (Sistema de Agotamiento de Volatilidad)
+**Funcionalidad:** Sistema de **Clasificación de Fuerza de Señal** basado en **Bollinger Bands** para filtrar señales de alta calidad.
 
 **Cambios principales:**
 - ✅ **Bollinger Bands (BB_PERIOD=20, BB_STD_DEV=2.5)** - Detección de agotamiento de tendencia
@@ -26,7 +40,7 @@ Integrar un monitor automatizado 24/7 que capture datos de mercado en tiempo rea
 
 Ver documentación completa en: `Docs/BOLLINGER_EXHAUSTION_SYSTEM.md`
 
-### 1.2. Objetivo Versión 0.0.2 (MVP Completado) ✅
+### 1.3. Objetivo Versión 0.0.2 (MVP Completado) ✅
 El MVP ha sido completado exitosamente con todas las funcionalidades core implementadas:
 - **Par:** EUR/USD monitoreado en tiempo real.
 - **Fuente de Datos:** FX:EURUSD (Feed público de TradingView - **NO requiere autenticación**).
@@ -916,11 +930,21 @@ Basadas en la experiencia del MVP:
 
 ---
 
-**Versión del Documento:** v0.0.2  
-**Última Actualización:** 21 de noviembre de 2025  
-**Estado del Proyecto:** ✅ **MVP COMPLETADO** - Sistema Operativo y Probado
+**Versión del Documento:** v0.0.4  
+**Última Actualización:** 24 de noviembre de 2025  
+**Estado del Proyecto:** ✅ **PRODUCCIÓN** - Sistema completamente operativo en v0.0.4
 
-**Logros del MVP:**
+**Logros de v0.0.4:**
+- ✅ StatisticsService con consulta de probabilidades históricas en tiempo real
+- ✅ Fuzzy matching para buscar señales similares (score ±1)
+- ✅ Campo raw_data en JSONL para recalcular scores retroactivamente
+- ✅ Alertas enriquecidas con win rate, PnL promedio y racha reciente
+- ✅ Dockerización completa (Dockerfile + docker-compose.yml)
+- ✅ Logs con rotación automática (10MB × 3 archivos)
+- ✅ Health check y graceful shutdown
+- ✅ DOCKER_GUIDE.md con cheatsheet de comandos
+
+**Logros del MVP (v0.0.2-v0.0.3):**
 - ✅ 4 patrones de velas implementados y validados
 - ✅ Sistema de testing automatizado funcional
 - ✅ Generación de gráficos con `mplfinance` integrada
@@ -929,3 +953,5 @@ Basadas en la experiencia del MVP:
 - ✅ Modo sin filtro de tendencia configurado
 - ✅ Cantidad de velas en gráficos parametrizable
 - ✅ Sistema de notificaciones robusto y estable
+- ✅ Bollinger Bands Exhaustion System implementado
+- ✅ Clasificación de fuerza de señal (HIGH/MEDIUM/LOW)
