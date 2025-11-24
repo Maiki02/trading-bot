@@ -1944,5 +1944,19 @@
     "title": "🔔 PATRON ENCONTRADO | *EURUSD* 🔔\n🟢 Posible operación al ALZA.\nNo hay agotamiento detectado - Requiere análisis adicional\n",
     "message": "━━━━━━━━━━━━━━━━━━━━━━\n🔹 Señal: LOW\n\n🔹 Fuente: FX_IDC\n🔹 Patrón: HANGING_MAN\n🔹 Fecha: 2025-11-24 13:21:00\n🔻 Señal de agotamiento, pico alcanzado\n🔹 Tendencia: NEUTRAL\n🔹 Score: +1/10\n━━━━━━━━━━━━━━━━━━━━━━\n",
     "image_name": "chart_20251124_132201_645208.png"
+  },
+  {
+    "timestamp": "20251124_181201_100430",
+    "datetime": "2025-11-24T18:12:01.117042",
+    "title": "*USDJPY*\nMensaje informativo. No hay nada importante detectado.\n",
+    "message": "━━━━━━━━━━━━━━━━━━━━━━\n🔹 Fuente: FX\n🔹 Patrón: INVERTED_HAMMER\n🔹 Fecha: 2025-11-24 18:11:00\n➖ Zona Neutra - Sin agotamiento Bollinger\n⚪ Sin ruptura de nivel\n🔹 Tendencia: STRONG_BULLISH\n🔹 Score: +10.0/10.0\n━━━━━━━━━━━━━━━━━━━━━━\n",
+    "image_name": "chart_20251124_181201_100430.png"
+  },
+  {
+    "timestamp": "20251124_181201_117042",
+    "datetime": "2025-11-24T18:12:01.212789",
+    "title": "*EURUSD*\nMensaje informativo. No hay nada importante detectado.\n",
+    "message": "━━━━━━━━━━━━━━━━━━━━━━\n🔹 Fuente: FX_IDC\n🔹 Patrón: HANGING_MAN\n🔹 Fecha: 2025-11-24 18:11:00\n➖ Zona Neutra - Sin agotamiento Bollinger\n⚪ Sin ruptura de nivel\n🔹 Tendencia: WEAK_BULLISH\n🔹 Score: +5.0/10.0\n━━━━━━━━━━━━━━━━━━━━━━\n",
+    "image_name": "chart_20251124_181201_117042.png"
   }
 ]

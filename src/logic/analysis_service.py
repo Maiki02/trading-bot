@@ -161,6 +161,69 @@ def detect_exhaustion(candle_high: float, candle_low: float, candle_close: float
     return "NONE"
 
 
+def get_candle_result_debug(
+    pattern: str,
+    trend_status: str,
+    bollinger_exhaustion: bool,
+    candle_exhaustion: bool
+) -> str:
+    """
+    Genera un mensaje de debug mostrando qué condiciones se cumplieron para el scoring.
+    
+    Args:
+        pattern: Tipo de patrón (SHOOTING_STAR, HAMMER, etc.)
+        trend_status: Estado de tendencia (STRONG_BULLISH, WEAK_BULLISH, etc.)
+        bollinger_exhaustion: Si hay agotamiento Bollinger (PEAK o BOTTOM)
+        candle_exhaustion: Si hay agotamiento de vela (rompió high/low anterior)
+        
+    Returns:
+        String con información de debug formateada
+    """
+    # Determinar si es tendencia alcista o bajista
+    is_bullish_trend = "BULLISH" in trend_status
+    is_bearish_trend = "BEARISH" in trend_status
+    is_neutral = trend_status == "NEUTRAL"
+    
+    # Determinar si el patrón es bajista o alcista
+    pattern_is_bearish = pattern in ["SHOOTING_STAR", "INVERTED_HAMMER"]
+    pattern_is_bullish = pattern in ["HAMMER", "HANGING_MAN"]
+    
+    # Construir mensaje
+    lines = []
+    lines.append("\n\n")
+    lines.append("🔍 Mensaje de info")
+    
+    # 1. Verificar tendencia requerida
+    if pattern_is_bearish and is_bullish_trend:
+        # Patrón bajista necesita tendencia alcista
+        lines.append("✅ Cumple Tendencia Alcista")
+    elif pattern_is_bullish and is_bearish_trend:
+        # Patrón alcista necesita tendencia bajista
+        lines.append("✅ Cumple Tendencia Bajista")
+    elif is_neutral:
+        lines.append("⚠️ Tendencia NEUTRAL (penaliza score)")
+    else:
+        # Tendencia no coincide con el patrón
+        if pattern_is_bearish:
+            lines.append("❌ Cumple Tendencia alcista")
+        else:
+            lines.append("❌ Cumple Tendencia bajista")
+    
+    # 2. Verificar Bollinger Exhaustion
+    if bollinger_exhaustion:
+        lines.append("✅ Agotamiento Bollinger (PEAK/BOTTOM)")
+    else:
+        lines.append("❌ Agotamiento Bollinger (NO)")
+    
+    # 3. Verificar Candle Exhaustion
+    if candle_exhaustion:
+        lines.append("✅ Agotamiento de Vela (rompió nivel anterior)")
+    else:
+        lines.append("❌ Agotamiento de Vela (NO)")
+    
+    return "\n".join(lines)
+
+
 def analyze_trend(close: float, emas: Dict[str, float]) -> TrendAnalysis:
     """
     Analiza tendencia usando sistema de PUNTUACIÓN PONDERADA.
@@ -263,28 +326,35 @@ def analyze_trend(close: float, emas: Dict[str, float]) -> TrendAnalysis:
 def get_ema_alignment_string(emas: Dict[str, float]) -> str:
     """
     Determina la alineación de las EMAs en formato string.
+    Sistema de puntuación ponderada - verifica orden de EMAs principales.
     
     Args:
-        emas: Diccionario con valores de EMAs (ema_20, ema_30, ema_50, ema_200)
+        emas: Diccionario con valores de EMAs (ema_5, ema_7, ema_10, ema_15, ema_20, ema_30, ema_50)
         
     Returns:
         String describiendo la alineación
     """
+    ema_5 = emas.get('ema_5', np.nan)
+    ema_7 = emas.get('ema_7', np.nan)
+    ema_10 = emas.get('ema_10', np.nan)
     ema_20 = emas.get('ema_20', np.nan)
-    ema_30 = emas.get('ema_30', np.nan)
     ema_50 = emas.get('ema_50', np.nan)
-    ema_200 = emas.get('ema_200', np.nan)
     
-    if any(np.isnan([ema_20, ema_30, ema_50, ema_200])):
+    # Verificar datos completos (al menos las EMAs principales)
+    if any(np.isnan([ema_7, ema_20, ema_50])):
         return "INCOMPLETE"
     
-    if ema_20 > ema_30 > ema_50 > ema_200:
-        return "BULLISH_ALIGNED"
-    elif ema_20 < ema_30 < ema_50 < ema_200:
-        return "BEARISH_ALIGNED"
-    elif ema_20 > ema_50 > ema_200:
+    # Alineación perfecta alcista: EMA5 > EMA7 > EMA10 > EMA20 > EMA50
+    if not np.isnan(ema_5) and not np.isnan(ema_10):
+        if ema_5 > ema_7 > ema_10 > ema_20 > ema_50:
+            return "BULLISH_ALIGNED"
+        elif ema_5 < ema_7 < ema_10 < ema_20 < ema_50:
+            return "BEARISH_ALIGNED"
+    
+    # Alineación parcial (solo EMAs principales)
+    if ema_7 > ema_20 > ema_50:
         return "BULLISH_PARTIAL"
-    elif ema_20 < ema_50 < ema_200:
+    elif ema_7 < ema_20 < ema_50:
         return "BEARISH_PARTIAL"
     else:
         return "MIXED"
@@ -293,30 +363,37 @@ def get_ema_alignment_string(emas: Dict[str, float]) -> str:
 def get_ema_order_string(price: float, emas: Dict[str, float]) -> str:
     """
     Calcula el orden explícito de Precio y EMAs en formato string.
+    Sistema de puntuación ponderada.
     
     Args:
         price: Precio actual de cierre
-        emas: Diccionario con valores de EMAs
+        emas: Diccionario con valores de EMAs del sistema ponderado
         
     Returns:
-        String con el orden explícito (ej: "P>20>30>50>200", "200>50>P>30>20")
+        String con el orden explícito (ej: "P>5>7>10>15>20>30>50", "50>30>20>P>15>10>7>5")
     """
-    ema_20 = emas.get('ema_20', np.nan)
-    ema_30 = emas.get('ema_30', np.nan)
-    ema_50 = emas.get('ema_50', np.nan)
-    ema_200 = emas.get('ema_200', np.nan)
+    # Crear lista de tuplas (nombre, valor) solo con EMAs disponibles
+    items = [('P', price)]
     
-    if any(np.isnan([ema_20, ema_30, ema_50, ema_200])):
+    ema_labels = {
+        'ema_5': '5',
+        'ema_7': '7',
+        'ema_10': '10',
+        'ema_15': '15',
+        'ema_20': '20',
+        'ema_30': '30',
+        'ema_50': '50'
+    }
+    
+    # Agregar solo las EMAs que existen y no son NaN
+    for ema_key, ema_label in ema_labels.items():
+        ema_value = emas.get(ema_key, np.nan)
+        if not np.isnan(ema_value):
+            items.append((ema_label, ema_value))
+    
+    # Verificar que tengamos suficientes datos
+    if len(items) < 4:  # Al menos precio + 3 EMAs
         return "INCOMPLETE"
-    
-    # Crear lista de tuplas (nombre, valor)
-    items = [
-        ('P', price),
-        ('20', ema_20),
-        ('30', ema_30),
-        ('50', ema_50),
-        ('200', ema_200)
-    ]
     
     # Ordenar por valor descendente (mayor a menor)
     items_sorted = sorted(items, key=lambda x: x[1], reverse=True)
@@ -770,11 +847,13 @@ class AnalysisService:
         
         # Calcular alineación de EMAs en formato string
         emas_dict = {
+            'ema_5': pending_signal.ema_5,
             'ema_7': pending_signal.ema_7,
+            'ema_10': pending_signal.ema_10,
+            'ema_15': pending_signal.ema_15,
             'ema_20': pending_signal.ema_20,
             'ema_30': pending_signal.ema_30,
-            'ema_50': pending_signal.ema_50,
-            'ema_200': pending_signal.ema_200
+            'ema_50': pending_signal.ema_50
         }
         ema_alignment = get_ema_alignment_string(emas_dict)
         
@@ -798,11 +877,13 @@ class AnalysisService:
                 "confidence": pending_signal.confidence
             },
             "emas": {
-                "ema_200": pending_signal.ema_200,
-                "ema_50": pending_signal.ema_50,
-                "ema_30": pending_signal.ema_30,
-                "ema_20": pending_signal.ema_20,
+                "ema_5": pending_signal.ema_5,
                 "ema_7": pending_signal.ema_7,
+                "ema_10": pending_signal.ema_10,
+                "ema_15": pending_signal.ema_15,
+                "ema_20": pending_signal.ema_20,
+                "ema_30": pending_signal.ema_30,
+                "ema_50": pending_signal.ema_50,
                 "alignment": ema_alignment,
                 "ema_order": ema_order,
                 "trend_score": pending_signal.trend_score

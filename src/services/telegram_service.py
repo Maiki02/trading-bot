@@ -245,13 +245,13 @@ class TelegramService:
         exhaustion_text = ""
         if signal.exhaustion_type == "PEAK":
             exhaustion_emoji = "🔺"
-            exhaustion_text = "Señal de agotamiento alcista (Techo)"
+            exhaustion_text = "Señal de techo"
         elif signal.exhaustion_type == "BOTTOM":
             exhaustion_emoji = "🔻"
-            exhaustion_text = "Señal de agotamiento bajista (Piso)"
+            exhaustion_text = "Señal de piso"
         else:
             exhaustion_emoji = "➖"
-            exhaustion_text = "Zona Neutra - Sin agotamiento Bollinger"
+            exhaustion_text = "Zona Neutra - Sin agotamiento"
         
         # Emoji de Candle Exhaustion
         candle_exh_emoji = "💥" if signal.candle_exhaustion else "⚪"
@@ -264,22 +264,21 @@ class TelegramService:
         else:
             logger.warning("⚠️  signal.statistics es None o no existe")
         
-        # Construir descripción visual de EMAs con colores y pesos
-        # emas_visual = (
-        #     f"\n📊 SISTEMA DE PUNTUACIÓN (Max: 10.0pts)\n"
-        #     f"🔴 EMA 5: {signal.ema_5:.5f} (2.0pts)\n"
-        #     f"🟣 EMA 7: {signal.ema_7:.5f} (2.0pts)\n"
-        #     f"🟠 EMA 10: {signal.ema_10:.5f} (1.5pts)\n"
-        #     f"🟡 EMA 15: {signal.ema_15:.5f} (1.5pts)\n"
-        #     f"🟢 EMA 20: {signal.ema_20:.5f} (1.0pt)\n"
-        #     f"🔵 EMA 30: {signal.ema_30:.5f} (1.0pt)\n"
-        #     f"🔷 EMA 50: {signal.ema_50:.5f} (1.0pt)\n"
-        # )
+        # Agregar información de debug si está habilitado
+        debug_info = ""
+        if Config.SHOW_CANDLE_RESULT:
+            from src.logic.analysis_service import get_candle_result_debug
+            debug_info = get_candle_result_debug(
+                pattern=signal.pattern,
+                trend_status=signal.trend,
+                bollinger_exhaustion=(signal.exhaustion_type in ["PEAK", "BOTTOM"]),
+                candle_exhaustion=signal.candle_exhaustion
+            )
         
         # Cuerpo del mensaje estructurado
         body = (
             f"━━━━━━━━━━━━━━━━━━━━━━\n"
-            # f"🔹 Señal: {signal.signal_strength}\n\n"
+            f"🔹 Señal: {signal.signal_strength}\n"
             f"🔹 Fuente: {signal.source}\n"
             f"🔹 Patrón: {signal.pattern}\n"
             f"🔹 Fecha: {timestamp_str}\n"
@@ -287,7 +286,7 @@ class TelegramService:
             f"{candle_exh_emoji} {candle_exh_text}\n"
             f"🔹 Tendencia: {signal.trend}\n"
             f"🔹 Score: {signal.trend_score:+.1f}/10.0\n"
-            # f"{emas_visual}"
+            f"{debug_info}"
             f"━━━━━━━━━━━━━━━━━━━━━━\n"
         )
         

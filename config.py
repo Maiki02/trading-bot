@@ -148,7 +148,7 @@ class Config:
     """Clase Singleton para acceso global a la configuración."""
     
     # Versión del algoritmo de análisis (para tracking en raw_data)
-    ALGO_VERSION: str = "v4.0"
+    ALGO_VERSION: str = "v4.1"
     
     # Payout de opciones binarias (ganancia neta si aciertas, en decimal)
     # Ejemplo: 0.86 = 86% de ganancia sobre la inversión
@@ -182,6 +182,7 @@ class Config:
     DUAL_SOURCE_WINDOW: float = float(os.getenv("DUAL_SOURCE_WINDOW", "2.0"))
     CHART_LOOKBACK: int = int(os.getenv("CHART_LOOKBACK", "30"))
     USE_TREND_FILTER: bool = os.getenv("USE_TREND_FILTER", "false").lower() == "true"
+    SHOW_CANDLE_RESULT: bool = os.getenv("SHOW_CANDLE_RESULT", "true").lower() == "true"  # Mostrar debug de condiciones en Telegram
     
     # Reconnection Strategy
     RECONNECT_INITIAL_TIMEOUT: int = int(os.getenv("RECONNECT_INITIAL_TIMEOUT", "5"))
