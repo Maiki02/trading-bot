@@ -60,6 +60,7 @@ class PatternSignal:
     ema_50: float
     ema_30: float
     ema_20: float
+    ema_7: float  # Nueva EMA rápida para detección de agotamiento
     trend: str  # "STRONG_BULLISH", "WEAK_BULLISH", "NEUTRAL", "WEAK_BEARISH", "STRONG_BEARISH"
     trend_score: int  # Score numérico de -10 a +10
     is_trend_aligned: bool  # Si las EMAs están alineadas correctamente
@@ -159,83 +160,104 @@ def detect_exhaustion(candle_high: float, candle_low: float, candle_close: float
 
 def analyze_trend(close: float, emas: Dict[str, float]) -> TrendAnalysis:
     """
-    Analiza la tendencia optimizada para OPCIONES BINARIAS (1 min).
+    Analiza AGOTAMIENTO/SOBRE-EXTENSIÓN para estrategia de Mean Reversion.
     
-    Estrategia de Scoring (Momentum Centric):
-    PRIORIDAD ALTA (Corto Plazo):
-    - Precio vs EMA 20: Indica la fuerza inmediata. (Peso: 4)
-    - EMA 20 vs EMA 50: Confirma la dirección del flujo actual. (Peso: 3)
+    **CAMBIO CRÍTICO:** Ya NO medimos alineación de tendencia, sino SOBRE-EXTENSIÓN.
+    El objetivo es detectar cuando el precio se ha alejado demasiado de sus medias,
+    señalando una posible reversión.
     
-    PRIORIDAD MEDIA/BAJA (Contexto):
-    - Precio vs EMA 50: Soporte dinámico cercano. (Peso: 2)
-    - Precio vs EMA 200: Filtro macro (evita ir contra trenes de carga). (Peso: 1)
+    Estrategia de Scoring (Mean Reversion):
+    PRIORIDAD MÁXIMA:
+    - Precio >>> EMA 7 = Sobre-extensión alcista (Score NEGATIVO = Reversión bajista probable)
+    - Precio <<< EMA 7 = Sobre-extensión bajista (Score POSITIVO = Reversión alcista probable)
     
-    Escala Total: +/- 10 puntos
+    CONFIRMACIÓN:
+    - EMA 7 vs EMA 20: Validar que hay momentum de corto plazo que revertir
+    - EMA 20 vs EMA 50: Confirmar que NO estamos en zona lateral (hay tendencia)
+    
+    Escala Total: -10 a +10 (invertida: valores EXTREMOS indican alta probabilidad de reversión)
     """
     score = 0
     
     # Extraer EMAs (manejar NaN con seguridad)
+    ema_7 = emas.get('ema_7', np.nan)
     ema_20 = emas.get('ema_20', np.nan)
     ema_50 = emas.get('ema_50', np.nan)
-    ema_200 = emas.get('ema_200', np.nan)
     
     # ---------------------------------------------------------
-    # 1. MOMENTUM INMEDIATO (Lo más importante para 1 min)
-    # Peso: 4 puntos
+    # 1. SOBRE-EXTENSIÓN INMEDIATA (CRÍTICO para Mean Reversion)
+    # Peso: ±5 puntos (máxima prioridad)
     # ---------------------------------------------------------
-    if not np.isnan(ema_20):
-        if close > ema_20:
-            score += 4
-        elif close < ema_20:
-            score -= 4
+    if not np.isnan(ema_7):
+        deviation = abs(close - ema_7) / ema_7  # Desviación porcentual
+        
+        # Umbral de sobre-extensión: 0.15% para Forex (15 pips en EUR/USD ~1.08)
+        if deviation >= 0.0015:  # 0.15%
+            if close > ema_7:
+                # Precio MUY por encima de EMA 7 → Sobre-compra → Reversión BAJISTA probable
+                score -= 5  # Score NEGATIVO indica sobre-extensión alcista
+            else:
+                # Precio MUY por debajo de EMA 7 → Sobre-venta → Reversión ALCISTA probable
+                score += 5  # Score POSITIVO indica sobre-extensión bajista
+        elif deviation >= 0.0008:  # 0.08% (sobre-extensión moderada)
+            if close > ema_7:
+                score -= 3
+            else:
+                score += 3
             
     # ---------------------------------------------------------
-    # 2. DIRECCIÓN DE CORTO PLAZO (Flujo de órdenes)
-    # Peso: 3 puntos
+    # 2. MOMENTUM DE CORTO PLAZO (Confirmación)
+    # Peso: ±3 puntos
+    # ---------------------------------------------------------
+    if not np.isnan(ema_7) and not np.isnan(ema_20):
+        separation = abs(ema_7 - ema_20) / ema_20
+        
+        # Si EMA 7 está alejada de EMA 20, hay momentum fuerte que revertir
+        if separation >= 0.0010:  # 0.10%
+            if ema_7 > ema_20:
+                score -= 3  # Momentum alcista fuerte → Reversión bajista probable
+            else:
+                score += 3  # Momentum bajista fuerte → Reversión alcista probable
+        elif separation >= 0.0005:  # 0.05%
+            if ema_7 > ema_20:
+                score -= 2
+            else:
+                score += 2
+
+    # ---------------------------------------------------------
+    # 3. VALIDACIÓN DE TENDENCIA (NO operar en lateral)
+    # Peso: ±2 puntos
     # ---------------------------------------------------------
     if not np.isnan(ema_20) and not np.isnan(ema_50):
-        if ema_20 > ema_50:
-            score += 3
-        elif ema_20 < ema_50:
-            score -= 3
-
-    # ---------------------------------------------------------
-    # 3. ZONA DE VALOR (Mediano Plazo)
-    # Peso: 2 puntos
-    # ---------------------------------------------------------
-    if not np.isnan(ema_50):
-        if close > ema_50:
-            score += 2
-        elif close < ema_50:
-            score -= 2
-
-    # ---------------------------------------------------------
-    # 4. FILTRO MACRO (Solo contexto general)
-    # Peso: 1 punto (Ya no penaliza tanto ir contra macro si hay momentum)
-    # ---------------------------------------------------------
-    if not np.isnan(ema_200):
-        if close > ema_200:
-            score += 1
-        elif close < ema_200:
-            score -= 1
+        trend_separation = abs(ema_20 - ema_50) / ema_50
+        
+        # Solo operar si hay tendencia clara (EMA 20 y 50 están separadas)
+        if trend_separation >= 0.0008:  # 0.08%
+            if ema_20 > ema_50:
+                # Hay tendencia alcista que puede revertir
+                score -= 2
+            else:
+                # Hay tendencia bajista que puede revertir
+                score += 2
     
-    # Clasificación según score (Mismos rangos, interpretación distinta)
-    if score >= 6:
-        status = "STRONG_BULLISH"   # Mucho momentum alcista
-    elif score >= 2:
-        status = "WEAK_BULLISH"     # Momentum alcista pero contexto sucio
-    elif score >= -1:
-        status = "NEUTRAL"          # Rango o indecisión
-    elif score >= -5:
-        status = "WEAK_BEARISH"     # Momentum bajista pero contexto sucio
+    # Clasificación según score (INTERPRETACIÓN INVERTIDA)
+    if score <= -6:
+        status = "STRONG_BEARISH"   # Sobre-extensión alcista EXTREMA → Reversión bajista muy probable
+    elif score <= -2:
+        status = "WEAK_BEARISH"     # Sobre-extensión alcista moderada
+    elif score >= -1 and score <= 1:
+        status = "NEUTRAL"          # No hay sobre-extensión clara
+    elif score >= 2 and score <= 5:
+        status = "WEAK_BULLISH"     # Sobre-extensión bajista moderada
     else:
-        status = "STRONG_BEARISH"   # Mucho momentum bajista
+        status = "STRONG_BULLISH"   # Sobre-extensión bajista EXTREMA → Reversión alcista muy probable
     
-    # Verificar alineación perfecta de corto plazo (Sniper entry)
-    # Solo nos importa 20 > 50 > 200 para "Alineado" en binarias
+    # Verificar que haya tendencia establecida (no lateral)
     is_aligned = False
-    if not any(np.isnan([ema_20, ema_50, ema_200])):
-        is_aligned = (ema_20 > ema_50 > ema_200) or (ema_20 < ema_50 < ema_200)
+    if not any(np.isnan([ema_7, ema_20, ema_50])):
+        # En Mean Reversion, "aligned" significa que hay una tendencia clara que revertir
+        trend_strength = abs(ema_20 - ema_50) / ema_50
+        is_aligned = trend_strength >= 0.0008  # 0.08% de separación mínima
     
     return TrendAnalysis(
         status=status,
@@ -537,7 +559,7 @@ class AnalysisService:
         """
         self.dataframes[source_key] = pd.DataFrame(columns=[
             "timestamp", "open", "high", "low", "close", "volume", 
-            "ema_200", "ema_50", "ema_30", "ema_20",
+            "ema_200", "ema_50", "ema_30", "ema_20", "ema_7",
             "bb_middle", "bb_upper", "bb_lower"
         ])
         logger.debug(f"📋 DataFrame inicializado para {source_key}")
@@ -577,6 +599,7 @@ class AnalysisService:
             "ema_50": np.nan,
             "ema_30": np.nan,
             "ema_20": np.nan,
+            "ema_7": np.nan,
             "bb_middle": np.nan,
             "bb_upper": np.nan,
             "bb_lower": np.nan
@@ -614,7 +637,13 @@ class AnalysisService:
     
     def _update_indicators(self, source_key: str) -> None:
         """
-        Recalcula los indicadores técnicos (EMAs: 200, 100, 50, 30, 20) y Bollinger Bands.
+        Recalcula los indicadores técnicos para estrategia Mean Reversion.
+        
+        EMAs Calculadas:
+        - EMA 7: CRÍTICA para detección de sobre-extensión (cambio de Trend Following a Mean Reversion)
+        - EMA 20: Confirmación de momentum de corto plazo
+        - EMA 50: Validación de tendencia establecida (no operar en lateral)
+        - EMA 30, EMA 200: Solo para visualización (NO usadas en lógica)
         
         Args:
             source_key: Clave de la fuente
@@ -622,19 +651,24 @@ class AnalysisService:
         df = self.dataframes[source_key]
         
         # Calcular EMAs sobre precios de cierre
-        # EMA 20 - Siempre se puede calcular si hay >= 20 velas
+        # EMA 7 - CRÍTICA para Mean Reversion (detección de sobre-extensión)
+        ema_fast_period = Config.EMA_FAST_PERIOD
+        if len(df) >= ema_fast_period:
+            df["ema_7"] = calculate_ema(df["close"], ema_fast_period)
+        
+        # EMA 20 - Confirmación de momentum
         if len(df) >= 20:
             df["ema_20"] = calculate_ema(df["close"], 20)
         
-        # EMA 30
+        # EMA 30 - Solo visualización
         if len(df) >= 30:
             df["ema_30"] = calculate_ema(df["close"], 30)
         
-        # EMA 50
+        # EMA 50 - Validación de tendencia (evitar laterales)
         if len(df) >= 50:
             df["ema_50"] = calculate_ema(df["close"], 50)
         
-        # EMA 200 - La principal para detección de tendencia
+        # EMA 200 - Solo visualización (ya NO se usa en scoring)
         if len(df) >= self.ema_period:
             df["ema_200"] = calculate_ema(df["close"], self.ema_period)
         
@@ -730,6 +764,7 @@ class AnalysisService:
         
         # Calcular alineación de EMAs en formato string
         emas_dict = {
+            'ema_7': pending_signal.ema_7,
             'ema_20': pending_signal.ema_20,
             'ema_30': pending_signal.ema_30,
             'ema_50': pending_signal.ema_50,
@@ -761,6 +796,7 @@ class AnalysisService:
                 "ema_50": pending_signal.ema_50,
                 "ema_30": pending_signal.ema_30,
                 "ema_20": pending_signal.ema_20,
+                "ema_7": pending_signal.ema_7,
                 "alignment": ema_alignment,
                 "ema_order": ema_order,
                 "trend_score": pending_signal.trend_score
@@ -867,11 +903,13 @@ class AnalysisService:
             return
         
         # LOG: Información de la vela cerrada con todas las EMAs
+        ema_7_val = last_closed.get('ema_7', np.nan)
         ema_20_val = last_closed.get('ema_20', np.nan)
         ema_30_val = last_closed.get('ema_30', np.nan)
         ema_50_val = last_closed.get('ema_50', np.nan)
         
         # Formatear EMAs (convertir a string antes)
+        ema_7_str = f"{ema_7_val:.5f}" if not pd.isna(ema_7_val) else "N/A"
         ema_20_str = f"{ema_20_val:.5f}" if not pd.isna(ema_20_val) else "N/A"
         ema_30_str = f"{ema_30_val:.5f}" if not pd.isna(ema_30_val) else "N/A"
         ema_50_str = f"{ema_50_val:.5f}" if not pd.isna(ema_50_val) else "N/A"
@@ -887,15 +925,15 @@ class AnalysisService:
             f"💰 Mínimo: {last_closed['low']:.5f}\n"
             f"💰 Cierre: {last_closed['close']:.5f}\n"
             f"📊 Volumen: {last_closed['volume']:.2f}\n"
-            f"📉 EMAs: 20={ema_20_str} | 30={ema_30_str} | 50={ema_50_str} | 200={last_closed['ema_200']:.5f}\n"
+            f"📉 EMAs: 7={ema_7_str} | 20={ema_20_str} | 30={ema_30_str} | 50={ema_50_str} | 200={last_closed['ema_200']:.5f}\n"
             f"{'='*40}\n"
         )
         
-        # Analizar tendencia con sistema de scoring
+        # Analizar tendencia con sistema de scoring (Mean Reversion)
         emas_dict = {
+            'ema_7': last_closed.get('ema_7', np.nan),
             'ema_20': last_closed.get('ema_20', np.nan),
-            'ema_50': last_closed.get('ema_50', np.nan),
-            'ema_200': last_closed['ema_200']
+            'ema_50': last_closed.get('ema_50', np.nan)
         }
         trend_analysis = analyze_trend(last_closed["close"], emas_dict)
         
@@ -1010,113 +1048,101 @@ class AnalysisService:
             return
         
         # ═════════════════════════════════════════════════════════════════════
-        # CLASIFICACIÓN DE FUERZA DE SEÑAL (Signal Strength)
+        # CLASIFICACIÓN DE FUERZA DE SEÑAL - Mean Reversion Strategy
         # ═════════════════════════════════════════════════════════════════════
         
-        # Determinar si el patrón está alineado con la tendencia
-        current_status = trend_analysis.status
-        is_bearish_trend = "BEARISH" in current_status
-        is_bullish_trend = "BULLISH" in current_status
+        # NUEVA FILOSOFÍA:
+        # - Priorizar PEAK + Patrón Bajista = HIGH (reversión bajista en agotamiento alcista)
+        # - Priorizar BOTTOM + Patrón Alcista = HIGH (reversión alcista en agotamiento bajista)
+        # - El "contra-tendencia" ahora ES LA SEÑAL DESEADA (no penalizar)
         
         # Patrones bajistas: SHOOTING_STAR, HANGING_MAN
         # Patrones alcistas: HAMMER, INVERTED_HAMMER
         pattern_is_bearish = pattern_detected in ["SHOOTING_STAR", "HANGING_MAN"]
         pattern_is_bullish = pattern_detected in ["HAMMER", "INVERTED_HAMMER"]
         
-        # Determinar si el patrón va contra la tendencia principal
-        is_counter_trend = False
-        if pattern_is_bearish and is_bearish_trend:
-            is_counter_trend = True  # Patrón bajista en tendencia bajista
-        elif pattern_is_bullish and is_bullish_trend:
-            is_counter_trend = True  # Patrón alcista en tendencia alcista
-        
-        # Determinar alineación tradicional (para compatibilidad con código existente)
-        is_trend_aligned = False
-        if pattern_is_bearish:
-            # Patrones bajistas: alineados si la tendencia es alcista (reversión bajista esperada)
-            is_trend_aligned = is_bullish_trend
-        elif pattern_is_bullish:
-            # Patrones alcistas: alineados si la tendencia es bajista (reversión alcista esperada)
-            is_trend_aligned = is_bearish_trend
-        
         # ═════════════════════════════════════════════════════════════════════
-        # MATRIZ DE CLASIFICACIÓN DE FUERZA
+        # MATRIZ DE CLASIFICACIÓN - Mean Reversion
         # ═════════════════════════════════════════════════════════════════════
         
         signal_strength = "LOW"  # Default
         
-        # PRIORIDAD 1: Evaluar patrones en zonas de agotamiento primero
-        # (antes de descartar por contra-tendencia)
+        # CASO 1: Patrón BAJISTA (Shooting Star / Hanging Man) 
+        if pattern_is_bearish:
+            if exhaustion_type == "PEAK":
+                # 🚨🚨 IDEAL: Patrón bajista en cúspide = Reversión en agotamiento alcista
+                signal_strength = "HIGH"
+                logger.info(
+                    f"🚨 SEÑAL HIGH | {pattern_detected} en PEAK | "
+                    f"Reversión bajista en agotamiento alcista | Mean Reversion PERFECTA"
+                )
+            elif exhaustion_type == "NONE":
+                # Patrón bajista en zona neutra (sin agotamiento confirmado)
+                signal_strength = "MEDIUM"
+                logger.info(
+                    f"⚠️  SEÑAL MEDIUM | {pattern_detected} en Zona Neutra | "
+                    f"Reversión bajista posible pero sin agotamiento"
+                )
+            else:  # exhaustion_type == "BOTTOM"
+                # Patrón bajista en base (contra-lógica) - no operar
+                signal_strength = "LOW"
+                logger.info(
+                    f"ℹ️  SEÑAL LOW | {pattern_detected} en BOTTOM | "
+                    f"Patrón bajista en agotamiento bajista - señal débil"
+                )
         
-        if is_bullish_trend:
-            # CONTEXTO A: TENDENCIA ALCISTA (Bullish)
-            if pattern_detected == "SHOOTING_STAR":
-                if exhaustion_type == "PEAK":
-                    signal_strength = "HIGH"  # 🔴🔴 Alerta Fuerte
-                    logger.info(
-                        f"🚨 ALERTA FUERTE | SHOOTING_STAR en CÚSPIDE | "
-                        f"Agotamiento alcista confirmado | Strength: HIGH"
-                    )
-                else:
-                    signal_strength = "LOW"  # 🔵 Informativo
-                    logger.info(
-                        f"ℹ️  SHOOTING_STAR en Zona Neutra | Strength: LOW"
-                    )
-            elif pattern_detected == "INVERTED_HAMMER":
-                if exhaustion_type == "PEAK":
-                    signal_strength = "MEDIUM"  # 🟠 Aviso
-                    logger.info(
-                        f"⚠️  AVISO | INVERTED_HAMMER en CÚSPIDE | "
-                        f"Posible debilitamiento alcista | Strength: MEDIUM"
-                    )
-                else:
-                    signal_strength = "LOW"  # 🔵 Informativo
-                    logger.info(
-                        f"ℹ️  INVERTED_HAMMER en Zona Neutra | Strength: LOW"
-                    )
-            elif is_counter_trend:
-                # Patrones alcistas (HAMMER) en tendencia alcista → contra-tendencia
+        # CASO 2: Patrón ALCISTA (Hammer / Inverted Hammer)
+        elif pattern_is_bullish:
+            if exhaustion_type == "BOTTOM":
+                # 🚨🚨 IDEAL: Patrón alcista en base = Reversión en agotamiento bajista
+                signal_strength = "HIGH"
+                logger.info(
+                    f"🚨 SEÑAL HIGH | {pattern_detected} en BOTTOM | "
+                    f"Reversión alcista en agotamiento bajista | Mean Reversion PERFECTA"
+                )
+            elif exhaustion_type == "NONE":
+                # Patrón alcista en zona neutra (sin agotamiento confirmado)
+                signal_strength = "MEDIUM"
+                logger.info(
+                    f"⚠️  SEÑAL MEDIUM | {pattern_detected} en Zona Neutra | "
+                    f"Reversión alcista posible pero sin agotamiento"
+                )
+            else:  # exhaustion_type == "PEAK"
+                # Patrón alcista en cúspide (contra-lógica) - no operar
                 signal_strength = "LOW"
                 logger.info(
-                    f"⚠️  PATRÓN CONTRA-TENDENCIA | "
-                    f"{pattern_detected} en tendencia {current_status} | "
-                    f"Clasificado como LOW (no operar)"
+                    f"ℹ️  SEÑAL LOW | {pattern_detected} en PEAK | "
+                    f"Patrón alcista en agotamiento alcista - señal débil"
                 )
-                
-        elif is_bearish_trend:
-            # CONTEXTO B: TENDENCIA BAJISTA (Bearish)
-            if pattern_detected == "HAMMER":
-                if exhaustion_type == "BOTTOM":
-                    signal_strength = "HIGH"  # 🟢🟢 Alerta Fuerte
-                    logger.info(
-                        f"🚨 ALERTA FUERTE | HAMMER en BASE | "
-                        f"Agotamiento bajista confirmado | Strength: HIGH"
-                    )
-                else:
-                    signal_strength = "LOW"  # 🔵 Informativo
-                    logger.info(
-                        f"ℹ️  HAMMER en Zona Neutra | Strength: LOW"
-                    )
-            elif pattern_detected == "HANGING_MAN":
-                if exhaustion_type == "BOTTOM":
-                    signal_strength = "MEDIUM"  # 🟠 Aviso
-                    logger.info(
-                        f"⚠️  AVISO | HANGING_MAN en BASE | "
-                        f"Posible debilitamiento bajista | Strength: MEDIUM"
-                    )
-                else:
-                    signal_strength = "LOW"  # 🔵 Informativo
-                    logger.info(
-                        f"ℹ️  HANGING_MAN en Zona Neutra | Strength: LOW"
-                    )
-            elif is_counter_trend:
-                # Patrones bajistas (SHOOTING_STAR) en tendencia bajista → contra-tendencia
-                signal_strength = "LOW"
-                logger.info(
-                    f"⚠️  PATRÓN CONTRA-TENDENCIA | "
-                    f"{pattern_detected} en tendencia {current_status} | "
-                    f"Clasificado como LOW (no operar)"
-                )
+        
+        # VALIDACIÓN ADICIONAL: Verificar que hay tendencia clara (no lateral)
+        # Si trend_analysis.is_aligned == False, degradar a LOW
+        if signal_strength == "HIGH" and not trend_analysis.is_aligned:
+            signal_strength = "MEDIUM"
+            logger.warning(
+                f"⚠️  DEGRADACIÓN HIGH → MEDIUM | "
+                f"No hay tendencia clara (posible lateral) | "
+                f"Recomendación: Esperar confirmación"
+            )
+        
+        # Determinar si el patrón es "contra-tendencia" (para compatibilidad con storage)
+        # En Mean Reversion, esto NO es penalización, solo información
+        current_status = trend_analysis.status
+        is_bearish_trend = "BEARISH" in current_status
+        is_bullish_trend = "BULLISH" in current_status
+        
+        is_counter_trend = False
+        if pattern_is_bearish and is_bearish_trend:
+            is_counter_trend = True  # Patrón bajista en tendencia bajista (reversión contra-tendencia)
+        elif pattern_is_bullish and is_bullish_trend:
+            is_counter_trend = True  # Patrón alcista en tendencia alcista (reversión contra-tendencia)
+        
+        # Determinar alineación tradicional (para compatibilidad)
+        is_trend_aligned = False
+        if pattern_is_bearish:
+            is_trend_aligned = is_bullish_trend  # Bajista espera tendencia alcista
+        elif pattern_is_bullish:
+            is_trend_aligned = is_bearish_trend  # Alcista espera tendencia bajista
         
         logger.info(
             f"\n{'═'*60}\n"
@@ -1240,6 +1266,7 @@ class AnalysisService:
                 ema_50=last_closed.get("ema_50", np.nan),
                 ema_30=last_closed.get("ema_30", np.nan),
                 ema_20=last_closed.get("ema_20", np.nan),
+                ema_7=last_closed.get("ema_7", np.nan),
                 trend=trend_analysis.status,
                 trend_score=trend_analysis.score,
                 is_trend_aligned=trend_analysis.is_aligned,

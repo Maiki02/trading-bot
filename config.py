@@ -176,8 +176,9 @@ class Config:
         save_notifications_locally=os.getenv("SAVE_NOTIFICATIONS_LOCALLY", "false").lower() == "true"
     )
     
-    # Trading Parameters
-    EMA_PERIOD: int = int(os.getenv("EMA_PERIOD", "200"))
+    # Trading Parameters - Mean Reversion Strategy
+    EMA_FAST_PERIOD: int = int(os.getenv("EMA_FAST_PERIOD", "7"))  # EMA rápida para detección de agotamiento
+    EMA_PERIOD: int = int(os.getenv("EMA_PERIOD", "200"))  # Mantener para visualización
     DUAL_SOURCE_WINDOW: float = float(os.getenv("DUAL_SOURCE_WINDOW", "2.0"))
     CHART_LOOKBACK: int = int(os.getenv("CHART_LOOKBACK", "30"))
     USE_TREND_FILTER: bool = os.getenv("USE_TREND_FILTER", "false").lower() == "true"

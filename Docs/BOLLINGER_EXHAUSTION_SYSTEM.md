@@ -1,10 +1,12 @@
-# Sistema de Clasificación de Fuerza por Agotamiento de Volatilidad (Bollinger Bands)
+# Sistema de Mean Reversion con Agotamiento de Volatilidad (Bollinger Bands)
 
 ## 📋 Overview
 
-Sistema implementado en **v0.0.3** para clasificar la fuerza de las señales de patrones de velas japonesas basándose en **zonas de agotamiento de tendencia** determinadas por las Bandas de Bollinger.
+Sistema refactorizado en **v0.0.5** para operar **CONTRA-TENDENCIA** (Mean Reversion) en zonas de agotamiento extremo determinadas por las Bandas de Bollinger.
 
-**Filosofía:** No todos los patrones tienen la misma probabilidad de éxito. Los patrones detectados en zonas de agotamiento (Cúspide o Base de Bollinger) tienen mayor fidelidad que los detectados en zona neutra.
+**🔄 CAMBIO CRÍTICO:** La estrategia cambió de "Trend Following" a "Mean Reversion / Contratendencia".
+
+**Nueva Filosofía:** Operar CONTRA la tendencia cuando se detecta agotamiento extremo (Cúspide o Base de Bollinger) combinado con patrones de reversión. El objetivo es capturar el rebote/retroceso inmediato tras sobre-extensión del precio.
 
 ---
 
@@ -14,23 +16,23 @@ Sistema implementado en **v0.0.3** para clasificar la fuerza de las señales de 
 
 **Parámetros:**
 - **Periodo:** 20 velas (1 minuto cada una)
-- **Desviación Estándar:** 2.5σ (agresivo para capturar agotamiento real)
+- **Desviación Estándar:** 2.0σ (estándar para detección de agotamiento)
 - **Línea Central:** SMA(20)
 
 **Fórmula:**
 ```
 BB_Middle = SMA(Close, 20)
-BB_Upper = BB_Middle + (2.5 × σ)
-BB_Lower = BB_Middle - (2.5 × σ)
+BB_Upper = BB_Middle + (2.0 × σ)
+BB_Lower = BB_Middle - (2.0 × σ)
 ```
 
-**Justificación de 2.5σ:** La desviación estándar de 2.5 (en lugar de la clásica 2.0) se usa para asegurar que solo se marquen como "agotamiento" los movimientos extremos reales, reduciendo falsos positivos.
+**Justificación de 2.0σ:** La desviación estándar de 2.0 captura aproximadamente el 95% de los movimientos de precio, permitiendo identificar sobre-extensiones reales sin ser demasiado restrictivo.
 
 ---
 
 ### 2. Zonas de Agotamiento
 
-#### 🔺 PEAK (Cúspide - Agotamiento Alcista)
+#### 🔺 PEAK (Cúspide - Sobre-extensión Alcista)
 **Definición:** La vela toca o supera la banda superior.
 
 **Condición:**
@@ -38,11 +40,11 @@ BB_Lower = BB_Middle - (2.5 × σ)
 candle.high >= bb_upper OR candle.close >= bb_upper
 ```
 
-**Interpretación:** El precio ha alcanzado un nivel de sobrecompra extremo. Alta probabilidad de reversión bajista.
+**Interpretación Mean Reversion:** El precio está sobre-extendido al alza. **Buscar patrones BAJISTAS** (Shooting Star, Hanging Man) para reversión bajista.
 
 ---
 
-#### 🔻 BOTTOM (Base - Agotamiento Bajista)
+#### 🔻 BOTTOM (Base - Sobre-extensión Bajista)
 **Definición:** La vela toca o perfora la banda inferior.
 
 **Condición:**
@@ -50,7 +52,7 @@ candle.high >= bb_upper OR candle.close >= bb_upper
 candle.low <= bb_lower OR candle.close <= bb_lower
 ```
 
-**Interpretación:** El precio ha alcanzado un nivel de sobreventa extremo. Alta probabilidad de reversión alcista.
+**Interpretación Mean Reversion:** El precio está sobre-extendido a la baja. **Buscar patrones ALCISTAS** (Hammer, Inverted Hammer) para reversión alcista.
 
 ---
 
@@ -62,86 +64,130 @@ candle.low <= bb_lower OR candle.close <= bb_lower
 bb_lower < candle.close < bb_upper
 ```
 
-**Interpretación:** No hay agotamiento claro. El patrón tiene menor probabilidad de éxito.
+**Interpretación:** No hay sobre-extensión clara. La probabilidad de reversión es menor.
 
 ---
 
-## 📊 Matriz de Clasificación de Fuerza
+## 📊 Matriz de Clasificación de Fuerza (Mean Reversion)
 
-### 🟢 CONTEXTO: TENDENCIA ALCISTA (Bullish)
+### 🔥 SEÑALES HIGH (Máxima Prioridad)
 
-| Patrón | Zona | Signal Strength | Emoji | Interpretación |
-|--------|------|-----------------|-------|----------------|
-| **SHOOTING_STAR** | **PEAK** | **HIGH** | 🚨🚨 | **ALERTA FUERTE** - Agotamiento alcista confirmado |
-| SHOOTING_STAR | NONE | LOW | ℹ️ | Informativo - Sin agotamiento |
-| **INVERTED_HAMMER** | PEAK | MEDIUM | ⚠️ | **AVISO** - Posible debilitamiento |
-| INVERTED_HAMMER | NONE | LOW | ℹ️ | Informativo - Sin agotamiento |
-| HAMMER | PEAK | LOW | ℹ️ | Contra-tendencia (no operar) |
-| HANGING_MAN | PEAK | LOW | ℹ️ | Contra-tendencia (no operar) |
+| Patrón | Zona | Signal Strength | Interpretación |
+|--------|------|-----------------|----------------|
+| **SHOOTING_STAR** | **PEAK** | **HIGH** 🚨 | **Reversión bajista en sobre-extensión alcista** - IDEAL para Mean Reversion |
+| **HANGING_MAN** | **PEAK** | **HIGH** 🚨 | **Reversión bajista en sobre-extensión alcista** - IDEAL para Mean Reversion |
+| **HAMMER** | **BOTTOM** | **HIGH** 🚨 | **Reversión alcista en sobre-extensión bajista** - IDEAL para Mean Reversion |
+| **INVERTED_HAMMER** | **BOTTOM** | **HIGH** 🚨 | **Reversión alcista en sobre-extensión bajista** - IDEAL para Mean Reversion |
 
----
-
-### 🔴 CONTEXTO: TENDENCIA BAJISTA (Bearish)
-
-| Patrón | Zona | Signal Strength | Emoji | Interpretación |
-|--------|------|-----------------|-------|----------------|
-| **HAMMER** | **BOTTOM** | **HIGH** | 🚨🚨 | **ALERTA FUERTE** - Agotamiento bajista confirmado |
-| HAMMER | NONE | LOW | ℹ️ | Informativo - Sin agotamiento |
-| **HANGING_MAN** | BOTTOM | MEDIUM | ⚠️ | **AVISO** - Posible debilitamiento |
-| HANGING_MAN | NONE | LOW | ℹ️ | Informativo - Sin agotamiento |
-| SHOOTING_STAR | BOTTOM | LOW | ℹ️ | Contra-tendencia (no operar) |
-| INVERTED_HAMMER | BOTTOM | LOW | ℹ️ | Contra-tendencia (no operar) |
+**Criterio:** Patrón de reversión detectado en zona de agotamiento extremo. Mayor probabilidad de éxito.
 
 ---
 
-## 🔍 Lógica de Detección (Pseudocódigo)
+### ⚠️ SEÑALES MEDIUM (Precaución)
+
+| Patrón | Zona | Signal Strength | Interpretación |
+|--------|------|-----------------|----------------|
+| SHOOTING_STAR | NONE | MEDIUM ⚠️ | Reversión bajista posible pero sin agotamiento confirmado |
+| HANGING_MAN | NONE | MEDIUM ⚠️ | Reversión bajista posible pero sin agotamiento confirmado |
+| HAMMER | NONE | MEDIUM ⚠️ | Reversión alcista posible pero sin agotamiento confirmado |
+| INVERTED_HAMMER | NONE | MEDIUM ⚠️ | Reversión alcista posible pero sin agotamiento confirmado |
+
+**Criterio:** Patrón válido pero sin confirmación de sobre-extensión. Esperar confirmación adicional.
+
+---
+
+### ℹ️ SEÑALES LOW (No Operar)
+
+| Patrón | Zona | Signal Strength | Interpretación |
+|--------|------|-----------------|----------------|
+| SHOOTING_STAR | BOTTOM | LOW ℹ️ | Patrón bajista en agotamiento bajista - Señal débil |
+| HANGING_MAN | BOTTOM | LOW ℹ️ | Patrón bajista en agotamiento bajista - Señal débil |
+| HAMMER | PEAK | LOW ℹ️ | Patrón alcista en agotamiento alcista - Señal débil |
+| INVERTED_HAMMER | PEAK | LOW ℹ️ | Patrón alcista en agotamiento alcista - Señal débil |
+
+**Criterio:** Patrón detectado en zona de agotamiento OPUESTA a su dirección natural. No operar.
+
+---
+
+## 🔍 Lógica de Detección (Mean Reversion)
 
 ```python
-# 1. Determinar tendencia actual
-trend = analyze_trend(close, emas)  # "STRONG_BULLISH", "WEAK_BULLISH", etc.
+# 1. Analizar sobre-extensión (Mean Reversion Score)
+trend_analysis = analyze_trend(close, emas)  # Ahora mide sobre-extensión, NO tendencia
 
 # 2. Calcular Bandas de Bollinger
-bb_upper, bb_lower = calculate_bollinger_bands(df['close'], period=20, std_dev=2.5)
+bb_upper, bb_lower = calculate_bollinger_bands(df['close'], period=20, std_dev=2.0)
 
 # 3. Detectar zona de agotamiento
 exhaustion_type = detect_exhaustion(candle.high, candle.low, candle.close, bb_upper, bb_lower)
 
-# 4. Clasificar fuerza según matriz
-if trend == "BULLISH":
-    if pattern == "SHOOTING_STAR":
-        if exhaustion_type == "PEAK":
-            signal_strength = "HIGH"  # 🚨 ALERTA FUERTE
-        else:
-            signal_strength = "LOW"   # ℹ️ Informativo
-    elif pattern == "INVERTED_HAMMER":
-        if exhaustion_type == "PEAK":
-            signal_strength = "MEDIUM"  # ⚠️ AVISO
-        else:
-            signal_strength = "LOW"
-elif trend == "BEARISH":
-    if pattern == "HAMMER":
-        if exhaustion_type == "BOTTOM":
-            signal_strength = "HIGH"  # 🚨 ALERTA FUERTE
-        else:
-            signal_strength = "LOW"
-    elif pattern == "HANGING_MAN":
-        if exhaustion_type == "BOTTOM":
-            signal_strength = "MEDIUM"  # ⚠️ AVISO
-        else:
-            signal_strength = "LOW"
+# 4. Clasificar fuerza según estrategia Mean Reversion
+pattern_is_bearish = pattern in ["SHOOTING_STAR", "HANGING_MAN"]
+pattern_is_bullish = pattern in ["HAMMER", "INVERTED_HAMMER"]
+
+if pattern_is_bearish:
+    if exhaustion_type == "PEAK":
+        signal_strength = "HIGH"  # 🚨 Reversión bajista en sobre-extensión alcista
+    elif exhaustion_type == "NONE":
+        signal_strength = "MEDIUM"  # ⚠️ Reversión posible sin agotamiento
+    else:  # exhaustion_type == "BOTTOM"
+        signal_strength = "LOW"  # ℹ️ Patrón bajista en agotamiento bajista (débil)
+
+elif pattern_is_bullish:
+    if exhaustion_type == "BOTTOM":
+        signal_strength = "HIGH"  # 🚨 Reversión alcista en sobre-extensión bajista
+    elif exhaustion_type == "NONE":
+        signal_strength = "MEDIUM"  # ⚠️ Reversión posible sin agotamiento
+    else:  # exhaustion_type == "PEAK"
+        signal_strength = "LOW"  # ℹ️ Patrón alcista en agotamiento alcista (débil)
+
+# 5. Validar que hay tendencia clara (no lateral)
+if signal_strength == "HIGH" and not trend_analysis.is_aligned:
+    signal_strength = "MEDIUM"  # Degradar si el mercado está lateral
+```
+
+---
+
+## 🆕 Sistema de EMAs para Mean Reversion
+
+### Nueva Configuración
+
+| EMA | Propósito | Peso en Score |
+|-----|-----------|---------------|
+| **EMA 7** | **Detección de sobre-extensión** (CRÍTICA) | ±5 pts |
+| **EMA 20** | Confirmación de momentum a revertir | ±3 pts |
+| **EMA 50** | Validación de tendencia (evitar laterales) | ±2 pts |
+| EMA 200 | Solo referencia visual | 0 pts (no usada) |
+
+### Scoring de Sobre-Extensión
+
+El nuevo algoritmo `analyze_trend()` mide **sobre-extensión** en lugar de alineación:
+
+**Score NEGATIVO (-10 a -1):** Sobre-extensión ALCISTA → Reversión BAJISTA probable  
+**Score POSITIVO (+1 a +10):** Sobre-extensión BAJISTA → Reversión ALCISTA probable
+
+**Ejemplo:**
+```
+Precio: 1.08750
+EMA 7:  1.08600  (precio 15 pips arriba - sobre-extensión alcista)
+EMA 20: 1.08550
+EMA 50: 1.08500
+
+Score: -8 (STRONG_BEARISH)
+Interpretación: Sobre-extensión alcista extrema → Buscar patrones BAJISTAS
 ```
 
 ---
 
 ## 📈 Impacto en Notificaciones
 
-### Mensaje de Telegram
+### Mensaje de Telegram (Mean Reversion)
 
-Las notificaciones ahora incluyen:
+Las notificaciones ahora reflejan la estrategia de reversión:
 
 ```
-🚨 ALERTA FUERTE | BTCUSDT
-Agotamiento ALCISTA confirmado (Cúspide)
+🚨 SEÑAL HIGH | EURUSD
+Reversión BAJISTA en sobre-extensión alcista
 
 ━━━━━━━━━━━━━━━━━━━━━━━━
 📊 INFO DE VELA
@@ -151,11 +197,15 @@ Agotamiento ALCISTA confirmado (Cúspide)
 🔹 Fuerza de Señal: HIGH
 
 ━━━━━━━━━━━━━━━━━━━━━━━━
-📉 BOLLINGER BANDS
+📉 ANÁLISIS DE SOBRE-EXTENSIÓN
 ━━━━━━━━━━━━━━━━━━━━━━━━
-🔺 Zona: Cúspide de Bollinger
-🔹 Banda Superior: 35500.50
-🔹 Banda Inferior: 35200.80
+🔺 Zona: PEAK (Cúspide de Bollinger)
+🔹 EMA 7: 1.08600 (CRÍTICA - Agotamiento)
+🔹 EMA 20: 1.08550 (Momentum)
+🔹 EMA 50: 1.08500 (Tendencia)
+🔹 Score: -8/10 (Sobre-extensión alcista extrema)
+
+💡 Estrategia: Mean Reversion - Operar CONTRA la tendencia
 ```
 
 ---
@@ -166,9 +216,17 @@ Los nuevos campos se guardan en el JSONL para análisis futuro:
 
 ```json
 {
+  "emas": {
+    "ema_7": 1.08600,
+    "ema_20": 1.08550,
+    "ema_30": 1.08520,
+    "ema_50": 1.08500,
+    "ema_200": 1.08300,
+    "trend_score": -8
+  },
   "bollinger": {
-    "bb_upper": 35500.5,
-    "bb_lower": 35200.8,
+    "bb_upper": 1.08750,
+    "bb_lower": 1.08450,
     "exhaustion_type": "PEAK",
     "signal_strength": "HIGH",
     "is_counter_trend": false
@@ -178,24 +236,37 @@ Los nuevos campos se guardan en el JSONL para análisis futuro:
 
 **Utilidad para Machine Learning:**
 - Filtrar señales de alta calidad (`signal_strength == "HIGH"`)
-- Analizar tasas de éxito por zona de agotamiento
-- Entrenar modelos con features adicionales (distancia a bandas, volatilidad implícita)
+- Analizar tasas de éxito por zona de agotamiento y score de sobre-extensión
+- Entrenar modelos con features de Mean Reversion (distancia precio-EMA7, separación EMAs)
+- Validar umbral de sobre-extensión óptimo (actualmente 0.15% para Forex)
 
 ---
 
 ## ⚠️ Casos Especiales
 
-### Patrones Contra-Tendencia
+### Mercado Lateral (Rango)
 
-**Definición:** Un patrón alcista en tendencia alcista, o bajista en tendencia bajista.
+**Definición:** EMA 20 y EMA 50 están muy cercanas (separación < 0.08%).
+
+**Acción:** Degradar señales HIGH → MEDIUM.
+
+**Justificación:** En Mean Reversion necesitamos tendencia clara para revertir. En laterales, los rebotes son impredecibles.
+
+---
+
+### Validación de Sobre-Extensión
+
+**Umbral actual:** 0.15% de desviación precio-EMA7 para Forex.
 
 **Ejemplo:**
-- **Hammer** detectado en tendencia **BULLISH** → `is_counter_trend = True`
-- **Shooting Star** detectado en tendencia **BEARISH** → `is_counter_trend = True`
+```
+Precio: 1.08750
+EMA 7:  1.08600
+Desviación: |1.08750 - 1.08600| / 1.08600 = 0.00138 (0.138%)
 
-**Clasificación:** Siempre `signal_strength = "LOW"` (no operar).
-
-**Justificación:** Los patrones de reversión solo funcionan cuando hay una tendencia que revertir. Un Hammer en tendencia alcista no tiene sentido operativo.
+Si ≥ 0.15%: Score = ±5 pts (sobre-extensión extrema)
+Si ≥ 0.08%: Score = ±3 pts (sobre-extensión moderada)
+```
 
 ---
 
@@ -206,18 +277,19 @@ Los nuevos campos se guardan en el JSONL para análisis futuro:
 python test/test_statistics_with_real_candle.py
 ```
 
-### Validación Manual
-1. Verificar que `bb_upper` y `bb_lower` se calculan correctamente
-2. Confirmar que `exhaustion_type` se asigna según lógica de umbrales
-3. Validar que `signal_strength` coincide con la matriz de clasificación
+### Validación Manual Mean Reversion
+1. Verificar que EMA 7 se calcula correctamente
+2. Confirmar que `trend_score` es NEGATIVO en sobre-extensión alcista
+3. Validar que patrones BAJISTAS reciben HIGH en PEAK
+4. Validar que patrones ALCISTAS reciben HIGH en BOTTOM
 
 ### Logs Esperados
 ```
-🚨 ALERTA FUERTE | SHOOTING_STAR en CÚSPIDE | Agotamiento alcista confirmado | Strength: HIGH
-📊 Bollinger Bands:
-   • Superior: 35500.50
-   • Inferior: 35200.80
-   • Zona de Agotamiento: PEAK
+🚨 SEÑAL HIGH | SHOOTING_STAR en PEAK | Reversión bajista en agotamiento alcista | Mean Reversion PERFECTA
+📊 Sobre-Extensión:
+   • EMA 7: 1.08600 (precio +15 pips arriba)
+   • Score: -8 (Sobre-extensión alcista extrema)
+   • Zona Bollinger: PEAK
 ```
 
 ---
