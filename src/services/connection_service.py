@@ -659,3 +659,55 @@ class ConnectionService:
         )
         
         await asyncio.sleep(delay)
+
+
+# =============================================================================
+# MARKET DATA SERVICE FACTORY
+# =============================================================================
+
+def get_market_data_service(analysis_service, on_auth_failure_callback=None):
+    """
+    Factory function que retorna el servicio de datos de mercado configurado.
+    
+    Según la variable DATA_PROVIDER en config.py, instancia:
+    - TradingViewService: Si DATA_PROVIDER == "TRADINGVIEW"
+    - IqOptionServiceAsync: Si DATA_PROVIDER == "IQOPTION"
+    
+    Args:
+        analysis_service: Instancia de AnalysisService para procesar velas
+        on_auth_failure_callback: Callback para manejar fallos de autenticación
+    
+    Returns:
+        MarketDataService: Instancia del servicio de datos configurado
+        
+    Raises:
+        ValueError: Si DATA_PROVIDER no es válido
+        
+    Example:
+        >>> from src.services.connection_service import get_market_data_service
+        >>> service = get_market_data_service(analysis_service)
+        >>> await service.start()
+    """
+    from config import Config
+    
+    if Config.DATA_PROVIDER == "TRADINGVIEW":
+        logger.info(f"🔌 Using TradingView as data provider")
+        return TradingViewService(
+            analysis_service=analysis_service,
+            on_auth_failure_callback=on_auth_failure_callback
+        )
+    
+    elif Config.DATA_PROVIDER == "IQOPTION":
+        logger.info(f"🔌 Using IQ Option as data provider")
+        from src.services.iq_option_service import create_iq_option_service_async
+        return create_iq_option_service_async(
+            analysis_service=analysis_service,
+            on_auth_failure_callback=on_auth_failure_callback
+        )
+    
+    else:
+        raise ValueError(
+            f"Invalid DATA_PROVIDER: {Config.DATA_PROVIDER}. "
+            "Must be 'TRADINGVIEW' or 'IQOPTION'"
+        )
+

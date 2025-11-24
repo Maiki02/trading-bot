@@ -14,6 +14,10 @@
 websockets==12.0
 # Async WebSocket client for TradingView data streaming
 
+# IQ Option API
+git+https://github.com/iqoptionapi/iqoptionapi.git
+# IQ Option API client for real-time market data and trading
+
 # HTTP Client (Async)
 aiohttp==3.9.1
 # Async HTTP client for Telegram API requests

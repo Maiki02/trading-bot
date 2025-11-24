@@ -109,6 +109,26 @@ class TradingViewConfig:
         pass
 
 
+@dataclass(frozen=True)
+class IqOptionConfig:
+    """Configuración de la conexión a IQ Option."""
+    email: str
+    password: str
+    asset: str  # Ej: "EURUSD-OTC" o "EURUSD"
+    
+    def validate(self) -> None:
+        """Valida que las credenciales estén configuradas."""
+        if not self.email or not self.password:
+            raise ValueError(
+                "IQ Option credentials incomplete. Check IQ_OPTION_USER and "
+                "IQ_OPTION_PASS in .env"
+            )
+        if not self.asset:
+            raise ValueError(
+                "IQ Option asset not configured. Check IQ_ASSET in .env"
+            )
+
+
 # =============================================================================
 # USER-AGENT ROTATION (ANTI-WAF)
 # =============================================================================
@@ -157,12 +177,22 @@ class Config:
     # Configuración de patrones de velas
     CANDLE = CandleConfig()
     
+    # Data Provider Selection
+    DATA_PROVIDER: str = os.getenv("DATA_PROVIDER", "TRADINGVIEW").upper()  # "TRADINGVIEW" o "IQOPTION"
+    
     # TradingView Authentication & WebSocket
     TRADINGVIEW = TradingViewConfig(
         session_id=os.getenv("TV_SESSION_ID", ""),
         ws_url=os.getenv("TV_WS_URL", "wss://data.tradingview.com/socket.io/websocket"),
         origin=os.getenv("TV_WS_ORIGIN", "https://data.tradingview.com"),
         snapshot_candles=int(os.getenv("SNAPSHOT_CANDLES", "1000"))
+    )
+    
+    # IQ Option Configuration
+    IQOPTION = IqOptionConfig(
+        email=os.getenv("IQ_OPTION_USER", ""),
+        password=os.getenv("IQ_OPTION_PASS", ""),
+        asset=os.getenv("IQ_ASSET", "EURUSD-OTC")
     )
     
     # Telegram Notifications
@@ -228,14 +258,26 @@ class Config:
         Raises:
             ValueError: Si alguna configuración crítica falta o es inválida
         """
-        cls.TRADINGVIEW.validate()
+        # Validar proveedor de datos
+        if cls.DATA_PROVIDER not in ["TRADINGVIEW", "IQOPTION"]:
+            raise ValueError(
+                f"Invalid DATA_PROVIDER: {cls.DATA_PROVIDER}. "
+                "Must be 'TRADINGVIEW' or 'IQOPTION'"
+            )
+        
+        # Validar configuración según el proveedor seleccionado
+        if cls.DATA_PROVIDER == "TRADINGVIEW":
+            cls.TRADINGVIEW.validate()
+        elif cls.DATA_PROVIDER == "IQOPTION":
+            cls.IQOPTION.validate()
+        
         cls.TELEGRAM.validate()
         
         # Validar parámetros numéricos
         if cls.EMA_PERIOD < 20:
             raise ValueError(f"EMA_PERIOD must be >= 20, got {cls.EMA_PERIOD}")
         
-        if cls.TRADINGVIEW.snapshot_candles < cls.EMA_PERIOD * 3:
+        if cls.DATA_PROVIDER == "TRADINGVIEW" and cls.TRADINGVIEW.snapshot_candles < cls.EMA_PERIOD * 3:
             raise ValueError(
                 f"SNAPSHOT_CANDLES ({cls.TRADINGVIEW.snapshot_candles}) must be "
                 f"at least 3x EMA_PERIOD ({cls.EMA_PERIOD * 3})"

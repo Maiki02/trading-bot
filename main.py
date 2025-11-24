@@ -18,7 +18,8 @@ import sys
 from typing import Optional
 
 from config import Config
-from src.services import ConnectionService, TelegramService
+from src.services import TelegramService
+from src.services.connection_service import get_market_data_service
 from src.services.storage_service import StorageService
 from src.logic import AnalysisService
 from src.utils.logger import get_logger, log_startup_banner, log_shutdown, log_critical_auth_failure
@@ -43,7 +44,7 @@ class TradingBot:
     
     def __init__(self):
         """Inicializa el bot y sus servicios."""
-        self.connection_service: Optional[ConnectionService] = None
+        self.connection_service = None  # Will be created by factory
         self.analysis_service: Optional[AnalysisService] = None
         self.telegram_service: Optional[TelegramService] = None
         self.storage_service: Optional[StorageService] = None
@@ -81,8 +82,8 @@ class TradingBot:
             statistics_service=self.statistics_service
         )
         
-        # 5. Connection Service (recibe AnalysisService completo)
-        self.connection_service = ConnectionService(
+        # 5. Connection Service (usa factory para crear el proveedor correcto)
+        self.connection_service = get_market_data_service(
             analysis_service=self.analysis_service,
             on_auth_failure_callback=self._handle_auth_failure
         )
