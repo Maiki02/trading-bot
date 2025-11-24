@@ -253,7 +253,7 @@ class TelegramService:
             # f"🔹 EMA 50: {ema_50_str}\n"
             # f"🔹 EMA 30: {ema_30_str}\n"
             # f"🔹 EMA 20: {ema_20_str}\n\n"
-            f"{statistics_block}"
+            # f"{statistics_block}"
             #f"⚡ *Verificar gráfico manualmente antes de operar.*\n"
         )
         

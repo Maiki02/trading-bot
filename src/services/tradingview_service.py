@@ -155,7 +155,15 @@ class TradingViewService:
         headers = Config.get_websocket_headers()
         full_symbol = f"{exchange}:{symbol}"
         
-        logger.info(f"🔌 Conectando a TradingView para obtener {num_candles} velas de {full_symbol}...")
+        # Inyectar Cookie de autenticación si session_id está presente
+        if Config.TRADINGVIEW.session_id and Config.TRADINGVIEW.session_id.strip():
+            headers['Cookie'] = f"sessionid={Config.TRADINGVIEW.session_id}"
+            logger.info(f"🔌 Conectando como Usuario Autenticado (Session ID presente) para {full_symbol}...")
+            logger.info(f"📊 Solicitando {num_candles} velas históricas")
+        else:
+            logger.info(f"👤 Conectando como Invitado (Sin Session ID - Límites estrictos aplican) para {full_symbol}...")
+            logger.warning(f"⚠️  ADVERTENCIA: Sin autenticación, exchanges como FXCM/IDC pueden rechazar la conexión")
+            logger.info(f"📊 Solicitando {num_candles} velas históricas")
         
         try:
             async with websockets.connect(

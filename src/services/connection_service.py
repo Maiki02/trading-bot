@@ -242,6 +242,14 @@ class ConnectionService:
         """
         headers = Config.get_websocket_headers()
         
+        # Inyectar Cookie de autenticación si session_id está presente
+        if Config.TRADINGVIEW.session_id and Config.TRADINGVIEW.session_id.strip():
+            headers['Cookie'] = f"sessionid={Config.TRADINGVIEW.session_id}"
+            logger.info(f"🔌 Conectando como Usuario Autenticado (Session ID presente)")
+        else:
+            logger.info(f"👤 Conectando como Invitado (Sin Session ID - Límites estrictos aplican)")
+            logger.warning(f"⚠️  ADVERTENCIA: Sin autenticación, exchanges como FXCM/IDC pueden rechazar la conexión")
+        
         logger.info(f"📡 Conectando a {Config.TRADINGVIEW.ws_url}...")
         
         async with websockets.connect(
@@ -424,6 +432,15 @@ class ConnectionService:
                 # logger.info(f"🔄 MENSAJE DU | Params: {params[:2] if len(params) > 2 else params}")
                 # Procesar vela en tiempo real (SÍ genera gráficos)
                 await self._process_realtime_update(params)
+            
+            # Errores de símbolo o serie
+            elif method == "symbol_error":
+                error_details = params[1] if len(params) > 1 else "Sin detalles"
+                logger.error(f"❌ SYMBOL_ERROR | Símbolo no disponible o acceso denegado | Detalles: {error_details}")
+            
+            elif method == "series_error":
+                error_details = params[1] if len(params) > 1 else "Sin detalles"
+                logger.error(f"❌ SERIES_ERROR | Error al cargar series de datos | Detalles: {error_details}")
             
             # Confirmaciones de protocolo
             elif method in ["protocol_switched", "quote_completed"]:

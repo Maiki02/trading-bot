@@ -204,12 +204,17 @@ class Config:
     # "usdjpy": InstrumentConfig(symbol="USDJPY", exchange="OANDA", timeframe="1", full_symbol="OANDA:USDJPY"),
     # "usdchf": InstrumentConfig(symbol="USDCHF", exchange="OANDA", timeframe="1", full_symbol="OANDA:USDCHF"),
     
-    # FXCM 
-    "eurusd": InstrumentConfig(symbol="EURUSD", exchange="FXCM", timeframe="1", full_symbol="FXCM:EURUSD"),
-    "gbpusd": InstrumentConfig(symbol="GBPUSD", exchange="FXCM", timeframe="1", full_symbol="FXCM:GBPUSD"),
-    "usdjpy": InstrumentConfig(symbol="USDJPY", exchange="FXCM", timeframe="1", full_symbol="FXCM:USDJPY"),
-    "usdchf": InstrumentConfig(symbol="USDCHF", exchange="FXCM", timeframe="1", full_symbol="FXCM:USDCHF"),
-    
+    # FXCM (Requiere cuenta Premium en TradingView)
+    "eurusd1": InstrumentConfig(symbol="EURUSD", exchange="FX", timeframe="1", full_symbol="FX:EURUSD"),
+    "gbpusd1": InstrumentConfig(symbol="GBPUSD", exchange="FX", timeframe="1", full_symbol="FX:GBPUSD"),
+    "usdjpy1": InstrumentConfig(symbol="USDJPY", exchange="FX", timeframe="1", full_symbol="FX:USDJPY"),
+    #"usdchf1": InstrumentConfig(symbol="USDCHF", exchange="FX", timeframe="1", full_symbol="FX:USDCHF"),
+
+    # IDC (Requiere cuenta Premium en TradingView)
+    "eurusd2": InstrumentConfig(symbol="EURUSD", exchange="FX_IDC", timeframe="1", full_symbol="FX_IDC:EURUSD"),
+    "gbpusd2": InstrumentConfig(symbol="GBPUSD", exchange="FX_IDC", timeframe="1", full_symbol="FX_IDC:GBPUSD"),
+    "usdjpy2": InstrumentConfig(symbol="USDJPY", exchange="FX_IDC", timeframe="1", full_symbol="FX_IDC:USDJPY"),
+    #"usdchf2": InstrumentConfig(symbol="USDCHF", exchange="FX_IDC", timeframe="1", full_symbol="FX_IDC:USDCHF"),
     
     }
     
