@@ -160,104 +160,90 @@ def detect_exhaustion(candle_high: float, candle_low: float, candle_close: float
 
 def analyze_trend(close: float, emas: Dict[str, float]) -> TrendAnalysis:
     """
-    Analiza AGOTAMIENTO/SOBRE-EXTENSIÓN para estrategia de Mean Reversion.
-    
-    **CAMBIO CRÍTICO:** Ya NO medimos alineación de tendencia, sino SOBRE-EXTENSIÓN.
-    El objetivo es detectar cuando el precio se ha alejado demasiado de sus medias,
-    señalando una posible reversión.
-    
-    Estrategia de Scoring (Mean Reversion):
-    PRIORIDAD MÁXIMA:
-    - Precio >>> EMA 7 = Sobre-extensión alcista (Score NEGATIVO = Reversión bajista probable)
-    - Precio <<< EMA 7 = Sobre-extensión bajista (Score POSITIVO = Reversión alcista probable)
-    
-    CONFIRMACIÓN:
-    - EMA 7 vs EMA 20: Validar que hay momentum de corto plazo que revertir
-    - EMA 20 vs EMA 50: Confirmar que NO estamos en zona lateral (hay tendencia)
-    
-    Escala Total: -10 a +10 (invertida: valores EXTREMOS indican alta probabilidad de reversión)
+    Analiza AGOTAMIENTO/SOBRE-EXTENSIÓN optimizado para M1 (Binarias).
+    Sensibilidad ajustada a movimientos de 2-5 pips.
     """
     score = 0
     
-    # Extraer EMAs (manejar NaN con seguridad)
+    # Extraer EMAs
     ema_7 = emas.get('ema_7', np.nan)
     ema_20 = emas.get('ema_20', np.nan)
     ema_50 = emas.get('ema_50', np.nan)
     
     # ---------------------------------------------------------
-    # 1. SOBRE-EXTENSIÓN INMEDIATA (CRÍTICO para Mean Reversion)
-    # Peso: ±5 puntos (máxima prioridad)
+    # 1. POSICIÓN Y SOBRE-EXTENSIÓN (EMA 7)
     # ---------------------------------------------------------
     if not np.isnan(ema_7):
-        deviation = abs(close - ema_7) / ema_7  # Desviación porcentual
+        deviation = abs(close - ema_7) / ema_7
         
-        # Umbral de sobre-extensión: 0.15% para Forex (15 pips en EUR/USD ~1.08)
-        if deviation >= 0.0015:  # 0.15%
+        # SCORE BASE: Solo por estar arriba/abajo ya asignamos dirección
+        if close > ema_7:
+            score -= 1 # Levemente alcista (posible reversión si aumenta)
+        else:
+            score += 1 # Levemente bajista
+            
+        # UMBRALES M1 (Ajustados):
+        # 0.02% ~= 2 Pips (EURUSD) -> Extensión Normal
+        # 0.05% ~= 5 Pips (EURUSD) -> Extensión Fuerte
+        
+        if deviation >= 0.0005:  # 0.05% (Extensión Fuerte ~5 pips)
             if close > ema_7:
-                # Precio MUY por encima de EMA 7 → Sobre-compra → Reversión BAJISTA probable
-                score -= 5  # Score NEGATIVO indica sobre-extensión alcista
+                score -= 4  # Total acumulado: -5
             else:
-                # Precio MUY por debajo de EMA 7 → Sobre-venta → Reversión ALCISTA probable
-                score += 5  # Score POSITIVO indica sobre-extensión bajista
-        elif deviation >= 0.0008:  # 0.08% (sobre-extensión moderada)
+                score += 4  # Total acumulado: +5
+        elif deviation >= 0.0002:  # 0.02% (Extensión Moderada ~2 pips)
             if close > ema_7:
-                score -= 3
+                score -= 2  # Total acumulado: -3
             else:
-                score += 3
+                score += 2  # Total acumulado: +3
             
     # ---------------------------------------------------------
-    # 2. MOMENTUM DE CORTO PLAZO (Confirmación)
-    # Peso: ±3 puntos
+    # 2. MOMENTUM (EMA 7 vs EMA 20)
     # ---------------------------------------------------------
     if not np.isnan(ema_7) and not np.isnan(ema_20):
         separation = abs(ema_7 - ema_20) / ema_20
         
-        # Si EMA 7 está alejada de EMA 20, hay momentum fuerte que revertir
-        if separation >= 0.0010:  # 0.10%
+        # Validar dirección del cruce
+        if ema_7 > ema_20:
+            score -= 1
+        else:
+            score += 1
+
+        # UMBRALES M1:
+        # 0.03% ~= 3 Pips de separación entre medias
+        if separation >= 0.0003: 
             if ema_7 > ema_20:
-                score -= 3  # Momentum alcista fuerte → Reversión bajista probable
-            else:
-                score += 3  # Momentum bajista fuerte → Reversión alcista probable
-        elif separation >= 0.0005:  # 0.05%
-            if ema_7 > ema_20:
-                score -= 2
+                score -= 2 
             else:
                 score += 2
 
     # ---------------------------------------------------------
-    # 3. VALIDACIÓN DE TENDENCIA (NO operar en lateral)
-    # Peso: ±2 puntos
+    # 3. CONTEXTO (EMA 20 vs EMA 50)
     # ---------------------------------------------------------
     if not np.isnan(ema_20) and not np.isnan(ema_50):
-        trend_separation = abs(ema_20 - ema_50) / ema_50
-        
-        # Solo operar si hay tendencia clara (EMA 20 y 50 están separadas)
-        if trend_separation >= 0.0008:  # 0.08%
-            if ema_20 > ema_50:
-                # Hay tendencia alcista que puede revertir
-                score -= 2
-            else:
-                # Hay tendencia bajista que puede revertir
-                score += 2
+        if ema_20 > ema_50:
+            score -= 1
+        else:
+            score += 1
     
-    # Clasificación según score (INTERPRETACIÓN INVERTIDA)
+    # Clasificación (Escala ajustada a la nueva suma)
+    # Rango máximo teórico: ±9 puntos
     if score <= -6:
-        status = "STRONG_BEARISH"   # Sobre-extensión alcista EXTREMA → Reversión bajista muy probable
-    elif score <= -2:
+        status = "STRONG_BEARISH"   # Sobre-extensión alcista EXTREMA
+    elif score <= -3:
         status = "WEAK_BEARISH"     # Sobre-extensión alcista moderada
-    elif score >= -1 and score <= 1:
-        status = "NEUTRAL"          # No hay sobre-extensión clara
-    elif score >= 2 and score <= 5:
+    elif score >= -2 and score <= 2:
+        status = "NEUTRAL"          # Rango / Sin fuerza
+    elif score >= 3 and score <= 6:
         status = "WEAK_BULLISH"     # Sobre-extensión bajista moderada
     else:
-        status = "STRONG_BULLISH"   # Sobre-extensión bajista EXTREMA → Reversión alcista muy probable
+        status = "STRONG_BULLISH"   # Sobre-extensión bajista EXTREMA
     
-    # Verificar que haya tendencia establecida (no lateral)
     is_aligned = False
     if not any(np.isnan([ema_7, ema_20, ema_50])):
-        # En Mean Reversion, "aligned" significa que hay una tendencia clara que revertir
-        trend_strength = abs(ema_20 - ema_50) / ema_50
-        is_aligned = trend_strength >= 0.0008  # 0.08% de separación mínima
+        # Alineación simple para validar tendencia
+        if (ema_7 > ema_20 > ema_50) or (ema_7 < ema_20 < ema_50):
+            is_aligned = True
     
     return TrendAnalysis(
         status=status,
@@ -898,9 +884,9 @@ class AnalysisService:
             )
             return
         
-        # Verificar que EMA 200 esté disponible
-        if pd.isna(last_closed["ema_200"]):
-            return
+        # # Verificar que EMA 200 esté disponible
+        # if pd.isna(last_closed["ema_200"]):
+        #     return
         
         # LOG: Información de la vela cerrada con todas las EMAs
         ema_7_val = last_closed.get('ema_7', np.nan)

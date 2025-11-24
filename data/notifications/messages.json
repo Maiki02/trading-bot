@@ -1839,5 +1839,40 @@
     "title": "🔔 PATRON ENCONTRADO | *USDJPY* 🔔\n🔴 Posible operación a la BAJA.\nNo hay agotamiento detectado - Requiere análisis adicional\n",
     "message": "━━━━━━━━━━━━━━━━━━━━━━\n🔹 Señal: LOW\n\n🔹 Fuente: FX\n🔹 Patrón: SHOOTING_STAR\n🔹 Fecha: 2025-11-24 02:55:00\n➖ Zona Neutra - Sin agotamiento\n🔹 Tendencia: NEUTRAL\n🔹 Score: +0/10\n━━━━━━━━━━━━━━━━━━━━━━\n",
     "image_name": "chart_20251124_025602_391484.png"
+  },
+  {
+    "timestamp": "20251124_030001_021456",
+    "datetime": "2025-11-24T03:00:01.030948",
+    "title": "🔔 PATRON ENCONTRADO | *EURUSD* 🔔\n🟢 Posible operación al ALZA.\nNo hay agotamiento detectado - Requiere análisis adicional\n",
+    "message": "━━━━━━━━━━━━━━━━━━━━━━\n🔹 Señal: LOW\n\n🔹 Fuente: FX_IDC\n🔹 Patrón: HANGING_MAN\n🔹 Fecha: 2025-11-24 02:59:00\n🔻 Señal de agotamiento, pico alcanzado\n🔹 Tendencia: NEUTRAL\n🔹 Score: +0/10\n━━━━━━━━━━━━━━━━━━━━━━\n",
+    "image_name": "chart_20251124_030001_021456.png"
+  },
+  {
+    "timestamp": "20251124_030101_544170",
+    "datetime": "2025-11-24T03:01:01.550389",
+    "title": "🔔 PATRON ENCONTRADO | *USDJPY* 🔔\n🔴 Posible operación a la BAJA.\nNo hay agotamiento detectado - Requiere análisis adicional\n",
+    "message": "━━━━━━━━━━━━━━━━━━━━━━\n🔹 Señal: LOW\n\n🔹 Fuente: FX\n🔹 Patrón: SHOOTING_STAR\n🔹 Fecha: 2025-11-24 03:00:00\n🔺 Señal de agotamiento, pico alcanzado\n🔹 Tendencia: NEUTRAL\n🔹 Score: +0/10\n━━━━━━━━━━━━━━━━━━━━━━\n",
+    "image_name": "chart_20251124_030101_544170.png"
+  },
+  {
+    "timestamp": "20251124_030401_292131",
+    "datetime": "2025-11-24T03:04:01.298112",
+    "title": "🔔 PATRON ENCONTRADO | *USDJPY* 🔔\n🟢 Posible operación al ALZA.\nNo hay agotamiento detectado - Requiere análisis adicional\n",
+    "message": "━━━━━━━━━━━━━━━━━━━━━━\n🔹 Señal: LOW\n\n🔹 Fuente: FX\n🔹 Patrón: HANGING_MAN\n🔹 Fecha: 2025-11-24 03:03:00\n➖ Zona Neutra - Sin agotamiento\n🔹 Tendencia: WEAK_BEARISH\n🔹 Score: -3/10\n━━━━━━━━━━━━━━━━━━━━━━\n",
+    "image_name": "chart_20251124_030401_292131.png"
+  },
+  {
+    "timestamp": "20251124_030900_915080",
+    "datetime": "2025-11-24T03:09:00.915080",
+    "title": "🔔 PATRON ENCONTRADO | *EURUSD* 🔔\n🔴 Posible operación a la BAJA.\nNo hay agotamiento detectado - Requiere análisis adicional\n",
+    "message": "━━━━━━━━━━━━━━━━━━━━━━\n🔹 Señal: LOW\n\n🔹 Fuente: FX\n🔹 Patrón: SHOOTING_STAR\n🔹 Fecha: 2025-11-24 03:08:00\n➖ Zona Neutra - Sin agotamiento\n🔹 Tendencia: NEUTRAL\n🔹 Score: -1/10\n━━━━━━━━━━━━━━━━━━━━━━\n",
+    "image_name": "chart_20251124_030900_915080.png"
+  },
+  {
+    "timestamp": "20251124_031407_192006",
+    "datetime": "2025-11-24T03:14:07.199164",
+    "title": "🔔 PATRON ENCONTRADO | *EURUSD* 🔔\n🔴 Posible operación a la BAJA.\nNo hay agotamiento detectado - Requiere análisis adicional\n",
+    "message": "━━━━━━━━━━━━━━━━━━━━━━\n🔹 Señal: LOW\n\n🔹 Fuente: FX\n🔹 Patrón: SHOOTING_STAR\n🔹 Fecha: 2025-11-24 03:13:00\n➖ Zona Neutra - Sin agotamiento\n🔹 Tendencia: NEUTRAL\n🔹 Score: +1/10\n━━━━━━━━━━━━━━━━━━━━━━\n",
+    "image_name": "chart_20251124_031407_192006.png"
   }
 ]
