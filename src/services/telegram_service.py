@@ -143,30 +143,39 @@ class TelegramService:
   # Definir título según fuerza y dirección esperada
         if signal.signal_strength == "HIGH":
             # 🚨 ALERTA FUERTE (Cúspide o Base confirmada + Patrón Ideal)
-            
-            # Patrones Bajistas (Reversión en Techo)
-            if signal.pattern in ["SHOOTING_STAR", "HANGING_MAN"]:
-                title = f"🚨🔴 ALERTA FUERTE | *{signal.symbol}*\nPosible operación a la BAJA.\n"
-            
-            # Patrones Alcistas (Reversión en Piso)
-            else:  # HAMMER, INVERTED_HAMMER
-                title = f"🚨🟢 ALERTA FUERTE | *{signal.symbol}*\nPosible operación al ALZA.\n"
+            # 
+            if signal.pattern in ["SHOOTING_STAR"]:
+                icon = "🔴"
+                text = "Siguiente operación a la BAJA"
+            elif signal.pattern in ["HAMMER"]:
+                icon = "🟢"
+                text = "Siguiente operación al ALZA"
+
+            title= f"🚨{icon} ALERTA | *{signal.symbol}* {icon}🚨\n{icon} {text}.\n"
 
         elif signal.signal_strength == "MEDIUM":
             # ⚠️ AVISO (Cúspide o Base confirmada + Patrón Débil)
             
             # Patrones Bajistas (Reversión en Techo)
             if signal.pattern in ["SHOOTING_STAR", "INVERTED_HAMMER"]:
-                title = f"⚠️🔴 AVISO | *{signal.symbol}*\n📉 Posible operación a la BAJA (Riesgo Medio)\n"
+                title = f"⚠️🔴 AVISO | *{signal.symbol}* 🔴⚠️\n📉 Posible operación a la BAJA (Riesgo Medio)\n"
             
             # Patrones Alcistas (Reversión en Piso)
             else:  # HAMMER, HANGING_MAN
-                title = f"⚠️🟢 AVISO | *{signal.symbol}*\n📈 Posible operación al ALZA (Riesgo Medio)\n"
+                title = f"⚠️🟢  AVISO | *{signal.symbol}* 🟢⚠️\n📈 Posible operación al ALZA (Riesgo Medio)\n"
 
-        else:  # LOW
+        elif signal.signal_strength == "LOW":  # LOW
+
+            if signal.pattern in ["SHOOTING_STAR", "INVERTED_HAMMER"]:
+                text="🔴 Posible operación a la BAJA"
+            elif signal.pattern in ["HAMMER", "HANGING_MAN"]:
+                text="🟢 Posible operación al ALZA"
+
             # ℹ️ INFORMATIVO (Sin zona de agotamiento clara)
-            title = f"ℹ️ PATRÓN DETECTADO | *{signal.symbol}*\nSolo informativo - Requiere análisis adicional\n"
-        
+            title = f"🔔 PATRON ENCONTRADO | *{signal.symbol}* 🔔\n{text}.\nNo hay agotamiento detectado - Requiere análisis adicional\n"
+        else: #NONE
+            title = f"ℹ️ INFO | *{signal.symbol}* ℹ️ \nNo hay combinaciones de fuerza suficientes\n"
+
         # Formatear EMAs (mostrar N/A si no están disponibles)
         import math
         # ema_20_str = f"{signal.ema_20:.5f}" if not math.isnan(signal.ema_20) else "N/A"
@@ -178,15 +187,15 @@ class TelegramService:
         # bb_lower_str = f"{signal.bb_lower:.5f}" if signal.bb_lower is not None else "N/A"
         
         # Determinar estructura de EMAs para mensaje
-        if not math.isnan(signal.ema_20) and not math.isnan(signal.ema_200):
-            if signal.candle.close > signal.ema_20 > signal.ema_200:
-                estructura = f"Precio > EMA20 > EMA200 (Alineación alcista)"
-            elif signal.candle.close < signal.ema_20 < signal.ema_200:
-                estructura = f"Precio < EMA20 < EMA200 (Alineación bajista)"
-            else:
-                estructura = f"EMAs mixtas (Sin alineación clara)"
-        else:
-            estructura = "Datos insuficientes"
+        # if not math.isnan(signal.ema_20) and not math.isnan(signal.ema_200):
+        #     if signal.candle.close > signal.ema_20 > signal.ema_200:
+        #         estructura = f"Precio > EMA20 > EMA200 (Alineación alcista)"
+        #     elif signal.candle.close < signal.ema_20 < signal.ema_200:
+        #         estructura = f"Precio < EMA20 < EMA200 (Alineación bajista)"
+        #     else:
+        #         estructura = f"EMAs mixtas (Sin alineación clara)"
+        # else:
+        #     estructura = "Datos insuficientes"
         
         # # Determinar interpretación de tendencia
         # if signal.trend_score >= 6:
@@ -205,13 +214,13 @@ class TelegramService:
         exhaustion_text = ""
         if signal.exhaustion_type == "PEAK":
             exhaustion_emoji = "🔺"
-            exhaustion_text = "Señal de agotamiento"
+            exhaustion_text = "Señal de agotamiento, pico alcanzado"
         elif signal.exhaustion_type == "BOTTOM":
             exhaustion_emoji = "🔻"
-            exhaustion_text = "Señal de agotamiento"
+            exhaustion_text = "Señal de agotamiento, pico alcanzado"
         else:
             exhaustion_emoji = "➖"
-            exhaustion_text = "Zona Neutra"
+            exhaustion_text = "Zona Neutra - Sin agotamiento"
         
         # Construir bloque de estadísticas si hay datos suficientes
         statistics_block = ""
@@ -223,23 +232,23 @@ class TelegramService:
         # Cuerpo del mensaje estructurado (reducido para cumplir límite Telegram)
         body = (
             f"━━━━━━━━━━━━━━━━━━━━━━\n"
-            f"📊 INFO DE VELA\n"
+            #f"📊 INFO DE VELA\n"
             # f"━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"🔹 Señal: {signal.signal_strength}\n\n"
             f"🔹 Fuente: {signal.source}\n"
             f"🔹 Patrón: {signal.pattern}\n"
-            f"🔹 Timestamp: {timestamp_str}\n"
+            f"🔹 Fecha: {timestamp_str}\n"
             # f"🔹 OHLC: O={signal.candle.open:.2f} | H={signal.candle.high:.2f} | L={signal.candle.low:.2f} | C={signal.candle.close:.2f}\n"
-            f"🔹 Confianza Técnica: {signal.confidence:.0%}\n"
-            f"🔹 Fuerza de Señal: {signal.signal_strength}\n\n"
+            f"{exhaustion_emoji} {exhaustion_text}\n"
+            f"🔹 Tendencia: {signal.trend}\n"
+            f"🔹 Score: {signal.trend_score:+d}/10\n"
             f"━━━━━━━━━━━━━━━━━━━━━━\n"
             #f"\n"
-            f"🎯 TENDENCIA Y AGOTAMIENTO\n"
+            #f"🎯 TENDENCIA Y AGOTAMIENTO\n"
             #f"━━━━━━━━━━━━━━━━━━━━━━\n"
-            f"🔹 Estado: {signal.trend} (Score: {signal.trend_score:+d}/10)\n"
             # f"🔹 Interpretación: {trend_interpretation}\n"
-            f"🔹 Estructura: {estructura}\n"
-            f"{exhaustion_emoji} Zona: {exhaustion_text}\n"
-            f"\n"
+            # f"🔹 Estructura: {estructura}\n"
+            #f"\n"
             # f"━━━━━━━━━━━━━━━━━━━━━━\n"
             # f"📉 BOLLINGER BANDS\n"
             # f"━━━━━━━━━━━━━━━━━━━━━━\n"

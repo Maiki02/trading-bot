@@ -69,7 +69,7 @@ class PatternSignal:
     chart_base64: Optional[str] = None  # Gráfico codificado en Base64
     statistics: Optional[Dict] = None  # Estadísticas históricas de probabilidad
     # Nuevos campos para sistema de Bollinger Bands
-    signal_strength: str = "LOW"  # "HIGH", "MEDIUM", "LOW"
+    signal_strength: str = "NONE"  # "HIGH", "MEDIUM", "LOW", "NONE"
     exhaustion_type: str = "NONE"  # "PEAK", "BOTTOM", "NONE"
     is_counter_trend: bool = False  # True si patrón va contra la tendencia principal
     bb_upper: Optional[float] = None  # Banda superior de Bollinger
@@ -1051,91 +1051,153 @@ class AnalysisService:
         # CLASIFICACIÓN DE FUERZA DE SEÑAL - Mean Reversion Strategy
         # ═════════════════════════════════════════════════════════════════════
         
-        # NUEVA FILOSOFÍA:
-        # - Priorizar PEAK + Patrón Bajista = HIGH (reversión bajista en agotamiento alcista)
-        # - Priorizar BOTTOM + Patrón Alcista = HIGH (reversión alcista en agotamiento bajista)
-        # - El "contra-tendencia" ahora ES LA SEÑAL DESEADA (no penalizar)
+        # FILOSOFÍA CORREGIDA:
+        # - HIGH: Patrón + Agotamiento perfecto (PEAK+Bajista o BOTTOM+Alcista)
+        # - MEDIUM: Patrón correcto + Agotamiento moderado
+        # - LOW: Patrón correcto sin agotamiento
+        # - NONE: Patrón incorrecto para la estrategia (contra-lógica)
         
         # Patrones bajistas: SHOOTING_STAR, HANGING_MAN
         # Patrones alcistas: HAMMER, INVERTED_HAMMER
         pattern_is_bearish = pattern_detected in ["SHOOTING_STAR", "HANGING_MAN"]
         pattern_is_bullish = pattern_detected in ["HAMMER", "INVERTED_HAMMER"]
         
+        # Determinar contexto de tendencia
+        current_status = trend_analysis.status
+        is_bearish_trend = "BEARISH" in current_status
+        is_bullish_trend = "BULLISH" in current_status
+        
         # ═════════════════════════════════════════════════════════════════════
-        # MATRIZ DE CLASIFICACIÓN - Mean Reversion
+        # MATRIZ DE CLASIFICACIÓN - Mean Reversion (8 ESCENARIOS VÁLIDOS)
         # ═════════════════════════════════════════════════════════════════════
         
-        signal_strength = "LOW"  # Default
+        signal_strength = "NONE"  # Default: Patrón no válido para estrategia
         
-        # CASO 1: Patrón BAJISTA (Shooting Star / Hanging Man) 
-        if pattern_is_bearish:
-            if exhaustion_type == "PEAK":
-                # 🚨🚨 IDEAL: Patrón bajista en cúspide = Reversión en agotamiento alcista
-                signal_strength = "HIGH"
+        # CONTEXTO: TENDENCIA ALCISTA (Buscar reversiones bajistas)
+        if is_bullish_trend:
+            if pattern_detected == "SHOOTING_STAR":
+                if exhaustion_type == "PEAK":
+                    signal_strength = "HIGH"
+                    logger.info(
+                        f"🚨 SEÑAL HIGH | {pattern_detected} en PEAK | "
+                        f"Reversión bajista en agotamiento alcista | Mean Reversion PERFECTA"
+                    )
+                else:  # NONE o BOTTOM
+                    signal_strength = "LOW"
+                    logger.info(
+                        f"ℹ️  SEÑAL LOW | {pattern_detected} sin agotamiento | "
+                        f"Reversión bajista posible pero sin confirmación"
+                    )
+            elif pattern_detected == "HANGING_MAN":
+                if exhaustion_type == "PEAK":
+                    signal_strength = "MEDIUM"
+                    logger.info(
+                        f"⚠️  SEÑAL MEDIUM | {pattern_detected} en PEAK | "
+                        f"Reversión bajista en agotamiento moderado"
+                    )
+                else:  # NONE o BOTTOM
+                    signal_strength = "LOW"
+                    logger.info(
+                        f"ℹ️  SEÑAL LOW | {pattern_detected} sin agotamiento | "
+                        f"Reversión bajista posible pero sin confirmación"
+                    )
+            elif pattern_detected == "INVERTED_HAMMER":
+                if exhaustion_type == "PEAK":
+                    signal_strength = "MEDIUM"
+                    logger.info(
+                        f"⚠️  SEÑAL MEDIUM | {pattern_detected} en PEAK | "
+                        f"Continuación alcista en agotamiento (precaución)"
+                    )
+                else:
+                    signal_strength = "LOW"
+                    logger.info(
+                        f"ℹ️  SEÑAL LOW | {pattern_detected} sin agotamiento | "
+                        f"Continuación alcista débil"
+                    )
+            # HAMMER en tendencia alcista = NONE (contra-estrategia)
+            elif pattern_detected == "HAMMER":
+                signal_strength = "NONE"
                 logger.info(
-                    f"🚨 SEÑAL HIGH | {pattern_detected} en PEAK | "
-                    f"Reversión bajista en agotamiento alcista | Mean Reversion PERFECTA"
+                    f"⚪ SEÑAL NONE | {pattern_detected} en tendencia ALCISTA | "
+                    f"Patrón alcista en tendencia alcista - Contra-estrategia Mean Reversion"
                 )
-            elif exhaustion_type == "NONE":
-                # Patrón bajista en zona neutra (sin agotamiento confirmado)
-                signal_strength = "MEDIUM"
+        
+        # CONTEXTO: TENDENCIA BAJISTA (Buscar reversiones alcistas)
+        elif is_bearish_trend:
+            if pattern_detected == "HAMMER":
+                if exhaustion_type == "BOTTOM":
+                    signal_strength = "HIGH"
+                    logger.info(
+                        f"🚨 SEÑAL HIGH | {pattern_detected} en BOTTOM | "
+                        f"Reversión alcista en agotamiento bajista | Mean Reversion PERFECTA"
+                    )
+                else:  # NONE o PEAK
+                    signal_strength = "LOW"
+                    logger.info(
+                        f"ℹ️  SEÑAL LOW | {pattern_detected} sin agotamiento | "
+                        f"Reversión alcista posible pero sin confirmación"
+                    )
+            elif pattern_detected == "INVERTED_HAMMER":
+                if exhaustion_type == "BOTTOM":
+                    signal_strength = "MEDIUM"
+                    logger.info(
+                        f"⚠️  SEÑAL MEDIUM | {pattern_detected} en BOTTOM | "
+                        f"Reversión alcista en agotamiento moderado"
+                    )
+                else:  # NONE o PEAK
+                    signal_strength = "LOW"
+                    logger.info(
+                        f"ℹ️  SEÑAL LOW | {pattern_detected} sin agotamiento | "
+                        f"Reversión alcista posible pero sin confirmación"
+                    )
+            elif pattern_detected == "HANGING_MAN":
+                if exhaustion_type == "BOTTOM":
+                    signal_strength = "MEDIUM"
+                    logger.info(
+                        f"⚠️  SEÑAL MEDIUM | {pattern_detected} en BOTTOM | "
+                        f"Continuación bajista en agotamiento (precaución)"
+                    )
+                else:
+                    signal_strength = "LOW"
+                    logger.info(
+                        f"ℹ️  SEÑAL LOW | {pattern_detected} sin agotamiento | "
+                        f"Continuación bajista débil"
+                    )
+            # SHOOTING_STAR en tendencia bajista = NONE (contra-estrategia)
+            elif pattern_detected == "SHOOTING_STAR":
+                signal_strength = "NONE"
                 logger.info(
-                    f"⚠️  SEÑAL MEDIUM | {pattern_detected} en Zona Neutra | "
-                    f"Reversión bajista posible pero sin agotamiento"
+                    f"⚪ SEÑAL NONE | {pattern_detected} en tendencia BAJISTA | "
+                    f"Patrón bajista en tendencia bajista - Contra-estrategia Mean Reversion"
                 )
-            else:  # exhaustion_type == "BOTTOM"
-                # Patrón bajista en base (contra-lógica) - no operar
+        
+        # CONTEXTO: NEUTRAL (sin tendencia clara)
+        else:
+            # En neutral, degradar todas las señales a LOW
+            if pattern_is_bearish or pattern_is_bullish:
                 signal_strength = "LOW"
                 logger.info(
-                    f"ℹ️  SEÑAL LOW | {pattern_detected} en BOTTOM | "
-                    f"Patrón bajista en agotamiento bajista - señal débil"
-                )
-        
-        # CASO 2: Patrón ALCISTA (Hammer / Inverted Hammer)
-        elif pattern_is_bullish:
-            if exhaustion_type == "BOTTOM":
-                # 🚨🚨 IDEAL: Patrón alcista en base = Reversión en agotamiento bajista
-                signal_strength = "HIGH"
-                logger.info(
-                    f"🚨 SEÑAL HIGH | {pattern_detected} en BOTTOM | "
-                    f"Reversión alcista en agotamiento bajista | Mean Reversion PERFECTA"
-                )
-            elif exhaustion_type == "NONE":
-                # Patrón alcista en zona neutra (sin agotamiento confirmado)
-                signal_strength = "MEDIUM"
-                logger.info(
-                    f"⚠️  SEÑAL MEDIUM | {pattern_detected} en Zona Neutra | "
-                    f"Reversión alcista posible pero sin agotamiento"
-                )
-            else:  # exhaustion_type == "PEAK"
-                # Patrón alcista en cúspide (contra-lógica) - no operar
-                signal_strength = "LOW"
-                logger.info(
-                    f"ℹ️  SEÑAL LOW | {pattern_detected} en PEAK | "
-                    f"Patrón alcista en agotamiento alcista - señal débil"
+                    f"ℹ️  SEÑAL LOW | {pattern_detected} en tendencia NEUTRAL | "
+                    f"Sin contexto de tendencia clara"
                 )
         
         # VALIDACIÓN ADICIONAL: Verificar que hay tendencia clara (no lateral)
-        # Si trend_analysis.is_aligned == False, degradar a LOW
-        if signal_strength == "HIGH" and not trend_analysis.is_aligned:
-            signal_strength = "MEDIUM"
+        # Si trend_analysis.is_aligned == False, degradar HIGH/MEDIUM a LOW
+        if signal_strength in ["HIGH", "MEDIUM"] and not trend_analysis.is_aligned:
+            original_strength = signal_strength
+            signal_strength = "LOW"
             logger.warning(
-                f"⚠️  DEGRADACIÓN HIGH → MEDIUM | "
+                f"⚠️  DEGRADACIÓN {original_strength} → LOW | "
                 f"No hay tendencia clara (posible lateral) | "
                 f"Recomendación: Esperar confirmación"
             )
         
         # Determinar si el patrón es "contra-tendencia" (para compatibilidad con storage)
-        # En Mean Reversion, esto NO es penalización, solo información
-        current_status = trend_analysis.status
-        is_bearish_trend = "BEARISH" in current_status
-        is_bullish_trend = "BULLISH" in current_status
-        
         is_counter_trend = False
         if pattern_is_bearish and is_bearish_trend:
-            is_counter_trend = True  # Patrón bajista en tendencia bajista (reversión contra-tendencia)
+            is_counter_trend = True  # Patrón bajista en tendencia bajista
         elif pattern_is_bullish and is_bullish_trend:
-            is_counter_trend = True  # Patrón alcista en tendencia alcista (reversión contra-tendencia)
+            is_counter_trend = True  # Patrón alcista en tendencia alcista
         
         # Determinar alineación tradicional (para compatibilidad)
         is_trend_aligned = False

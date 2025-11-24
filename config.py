@@ -148,7 +148,7 @@ class Config:
     """Clase Singleton para acceso global a la configuración."""
     
     # Versión del algoritmo de análisis (para tracking en raw_data)
-    ALGO_VERSION: str = "v2.0"
+    ALGO_VERSION: str = "v3.0"
     
     # Payout de opciones binarias (ganancia neta si aciertas, en decimal)
     # Ejemplo: 0.86 = 86% de ganancia sobre la inversión

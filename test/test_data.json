@@ -3036,5 +3036,215 @@
     "maximo": 1.15187,
     "minimo": 1.1518,
     "tipo_vela": "inverted_hammer"
+  },
+  {
+    "apertura": 1.15182,
+    "cierre": 1.15183,
+    "maximo": 1.15184,
+    "minimo": 1.15177,
+    "tipo_vela": "hammer"
+  },
+  {
+    "apertura": 156.59099999999998,
+    "cierre": 156.59199999999998,
+    "maximo": 156.59799999999998,
+    "minimo": 156.59099999999998,
+    "tipo_vela": "inverted_hammer"
+  },
+  {
+    "apertura": 1.15206,
+    "cierre": 1.15211,
+    "maximo": 1.15213,
+    "minimo": 1.15179,
+    "tipo_vela": "hammer"
+  },
+  {
+    "apertura": 1.1522,
+    "cierre": 1.15218,
+    "maximo": 1.15228,
+    "minimo": 1.15218,
+    "tipo_vela": "shooting_star"
+  },
+  {
+    "apertura": 1.1525,
+    "cierre": 1.15258,
+    "maximo": 1.15262,
+    "minimo": 1.15228,
+    "tipo_vela": "hammer"
+  },
+  {
+    "apertura": 156.517,
+    "cierre": 156.518,
+    "maximo": 156.518,
+    "minimo": 156.507,
+    "tipo_vela": "hammer"
+  },
+  {
+    "apertura": 1.15263,
+    "cierre": 1.15255,
+    "maximo": 1.15268,
+    "minimo": 1.15233,
+    "tipo_vela": "hanging_man"
+  },
+  {
+    "apertura": 1.31036,
+    "cierre": 1.31037,
+    "maximo": 1.31037,
+    "minimo": 1.31031,
+    "tipo_vela": "hammer"
+  },
+  {
+    "apertura": 1.15248,
+    "cierre": 1.15245,
+    "maximo": 1.1525,
+    "minimo": 1.15218,
+    "tipo_vela": "hanging_man"
+  },
+  {
+    "apertura": 156.552,
+    "cierre": 156.545,
+    "maximo": 156.578,
+    "minimo": 156.543,
+    "tipo_vela": "shooting_star"
+  },
+  {
+    "apertura": 156.551,
+    "cierre": 156.54999999999998,
+    "maximo": 156.578,
+    "minimo": 156.54999999999998,
+    "tipo_vela": "shooting_star"
+  },
+  {
+    "apertura": 156.533,
+    "cierre": 156.536,
+    "maximo": 156.547,
+    "minimo": 156.531,
+    "tipo_vela": "inverted_hammer"
+  },
+  {
+    "apertura": 156.539,
+    "cierre": 156.541,
+    "maximo": 156.546,
+    "minimo": 156.53799999999998,
+    "tipo_vela": "inverted_hammer"
+  },
+  {
+    "apertura": 1.15248,
+    "cierre": 1.15241,
+    "maximo": 1.1525,
+    "minimo": 1.15215,
+    "tipo_vela": "hanging_man"
+  },
+  {
+    "apertura": 1.15243,
+    "cierre": 1.15242,
+    "maximo": 1.15243,
+    "minimo": 1.15238,
+    "tipo_vela": "hanging_man"
+  },
+  {
+    "apertura": 1.31034,
+    "cierre": 1.31033,
+    "maximo": 1.31034,
+    "minimo": 1.31027,
+    "tipo_vela": "hanging_man"
+  },
+  {
+    "apertura": 156.54,
+    "cierre": 156.53799999999998,
+    "maximo": 156.545,
+    "minimo": 156.53799999999998,
+    "tipo_vela": "shooting_star"
+  },
+  {
+    "apertura": 1.31046,
+    "cierre": 1.31047,
+    "maximo": 1.31047,
+    "minimo": 1.31039,
+    "tipo_vela": "hammer"
+  },
+  {
+    "apertura": 1.15243,
+    "cierre": 1.15245,
+    "maximo": 1.15255,
+    "minimo": 1.15242,
+    "tipo_vela": "inverted_hammer"
+  },
+  {
+    "apertura": 1.15233,
+    "cierre": 1.15237,
+    "maximo": 1.1524,
+    "minimo": 1.1521,
+    "tipo_vela": "hammer"
+  },
+  {
+    "apertura": 1.31035,
+    "cierre": 1.31034,
+    "maximo": 1.3104,
+    "minimo": 1.31033,
+    "tipo_vela": "shooting_star"
+  },
+  {
+    "apertura": 1.15245,
+    "cierre": 1.15244,
+    "maximo": 1.15245,
+    "minimo": 1.15241,
+    "tipo_vela": "hanging_man"
+  },
+  {
+    "apertura": 156.53099999999998,
+    "cierre": 156.53,
+    "maximo": 156.53799999999998,
+    "minimo": 156.53,
+    "tipo_vela": "shooting_star"
+  },
+  {
+    "apertura": 156.528,
+    "cierre": 156.524,
+    "maximo": 156.541,
+    "minimo": 156.523,
+    "tipo_vela": "shooting_star"
+  },
+  {
+    "apertura": 1.15262,
+    "cierre": 1.15251,
+    "maximo": 1.15265,
+    "minimo": 1.15217,
+    "tipo_vela": "hanging_man"
+  },
+  {
+    "apertura": 156.539,
+    "cierre": 156.54,
+    "maximo": 156.54299999999998,
+    "minimo": 156.539,
+    "tipo_vela": "inverted_hammer"
+  },
+  {
+    "apertura": 1.15258,
+    "cierre": 1.15252,
+    "maximo": 1.15258,
+    "minimo": 1.15227,
+    "tipo_vela": "hanging_man"
+  },
+  {
+    "apertura": 156.541,
+    "cierre": 156.54299999999998,
+    "maximo": 156.553,
+    "minimo": 156.541,
+    "tipo_vela": "inverted_hammer"
+  },
+  {
+    "apertura": 156.565,
+    "cierre": 156.564,
+    "maximo": 156.57399999999998,
+    "minimo": 156.563,
+    "tipo_vela": "shooting_star"
+  },
+  {
+    "apertura": 156.54,
+    "cierre": 156.539,
+    "maximo": 156.548,
+    "minimo": 156.539,
+    "tipo_vela": "shooting_star"
   }
 ]

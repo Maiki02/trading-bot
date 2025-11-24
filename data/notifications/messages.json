@@ -1629,5 +1629,215 @@
     "title": "ℹ️ PATRÓN DETECTADO | *EURUSD*\nSolo informativo - Requiere análisis adicional\n",
     "message": "━━━━━━━━━━━━━━━━━━━━━━\n📊 INFO DE VELA\n🔹 Fuente: FX_IDC\n🔹 Patrón: INVERTED_HAMMER\n🔹 Timestamp: 2025-11-24 01:42:00\n🔹 Confianza Técnica: 90%\n🔹 Fuerza de Señal: LOW\n\n━━━━━━━━━━━━━━━━━━━━━━\n🎯 TENDENCIA Y AGOTAMIENTO\n🔹 Estado: WEAK_BULLISH (Score: +2/10)\n🔹 Estructura: EMAs mixtas (Sin alineación clara)\n➖ Zona: Zona Neutra\n\n",
     "image_name": "chart_20251124_014300_670705.png"
+  },
+  {
+    "timestamp": "20251124_014701_287152",
+    "datetime": "2025-11-24T01:47:01.295602",
+    "title": "ℹ️ PATRÓN DETECTADO | *EURUSD*\nSolo informativo - Requiere análisis adicional\n",
+    "message": "━━━━━━━━━━━━━━━━━━━━━━\n📊 INFO DE VELA\n🔹 Fuente: FX_IDC\n🔹 Patrón: HAMMER\n🔹 Timestamp: 2025-11-24 01:46:00\n🔹 Confianza Técnica: 90%\n🔹 Fuerza de Señal: LOW\n\n━━━━━━━━━━━━━━━━━━━━━━\n🎯 TENDENCIA Y AGOTAMIENTO\n🔹 Estado: STRONG_BULLISH (Score: +10/10)\n🔹 Estructura: Precio > EMA20 > EMA200 (Alineación alcista)\n🔻 Zona: Señal de agotamiento\n\n",
+    "image_name": "chart_20251124_014701_287152.png"
+  },
+  {
+    "timestamp": "20251124_014701_374098",
+    "datetime": "2025-11-24T01:47:01.385920",
+    "title": "ℹ️ PATRÓN DETECTADO | *USDJPY*\nSolo informativo - Requiere análisis adicional\n",
+    "message": "━━━━━━━━━━━━━━━━━━━━━━\n📊 INFO DE VELA\n🔹 Fuente: FX\n🔹 Patrón: INVERTED_HAMMER\n🔹 Timestamp: 2025-11-24 01:46:00\n🔹 Confianza Técnica: 100%\n🔹 Fuerza de Señal: LOW\n\n━━━━━━━━━━━━━━━━━━━━━━\n🎯 TENDENCIA Y AGOTAMIENTO\n🔹 Estado: WEAK_BEARISH (Score: -2/10)\n🔹 Estructura: EMAs mixtas (Sin alineación clara)\n➖ Zona: Zona Neutra\n\n",
+    "image_name": "chart_20251124_014701_374098.png"
+  },
+  {
+    "timestamp": "20251124_015900_831668",
+    "datetime": "2025-11-24T01:59:00.836974",
+    "title": "ℹ️ PATRÓN DETECTADO | *EURUSD*\nSolo informativo - Requiere análisis adicional\n",
+    "message": "━━━━━━━━━━━━━━━━━━━━━━\n📊 INFO DE VELA\n🔹 Fuente: FX_IDC\n🔹 Patrón: HAMMER\n🔹 Timestamp: 2025-11-24 01:58:00\n🔹 Confianza Técnica: 100%\n🔹 Fuerza de Señal: LOW\n\n━━━━━━━━━━━━━━━━━━━━━━\n🎯 TENDENCIA Y AGOTAMIENTO\n🔹 Estado: STRONG_BULLISH (Score: +10/10)\n🔹 Estructura: Precio > EMA20 > EMA200 (Alineación alcista)\n🔺 Zona: Señal de agotamiento\n\n",
+    "image_name": "chart_20251124_015900_831668.png"
+  },
+  {
+    "timestamp": "20251124_020200_587023",
+    "datetime": "2025-11-24T02:02:00.600159",
+    "title": "🚨🔴 ALERTA FUERTE | *EURUSD*\nPosible operación a la BAJA.\n",
+    "message": "━━━━━━━━━━━━━━━━━━━━━━\n📊 INFO DE VELA\n🔹 Fuente: FX_IDC\n🔹 Patrón: SHOOTING_STAR\n🔹 Timestamp: 2025-11-24 02:01:00\n🔹 Confianza Técnica: 100%\n🔹 Fuerza de Señal: HIGH\n\n━━━━━━━━━━━━━━━━━━━━━━\n🎯 TENDENCIA Y AGOTAMIENTO\n🔹 Estado: STRONG_BULLISH (Score: +10/10)\n🔹 Estructura: Precio > EMA20 > EMA200 (Alineación alcista)\n🔺 Zona: Señal de agotamiento\n\n",
+    "image_name": "chart_20251124_020200_587023.png"
+  },
+  {
+    "timestamp": "20251124_020600_676155",
+    "datetime": "2025-11-24T02:06:00.685039",
+    "title": "ℹ️ PATRÓN DETECTADO | *EURUSD*\nSolo informativo - Requiere análisis adicional\n",
+    "message": "━━━━━━━━━━━━━━━━━━━━━━\n📊 INFO DE VELA\n🔹 Fuente: FX_IDC\n🔹 Patrón: HAMMER\n🔹 Timestamp: 2025-11-24 02:05:00\n🔹 Confianza Técnica: 70%\n🔹 Fuerza de Señal: LOW\n\n━━━━━━━━━━━━━━━━━━━━━━\n🎯 TENDENCIA Y AGOTAMIENTO\n🔹 Estado: STRONG_BULLISH (Score: +10/10)\n🔹 Estructura: Precio > EMA20 > EMA200 (Alineación alcista)\n🔺 Zona: Señal de agotamiento\n\n",
+    "image_name": "chart_20251124_020600_676155.png"
+  },
+  {
+    "timestamp": "20251124_020701_947530",
+    "datetime": "2025-11-24T02:07:01.964886",
+    "title": "ℹ️ PATRÓN DETECTADO | *USDJPY*\nSolo informativo - Requiere análisis adicional\n",
+    "message": "━━━━━━━━━━━━━━━━━━━━━━\n📊 INFO DE VELA\n🔹 Fuente: FX\n🔹 Patrón: HAMMER\n🔹 Timestamp: 2025-11-24 02:06:00\n🔹 Confianza Técnica: 100%\n🔹 Fuerza de Señal: LOW\n\n━━━━━━━━━━━━━━━━━━━━━━\n🎯 TENDENCIA Y AGOTAMIENTO\n🔹 Estado: STRONG_BEARISH (Score: -10/10)\n🔹 Estructura: Precio < EMA20 < EMA200 (Alineación bajista)\n➖ Zona: Zona Neutra\n\n",
+    "image_name": "chart_20251124_020701_947530.png"
+  },
+  {
+    "timestamp": "20251124_021100_552300",
+    "datetime": "2025-11-24T02:11:00.570327",
+    "title": "ℹ️ PATRÓN DETECTADO | *EURUSD*\nSolo informativo - Requiere análisis adicional\n",
+    "message": "━━━━━━━━━━━━━━━━━━━━━━\n📊 INFO DE VELA\n🔹 Fuente: FX_IDC\n🔹 Patrón: HANGING_MAN\n🔹 Timestamp: 2025-11-24 02:10:00\n🔹 Confianza Técnica: 70%\n🔹 Fuerza de Señal: LOW\n\n━━━━━━━━━━━━━━━━━━━━━━\n🎯 TENDENCIA Y AGOTAMIENTO\n🔹 Estado: STRONG_BULLISH (Score: +10/10)\n🔹 Estructura: Precio > EMA20 > EMA200 (Alineación alcista)\n➖ Zona: Zona Neutra\n\n",
+    "image_name": "chart_20251124_021100_552300.png"
+  },
+  {
+    "timestamp": "20251124_021401_515279",
+    "datetime": "2025-11-24T02:14:01.521247",
+    "title": "ℹ️ PATRÓN DETECTADO | *GBPUSD*\nSolo informativo - Requiere análisis adicional\n",
+    "message": "━━━━━━━━━━━━━━━━━━━━━━\n📊 INFO DE VELA\n🔹 Fuente: FX\n🔹 Patrón: HAMMER\n🔹 Timestamp: 2025-11-24 02:13:00\n🔹 Confianza Técnica: 100%\n🔹 Fuerza de Señal: LOW\n\n━━━━━━━━━━━━━━━━━━━━━━\n🎯 TENDENCIA Y AGOTAMIENTO\n🔹 Estado: STRONG_BULLISH (Score: +10/10)\n🔹 Estructura: Precio > EMA20 > EMA200 (Alineación alcista)\n➖ Zona: Zona Neutra\n\n",
+    "image_name": "chart_20251124_021401_515279.png"
+  },
+  {
+    "timestamp": "20251124_021500_535273",
+    "datetime": "2025-11-24T02:15:00.549174",
+    "title": "ℹ️ PATRÓN DETECTADO | *EURUSD*\nSolo informativo - Requiere análisis adicional\n",
+    "message": "━━━━━━━━━━━━━━━━━━━━━━\n📊 INFO DE VELA\n🔹 Fuente: FX_IDC\n🔹 Patrón: HANGING_MAN\n🔹 Timestamp: 2025-11-24 02:14:00\n🔹 Confianza Técnica: 100%\n🔹 Fuerza de Señal: LOW\n\n━━━━━━━━━━━━━━━━━━━━━━\n🎯 TENDENCIA Y AGOTAMIENTO\n🔹 Estado: STRONG_BULLISH (Score: +10/10)\n🔹 Estructura: Precio > EMA20 > EMA200 (Alineación alcista)\n➖ Zona: Zona Neutra\n\n",
+    "image_name": "chart_20251124_021500_535273.png"
+  },
+  {
+    "timestamp": "20251124_021601_687379",
+    "datetime": "2025-11-24T02:16:01.696409",
+    "title": "ℹ️ PATRÓN DETECTADO | *USDJPY*\nSolo informativo - Requiere análisis adicional\n",
+    "message": "━━━━━━━━━━━━━━━━━━━━━━\n📊 INFO DE VELA\n🔹 Fuente: FX_IDC\n🔹 Patrón: SHOOTING_STAR\n🔹 Timestamp: 2025-11-24 02:15:00\n🔹 Confianza Técnica: 90%\n🔹 Fuerza de Señal: LOW\n\n━━━━━━━━━━━━━━━━━━━━━━\n🎯 TENDENCIA Y AGOTAMIENTO\n🔹 Estado: WEAK_BEARISH (Score: -2/10)\n🔹 Estructura: EMAs mixtas (Sin alineación clara)\n🔺 Zona: Señal de agotamiento\n\n",
+    "image_name": "chart_20251124_021601_687379.png"
+  },
+  {
+    "timestamp": "20251124_021602_603893",
+    "datetime": "2025-11-24T02:16:02.610281",
+    "title": "ℹ️ PATRÓN DETECTADO | *USDJPY*\nSolo informativo - Requiere análisis adicional\n",
+    "message": "━━━━━━━━━━━━━━━━━━━━━━\n📊 INFO DE VELA\n🔹 Fuente: FX\n🔹 Patrón: SHOOTING_STAR\n🔹 Timestamp: 2025-11-24 02:15:00\n🔹 Confianza Técnica: 100%\n🔹 Fuerza de Señal: LOW\n\n━━━━━━━━━━━━━━━━━━━━━━\n🎯 TENDENCIA Y AGOTAMIENTO\n🔹 Estado: WEAK_BEARISH (Score: -2/10)\n🔹 Estructura: EMAs mixtas (Sin alineación clara)\n➖ Zona: Zona Neutra\n\n",
+    "image_name": "chart_20251124_021602_603893.png"
+  },
+  {
+    "timestamp": "20251124_021900_731483",
+    "datetime": "2025-11-24T02:19:00.749905",
+    "title": "ℹ️ PATRÓN DETECTADO | *USDJPY*\nSolo informativo - Requiere análisis adicional\n",
+    "message": "━━━━━━━━━━━━━━━━━━━━━━\n📊 INFO DE VELA\n🔹 Fuente: FX_IDC\n🔹 Patrón: INVERTED_HAMMER\n🔹 Timestamp: 2025-11-24 02:18:00\n🔹 Confianza Técnica: 80%\n🔹 Fuerza de Señal: LOW\n\n━━━━━━━━━━━━━━━━━━━━━━\n🎯 TENDENCIA Y AGOTAMIENTO\n🔹 Estado: STRONG_BEARISH (Score: -10/10)\n🔹 Estructura: Precio < EMA20 < EMA200 (Alineación bajista)\n➖ Zona: Zona Neutra\n\n",
+    "image_name": "chart_20251124_021900_731483.png"
+  },
+  {
+    "timestamp": "20251124_022001_584836",
+    "datetime": "2025-11-24T02:20:01.600641",
+    "title": "ℹ️ PATRÓN DETECTADO | *USDJPY*\nSolo informativo - Requiere análisis adicional\n",
+    "message": "━━━━━━━━━━━━━━━━━━━━━━\n📊 INFO DE VELA\n🔹 Fuente: FX\n🔹 Patrón: INVERTED_HAMMER\n🔹 Timestamp: 2025-11-24 02:19:00\n🔹 Confianza Técnica: 70%\n🔹 Fuerza de Señal: LOW\n\n━━━━━━━━━━━━━━━━━━━━━━\n🎯 TENDENCIA Y AGOTAMIENTO\n🔹 Estado: STRONG_BEARISH (Score: -10/10)\n🔹 Estructura: Precio < EMA20 < EMA200 (Alineación bajista)\n➖ Zona: Zona Neutra\n\n",
+    "image_name": "chart_20251124_022001_584836.png"
+  },
+  {
+    "timestamp": "20251124_022200_619444",
+    "datetime": "2025-11-24T02:22:00.635672",
+    "title": "ℹ️ PATRÓN DETECTADO | *EURUSD*\nSolo informativo - Requiere análisis adicional\n",
+    "message": "━━━━━━━━━━━━━━━━━━━━━━\n📊 INFO DE VELA\n🔹 Fuente: FX_IDC\n🔹 Patrón: HANGING_MAN\n🔹 Timestamp: 2025-11-24 02:21:00\n🔹 Confianza Técnica: 100%\n🔹 Fuerza de Señal: LOW\n\n━━━━━━━━━━━━━━━━━━━━━━\n🎯 TENDENCIA Y AGOTAMIENTO\n🔹 Estado: WEAK_BULLISH (Score: +2/10)\n🔹 Estructura: EMAs mixtas (Sin alineación clara)\n🔻 Zona: Señal de agotamiento\n\n",
+    "image_name": "chart_20251124_022200_619444.png"
+  },
+  {
+    "timestamp": "20251124_022301_929229",
+    "datetime": "2025-11-24T02:23:01.936309",
+    "title": "ℹ️ PATRÓN DETECTADO | *EURUSD*\nSolo informativo - Requiere análisis adicional\n",
+    "message": "━━━━━━━━━━━━━━━━━━━━━━\n📊 INFO DE VELA\n🔹 Fuente: FX\n🔹 Patrón: HANGING_MAN\n🔹 Timestamp: 2025-11-24 02:22:00\n🔹 Confianza Técnica: 90%\n🔹 Fuerza de Señal: LOW\n\n━━━━━━━━━━━━━━━━━━━━━━\n🎯 TENDENCIA Y AGOTAMIENTO\n🔹 Estado: WEAK_BULLISH (Score: +2/10)\n🔹 Estructura: EMAs mixtas (Sin alineación clara)\n➖ Zona: Zona Neutra\n\n",
+    "image_name": "chart_20251124_022301_929229.png"
+  },
+  {
+    "timestamp": "20251124_022301_990246",
+    "datetime": "2025-11-24T02:23:02.003856",
+    "title": "ℹ️ PATRÓN DETECTADO | *GBPUSD*\nSolo informativo - Requiere análisis adicional\n",
+    "message": "━━━━━━━━━━━━━━━━━━━━━━\n📊 INFO DE VELA\n🔹 Fuente: FX\n🔹 Patrón: HANGING_MAN\n🔹 Timestamp: 2025-11-24 02:22:00\n🔹 Confianza Técnica: 100%\n🔹 Fuerza de Señal: LOW\n\n━━━━━━━━━━━━━━━━━━━━━━\n🎯 TENDENCIA Y AGOTAMIENTO\n🔹 Estado: STRONG_BULLISH (Score: +10/10)\n🔹 Estructura: Precio > EMA20 > EMA200 (Alineación alcista)\n➖ Zona: Zona Neutra\n\n",
+    "image_name": "chart_20251124_022301_990246.png"
+  },
+  {
+    "timestamp": "20251124_022601_338293",
+    "datetime": "2025-11-24T02:26:01.342636",
+    "title": "ℹ️ PATRÓN DETECTADO | *USDJPY*\nSolo informativo - Requiere análisis adicional\n",
+    "message": "━━━━━━━━━━━━━━━━━━━━━━\n📊 INFO DE VELA\n🔹 Fuente: FX\n🔹 Patrón: SHOOTING_STAR\n🔹 Timestamp: 2025-11-24 02:25:00\n🔹 Confianza Técnica: 90%\n🔹 Fuerza de Señal: LOW\n\n━━━━━━━━━━━━━━━━━━━━━━\n🎯 TENDENCIA Y AGOTAMIENTO\n🔹 Estado: STRONG_BEARISH (Score: -10/10)\n🔹 Estructura: Precio < EMA20 < EMA200 (Alineación bajista)\n➖ Zona: Zona Neutra\n\n",
+    "image_name": "chart_20251124_022601_338293.png"
+  },
+  {
+    "timestamp": "20251124_023001_022713",
+    "datetime": "2025-11-24T02:30:01.032604",
+    "title": "ℹ️ PATRÓN DETECTADO | *GBPUSD*\nSolo informativo - Requiere análisis adicional\n",
+    "message": "━━━━━━━━━━━━━━━━━━━━━━\n📊 INFO DE VELA\n🔹 Fuente: FX\n🔹 Patrón: HAMMER\n🔹 Timestamp: 2025-11-24 02:29:00\n🔹 Confianza Técnica: 100%\n🔹 Fuerza de Señal: LOW\n\n━━━━━━━━━━━━━━━━━━━━━━\n🎯 TENDENCIA Y AGOTAMIENTO\n🔹 Estado: STRONG_BULLISH (Score: +10/10)\n🔹 Estructura: Precio > EMA20 > EMA200 (Alineación alcista)\n➖ Zona: Zona Neutra\n\n",
+    "image_name": "chart_20251124_023001_022713.png"
+  },
+  {
+    "timestamp": "20251124_023102_973147",
+    "datetime": "2025-11-24T02:31:02.989299",
+    "title": "ℹ️ PATRÓN DETECTADO | *EURUSD*\nSolo informativo - Requiere análisis adicional\n",
+    "message": "━━━━━━━━━━━━━━━━━━━━━━\n📊 INFO DE VELA\n🔹 Fuente: FX\n🔹 Patrón: INVERTED_HAMMER\n🔹 Timestamp: 2025-11-24 02:30:00\n🔹 Confianza Técnica: 100%\n🔹 Fuerza de Señal: LOW\n\n━━━━━━━━━━━━━━━━━━━━━━\n🎯 TENDENCIA Y AGOTAMIENTO\n🔹 Estado: STRONG_BULLISH (Score: +10/10)\n🔹 Estructura: Precio > EMA20 > EMA200 (Alineación alcista)\n➖ Zona: Zona Neutra\n\n",
+    "image_name": "chart_20251124_023102_973147.png"
+  },
+  {
+    "timestamp": "20251124_023301_477733",
+    "datetime": "2025-11-24T02:33:01.498619",
+    "title": "ℹ️ PATRÓN DETECTADO | *EURUSD*\nSolo informativo - Requiere análisis adicional\n",
+    "message": "━━━━━━━━━━━━━━━━━━━━━━\n📊 INFO DE VELA\n🔹 Fuente: FX_IDC\n🔹 Patrón: HAMMER\n🔹 Timestamp: 2025-11-24 02:32:00\n🔹 Confianza Técnica: 90%\n🔹 Fuerza de Señal: LOW\n\n━━━━━━━━━━━━━━━━━━━━━━\n🎯 TENDENCIA Y AGOTAMIENTO\n🔹 Estado: WEAK_BULLISH (Score: +2/10)\n🔹 Estructura: EMAs mixtas (Sin alineación clara)\n🔻 Zona: Señal de agotamiento\n\n",
+    "image_name": "chart_20251124_023301_477733.png"
+  },
+  {
+    "timestamp": "20251124_023301_572050",
+    "datetime": "2025-11-24T02:33:01.590516",
+    "title": "ℹ️ PATRÓN DETECTADO | *GBPUSD*\nSolo informativo - Requiere análisis adicional\n",
+    "message": "━━━━━━━━━━━━━━━━━━━━━━\n📊 INFO DE VELA\n🔹 Fuente: FX\n🔹 Patrón: SHOOTING_STAR\n🔹 Timestamp: 2025-11-24 02:32:00\n🔹 Confianza Técnica: 90%\n🔹 Fuerza de Señal: LOW\n\n━━━━━━━━━━━━━━━━━━━━━━\n🎯 TENDENCIA Y AGOTAMIENTO\n🔹 Estado: WEAK_BULLISH (Score: +2/10)\n🔹 Estructura: EMAs mixtas (Sin alineación clara)\n➖ Zona: Zona Neutra\n\n",
+    "image_name": "chart_20251124_023301_572050.png"
+  },
+  {
+    "timestamp": "20251124_023503_325757",
+    "datetime": "2025-11-24T02:35:03.343999",
+    "title": "ℹ️ PATRÓN DETECTADO | *EURUSD*\nSolo informativo - Requiere análisis adicional\n",
+    "message": "━━━━━━━━━━━━━━━━━━━━━━\n📊 INFO DE VELA\n🔹 Fuente: FX\n🔹 Patrón: HANGING_MAN\n🔹 Timestamp: 2025-11-24 02:34:00\n🔹 Confianza Técnica: 90%\n🔹 Fuerza de Señal: LOW\n\n━━━━━━━━━━━━━━━━━━━━━━\n🎯 TENDENCIA Y AGOTAMIENTO\n🔹 Estado: STRONG_BULLISH (Score: +10/10)\n🔹 Estructura: Precio > EMA20 > EMA200 (Alineación alcista)\n➖ Zona: Zona Neutra\n\n",
+    "image_name": "chart_20251124_023503_325757.png"
+  },
+  {
+    "timestamp": "20251124_024201_028785",
+    "datetime": "2025-11-24T02:42:01.047263",
+    "title": "ℹ️ PATRÓN DETECTADO | *USDJPY*\nSolo informativo - Requiere análisis adicional\n",
+    "message": "━━━━━━━━━━━━━━━━━━━━━━\n📊 INFO DE VELA\n🔹 Fuente: FX\n🔹 Patrón: SHOOTING_STAR\n🔹 Timestamp: 2025-11-24 02:41:00\n🔹 Confianza Técnica: 100%\n🔹 Fuerza de Señal: LOW\n\n━━━━━━━━━━━━━━━━━━━━━━\n🎯 TENDENCIA Y AGOTAMIENTO\n🔹 Estado: STRONG_BEARISH (Score: -10/10)\n🔹 Estructura: Precio < EMA20 < EMA200 (Alineación bajista)\n➖ Zona: Zona Neutra\n\n",
+    "image_name": "chart_20251124_024201_028785.png"
+  },
+  {
+    "timestamp": "20251124_024201_112382",
+    "datetime": "2025-11-24T02:42:01.144998",
+    "title": "ℹ️ PATRÓN DETECTADO | *USDJPY*\nSolo informativo - Requiere análisis adicional\n",
+    "message": "━━━━━━━━━━━━━━━━━━━━━━\n📊 INFO DE VELA\n🔹 Fuente: FX_IDC\n🔹 Patrón: SHOOTING_STAR\n🔹 Timestamp: 2025-11-24 02:41:00\n🔹 Confianza Técnica: 90%\n🔹 Fuerza de Señal: LOW\n\n━━━━━━━━━━━━━━━━━━━━━━\n🎯 TENDENCIA Y AGOTAMIENTO\n🔹 Estado: STRONG_BEARISH (Score: -10/10)\n🔹 Estructura: Precio < EMA20 < EMA200 (Alineación bajista)\n🔻 Zona: Señal de agotamiento\n\n",
+    "image_name": "chart_20251124_024201_112382.png"
+  },
+  {
+    "timestamp": "20251124_024601_253844",
+    "datetime": "2025-11-24T02:46:01.260708",
+    "title": "ℹ️ PATRÓN DETECTADO | *EURUSD*\nSolo informativo - Requiere análisis adicional\n",
+    "message": "━━━━━━━━━━━━━━━━━━━━━━\n📊 INFO DE VELA\n🔹 Fuente: FX_IDC\n🔹 Patrón: HANGING_MAN\n🔹 Timestamp: 2025-11-24 02:45:00\n🔹 Confianza Técnica: 90%\n🔹 Fuerza de Señal: LOW\n\n━━━━━━━━━━━━━━━━━━━━━━\n🎯 TENDENCIA Y AGOTAMIENTO\n🔹 Estado: STRONG_BULLISH (Score: +10/10)\n🔹 Estructura: Precio > EMA20 > EMA200 (Alineación alcista)\n🔺 Zona: Señal de agotamiento\n\n",
+    "image_name": "chart_20251124_024601_253844.png"
+  },
+  {
+    "timestamp": "20251124_024901_211552",
+    "datetime": "2025-11-24T02:49:01.231172",
+    "title": "ℹ️ PATRÓN DETECTADO | *USDJPY*\nSolo informativo - Requiere análisis adicional\n",
+    "message": "━━━━━━━━━━━━━━━━━━━━━━\n📊 INFO DE VELA\n🔹 Fuente: FX\n🔹 Patrón: INVERTED_HAMMER\n🔹 Timestamp: 2025-11-24 02:48:00\n🔹 Confianza Técnica: 90%\n🔹 Fuerza de Señal: LOW\n\n━━━━━━━━━━━━━━━━━━━━━━\n🎯 TENDENCIA Y AGOTAMIENTO\n🔹 Estado: WEAK_BEARISH (Score: -2/10)\n🔹 Estructura: EMAs mixtas (Sin alineación clara)\n➖ Zona: Zona Neutra\n\n",
+    "image_name": "chart_20251124_024901_211552.png"
+  },
+  {
+    "timestamp": "20251124_025100_682107",
+    "datetime": "2025-11-24T02:51:00.682107",
+    "title": "🔔 PATRON ENCONTRADO | *EURUSD* 🔔\n🟢 Posible operación al ALZA.\nNo hay agotamiento detectado - Requiere análisis adicional\n",
+    "message": "━━━━━━━━━━━━━━━━━━━━━━\n🔹 Señal: LOW\n\n🔹 Fuente: FX_IDC\n🔹 Patrón: HANGING_MAN\n🔹 Fecha: 2025-11-24 02:50:00\n🔻 Señal de agotamiento, pico alcanzado\n🔹 Tendencia: NEUTRAL\n🔹 Score: +0/10\n━━━━━━━━━━━━━━━━━━━━━━\n",
+    "image_name": "chart_20251124_025100_682107.png"
+  },
+  {
+    "timestamp": "20251124_025201_595158",
+    "datetime": "2025-11-24T02:52:01.600380",
+    "title": "🔔 PATRON ENCONTRADO | *USDJPY* 🔔\n🔴 Posible operación a la BAJA.\nNo hay agotamiento detectado - Requiere análisis adicional\n",
+    "message": "━━━━━━━━━━━━━━━━━━━━━━\n🔹 Señal: LOW\n\n🔹 Fuente: FX\n🔹 Patrón: INVERTED_HAMMER\n🔹 Fecha: 2025-11-24 02:51:00\n➖ Zona Neutra - Sin agotamiento\n🔹 Tendencia: NEUTRAL\n🔹 Score: +0/10\n━━━━━━━━━━━━━━━━━━━━━━\n",
+    "image_name": "chart_20251124_025201_595158.png"
+  },
+  {
+    "timestamp": "20251124_025401_246018",
+    "datetime": "2025-11-24T02:54:01.251175",
+    "title": "🔔 PATRON ENCONTRADO | *USDJPY* 🔔\n🔴 Posible operación a la BAJA.\nNo hay agotamiento detectado - Requiere análisis adicional\n",
+    "message": "━━━━━━━━━━━━━━━━━━━━━━\n🔹 Señal: LOW\n\n🔹 Fuente: FX\n🔹 Patrón: SHOOTING_STAR\n🔹 Fecha: 2025-11-24 02:53:00\n🔺 Señal de agotamiento, pico alcanzado\n🔹 Tendencia: NEUTRAL\n🔹 Score: +0/10\n━━━━━━━━━━━━━━━━━━━━━━\n",
+    "image_name": "chart_20251124_025401_246018.png"
+  },
+  {
+    "timestamp": "20251124_025602_391484",
+    "datetime": "2025-11-24T02:56:02.401420",
+    "title": "🔔 PATRON ENCONTRADO | *USDJPY* 🔔\n🔴 Posible operación a la BAJA.\nNo hay agotamiento detectado - Requiere análisis adicional\n",
+    "message": "━━━━━━━━━━━━━━━━━━━━━━\n🔹 Señal: LOW\n\n🔹 Fuente: FX\n🔹 Patrón: SHOOTING_STAR\n🔹 Fecha: 2025-11-24 02:55:00\n➖ Zona Neutra - Sin agotamiento\n🔹 Tendencia: NEUTRAL\n🔹 Score: +0/10\n━━━━━━━━━━━━━━━━━━━━━━\n",
+    "image_name": "chart_20251124_025602_391484.png"
   }
 ]

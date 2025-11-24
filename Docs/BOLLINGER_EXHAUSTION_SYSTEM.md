@@ -68,44 +68,63 @@ bb_lower < candle.close < bb_upper
 
 ---
 
-## 📊 Matriz de Clasificación de Fuerza (Mean Reversion)
+## 📊 Matriz de Clasificación de Fuerza (Mean Reversion) - 4 Niveles
 
-### 🔥 SEÑALES HIGH (Máxima Prioridad)
+### 🔥 SEÑALES HIGH (Máxima Prioridad - Reversión Perfecta)
 
-| Patrón | Zona | Signal Strength | Interpretación |
-|--------|------|-----------------|----------------|
-| **SHOOTING_STAR** | **PEAK** | **HIGH** 🚨 | **Reversión bajista en sobre-extensión alcista** - IDEAL para Mean Reversion |
-| **HANGING_MAN** | **PEAK** | **HIGH** 🚨 | **Reversión bajista en sobre-extensión alcista** - IDEAL para Mean Reversion |
-| **HAMMER** | **BOTTOM** | **HIGH** 🚨 | **Reversión alcista en sobre-extensión bajista** - IDEAL para Mean Reversion |
-| **INVERTED_HAMMER** | **BOTTOM** | **HIGH** 🚨 | **Reversión alcista en sobre-extensión bajista** - IDEAL para Mean Reversion |
+| Patrón | Contexto | Zona | Signal Strength | Interpretación |
+|--------|----------|------|-----------------|----------------|
+| **SHOOTING_STAR** | Tendencia Alcista | **PEAK** | **HIGH** 🚨 | **Reversión bajista en sobre-extensión alcista** - IDEAL para Mean Reversion |
+| **HANGING_MAN** | Tendencia Alcista | **PEAK** | **MEDIUM** ⚠️ | **Reversión bajista en agotamiento moderado** |
+| **HAMMER** | Tendencia Bajista | **BOTTOM** | **HIGH** 🚨 | **Reversión alcista en sobre-extensión bajista** - IDEAL para Mean Reversion |
+| **INVERTED_HAMMER** | Tendencia Bajista | **BOTTOM** | **MEDIUM** ⚠️ | **Reversión alcista en agotamiento moderado** |
 
-**Criterio:** Patrón de reversión detectado en zona de agotamiento extremo. Mayor probabilidad de éxito.
-
----
-
-### ⚠️ SEÑALES MEDIUM (Precaución)
-
-| Patrón | Zona | Signal Strength | Interpretación |
-|--------|------|-----------------|----------------|
-| SHOOTING_STAR | NONE | MEDIUM ⚠️ | Reversión bajista posible pero sin agotamiento confirmado |
-| HANGING_MAN | NONE | MEDIUM ⚠️ | Reversión bajista posible pero sin agotamiento confirmado |
-| HAMMER | NONE | MEDIUM ⚠️ | Reversión alcista posible pero sin agotamiento confirmado |
-| INVERTED_HAMMER | NONE | MEDIUM ⚠️ | Reversión alcista posible pero sin agotamiento confirmado |
-
-**Criterio:** Patrón válido pero sin confirmación de sobre-extensión. Esperar confirmación adicional.
+**Criterio:** Patrón de reversión correcto + Zona de agotamiento perfecta = Mayor probabilidad de éxito.
 
 ---
 
-### ℹ️ SEÑALES LOW (No Operar)
+### ℹ️ SEÑALES LOW (Señal Válida pero Débil)
 
-| Patrón | Zona | Signal Strength | Interpretación |
-|--------|------|-----------------|----------------|
-| SHOOTING_STAR | BOTTOM | LOW ℹ️ | Patrón bajista en agotamiento bajista - Señal débil |
-| HANGING_MAN | BOTTOM | LOW ℹ️ | Patrón bajista en agotamiento bajista - Señal débil |
-| HAMMER | PEAK | LOW ℹ️ | Patrón alcista en agotamiento alcista - Señal débil |
-| INVERTED_HAMMER | PEAK | LOW ℹ️ | Patrón alcista en agotamiento alcista - Señal débil |
+| Patrón | Contexto | Zona | Signal Strength | Interpretación |
+|--------|----------|------|-----------------|----------------|
+| SHOOTING_STAR | Tendencia Alcista | NONE/BOTTOM | LOW ℹ️ | Reversión bajista posible pero sin confirmación de agotamiento |
+| HANGING_MAN | Tendencia Alcista | NONE/BOTTOM | LOW ℹ️ | Reversión bajista posible pero sin confirmación de agotamiento |
+| HAMMER | Tendencia Bajista | NONE/PEAK | LOW ℹ️ | Reversión alcista posible pero sin confirmación de agotamiento |
+| INVERTED_HAMMER | Tendencia Bajista | NONE/PEAK | LOW ℹ️ | Reversión alcista posible pero sin confirmación de agotamiento |
+| INVERTED_HAMMER | Tendencia Alcista | PEAK | LOW ℹ️ | Continuación alcista en agotamiento (precaución) |
+| HANGING_MAN | Tendencia Bajista | BOTTOM | LOW ℹ️ | Continuación bajista en agotamiento (precaución) |
 
-**Criterio:** Patrón detectado en zona de agotamiento OPUESTA a su dirección natural. No operar.
+**Criterio:** Patrón correcto pero sin agotamiento extremo. Esperar confirmación adicional antes de operar.
+
+---
+
+### ⚪ SEÑALES NONE (No Operar - Contra-Estrategia)
+
+| Patrón | Contexto | Zona | Signal Strength | Interpretación |
+|--------|----------|------|-----------------|----------------|
+| **HAMMER** | Tendencia Alcista | Cualquiera | **NONE** ⚪ | Patrón alcista en tendencia alcista - Contra-estrategia Mean Reversion |
+| **INVERTED_HAMMER** | Tendencia Alcista | BOTTOM | **NONE** ⚪ | Patrón alcista en agotamiento bajista dentro de tendencia alcista - Confuso |
+| **SHOOTING_STAR** | Tendencia Bajista | Cualquiera | **NONE** ⚪ | Patrón bajista en tendencia bajista - Contra-estrategia Mean Reversion |
+| **HANGING_MAN** | Tendencia Bajista | PEAK | **NONE** ⚪ | Patrón bajista en agotamiento alcista dentro de tendencia bajista - Confuso |
+
+**Criterio:** Patrón NO válido para la estrategia Mean Reversion. Estos casos son ruido y deben ser ignorados.
+
+**Justificación:**
+- **Mean Reversion busca reversiones**, no continuaciones
+- Un Hammer en tendencia alcista sugiere continuación (no reversión)
+- Un Shooting Star en tendencia bajista sugiere continuación (no reversión)
+- Estos patrones contradicen la filosofía de "operar contra-tendencia en agotamiento"
+
+---
+
+## 🎯 Resumen de los 4 Niveles
+
+| Nivel | Emoji | Condición | Acción Recomendada |
+|-------|-------|-----------|-------------------|
+| **HIGH** | 🚨 | Reversión + Agotamiento perfecto (PEAK o BOTTOM) | **Operar inmediatamente** - Máxima probabilidad |
+| **MEDIUM** | ⚠️ | Reversión + Agotamiento moderado | **Considerar entrada** con stop loss ajustado |
+| **LOW** | ℹ️ | Reversión sin agotamiento confirmado | **Esperar confirmación** (siguiente vela) |
+| **NONE** | ⚪ | Patrón contra-estrategia | **NO OPERAR** - Ignorar señal |
 
 ---
 
@@ -113,7 +132,7 @@ bb_lower < candle.close < bb_upper
 
 ```python
 # 1. Analizar sobre-extensión (Mean Reversion Score)
-trend_analysis = analyze_trend(close, emas)  # Ahora mide sobre-extensión, NO tendencia
+trend_analysis = analyze_trend(close, emas)  # Mide sobre-extensión, NO tendencia
 
 # 2. Calcular Bandas de Bollinger
 bb_upper, bb_lower = calculate_bollinger_bands(df['close'], period=20, std_dev=2.0)
@@ -121,29 +140,56 @@ bb_upper, bb_lower = calculate_bollinger_bands(df['close'], period=20, std_dev=2
 # 3. Detectar zona de agotamiento
 exhaustion_type = detect_exhaustion(candle.high, candle.low, candle.close, bb_upper, bb_lower)
 
-# 4. Clasificar fuerza según estrategia Mean Reversion
-pattern_is_bearish = pattern in ["SHOOTING_STAR", "HANGING_MAN"]
-pattern_is_bullish = pattern in ["HAMMER", "INVERTED_HAMMER"]
+# 4. Determinar contexto de tendencia
+is_bullish_trend = "BULLISH" in trend_analysis.status
+is_bearish_trend = "BEARISH" in trend_analysis.status
 
-if pattern_is_bearish:
-    if exhaustion_type == "PEAK":
-        signal_strength = "HIGH"  # 🚨 Reversión bajista en sobre-extensión alcista
-    elif exhaustion_type == "NONE":
-        signal_strength = "MEDIUM"  # ⚠️ Reversión posible sin agotamiento
-    else:  # exhaustion_type == "BOTTOM"
-        signal_strength = "LOW"  # ℹ️ Patrón bajista en agotamiento bajista (débil)
+# 5. Clasificar fuerza según estrategia Mean Reversion (4 NIVELES)
+signal_strength = "NONE"  # Default: Patrón no válido
 
-elif pattern_is_bullish:
-    if exhaustion_type == "BOTTOM":
-        signal_strength = "HIGH"  # 🚨 Reversión alcista en sobre-extensión bajista
-    elif exhaustion_type == "NONE":
-        signal_strength = "MEDIUM"  # ⚠️ Reversión posible sin agotamiento
-    else:  # exhaustion_type == "PEAK"
-        signal_strength = "LOW"  # ℹ️ Patrón alcista en agotamiento alcista (débil)
+# CONTEXTO: TENDENCIA ALCISTA (Buscar reversiones bajistas)
+if is_bullish_trend:
+    if pattern == "SHOOTING_STAR":
+        if exhaustion_type == "PEAK":
+            signal_strength = "HIGH"  # 🚨 Reversión perfecta
+        else:
+            signal_strength = "LOW"   # ℹ️ Sin agotamiento
+    elif pattern == "HANGING_MAN":
+        if exhaustion_type == "PEAK":
+            signal_strength = "MEDIUM"  # ⚠️ Reversión moderada
+        else:
+            signal_strength = "LOW"
+    elif pattern == "INVERTED_HAMMER":
+        if exhaustion_type == "PEAK":
+            signal_strength = "MEDIUM"  # ⚠️ Continuación alcista
+        else:
+            signal_strength = "LOW"
+    elif pattern == "HAMMER":
+        signal_strength = "NONE"  # ⚪ Contra-estrategia
 
-# 5. Validar que hay tendencia clara (no lateral)
-if signal_strength == "HIGH" and not trend_analysis.is_aligned:
-    signal_strength = "MEDIUM"  # Degradar si el mercado está lateral
+# CONTEXTO: TENDENCIA BAJISTA (Buscar reversiones alcistas)
+elif is_bearish_trend:
+    if pattern == "HAMMER":
+        if exhaustion_type == "BOTTOM":
+            signal_strength = "HIGH"  # 🚨 Reversión perfecta
+        else:
+            signal_strength = "LOW"   # ℹ️ Sin agotamiento
+    elif pattern == "INVERTED_HAMMER":
+        if exhaustion_type == "BOTTOM":
+            signal_strength = "MEDIUM"  # ⚠️ Reversión moderada
+        else:
+            signal_strength = "LOW"
+    elif pattern == "HANGING_MAN":
+        if exhaustion_type == "BOTTOM":
+            signal_strength = "MEDIUM"  # ⚠️ Continuación bajista
+        else:
+            signal_strength = "LOW"
+    elif pattern == "SHOOTING_STAR":
+        signal_strength = "NONE"  # ⚪ Contra-estrategia
+
+# 6. Validar que hay tendencia clara (no lateral)
+if signal_strength in ["HIGH", "MEDIUM"] and not trend_analysis.is_aligned:
+    signal_strength = "LOW"  # Degradar si el mercado está lateral
 ```
 
 ---
