@@ -213,10 +213,10 @@ class Config:
     #"usdchf1": InstrumentConfig(symbol="USDCHF", exchange="FX", timeframe="1", full_symbol="FX:USDCHF"),
 
     # IDC (Requiere cuenta Premium en TradingView)
-    "eurusd2": InstrumentConfig(symbol="EURUSD", exchange="FX_IDC", timeframe="1", full_symbol="FX_IDC:EURUSD"),
-    "gbpusd2": InstrumentConfig(symbol="GBPUSD", exchange="FX_IDC", timeframe="1", full_symbol="FX_IDC:GBPUSD"),
-    "usdjpy2": InstrumentConfig(symbol="USDJPY", exchange="FX_IDC", timeframe="1", full_symbol="FX_IDC:USDJPY"),
-    #"usdchf2": InstrumentConfig(symbol="USDCHF", exchange="FX_IDC", timeframe="1", full_symbol="FX_IDC:USDCHF"),
+    # "eurusd2": InstrumentConfig(symbol="EURUSD", exchange="FX_IDC", timeframe="1", full_symbol="FX_IDC:EURUSD"),
+    # "gbpusd2": InstrumentConfig(symbol="GBPUSD", exchange="FX_IDC", timeframe="1", full_symbol="FX_IDC:GBPUSD"),
+    # "usdjpy2": InstrumentConfig(symbol="USDJPY", exchange="FX_IDC", timeframe="1", full_symbol="FX_IDC:USDJPY"),
+    # #"usdchf2": InstrumentConfig(symbol="USDCHF", exchange="FX_IDC", timeframe="1", full_symbol="FX_IDC:USDCHF"),
     
     }
     

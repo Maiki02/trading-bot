@@ -132,11 +132,16 @@ class StorageService:
             
             self.records_written += 1
             
+            # Logging adaptado a v4.1
+            pattern = record.get('pattern_candle', {}).get('pattern', record.get('pattern_name', 'UNKNOWN'))
+            outcome = record.get('outcome', 'UNKNOWN')
+            confidence = record.get('pattern_candle', {}).get('confidence', record.get('pattern_confidence', 0.0))
+            
             logger.info(
                 f"💾 Registro guardado | "
-                f"Patrón: {record['pattern_candle']['pattern']} | "
-                f"Éxito: {record['outcome']['success']} | "
-                f"Confianza: {record['pattern_candle']['confidence']:.2f} | "
+                f"Patrón: {pattern} | "
+                f"Outcome: {outcome} | "
+                f"Confianza: {confidence:.2f} | "
                 f"Total registros: {self.records_written}"
             )
             
@@ -154,42 +159,29 @@ class StorageService:
         Raises:
             ValueError: Si faltan campos críticos
         """
-        required_keys = ["timestamp", "source", "symbol", "pattern_candle", "emas", "outcome_candle", "outcome", "metadata"]
+        # Validación flexible: solo verificar campos esenciales
+        required_keys = ["timestamp", "source", "symbol", "pattern_candle", "outcome_candle", "metadata"]
         missing_keys = [key for key in required_keys if key not in record]
         
         if missing_keys:
             raise ValueError(f"Registro inválido. Faltan claves: {missing_keys}")
         
-        # Validar sub-estructura de pattern_candle
-        pattern_keys = ["timestamp", "open", "high", "low", "close", "volume", "pattern", "confidence"]
+        # Validar sub-estructura de pattern_candle (mínima)
+        pattern_keys = ["timestamp", "pattern", "confidence"]
         missing_pattern = [key for key in pattern_keys if key not in record["pattern_candle"]]
         
         if missing_pattern:
             raise ValueError(f"Campo 'pattern_candle' inválido. Faltan: {missing_pattern}")
         
-        # Validar sub-estructura de emas
-        emas_keys = ["ema_200", "ema_50", "ema_30", "ema_20", "alignment", "ema_order", "trend_score"]
-        missing_emas = [key for key in emas_keys if key not in record["emas"]]
-        
-        if missing_emas:
-            raise ValueError(f"Campo 'emas' inválido. Faltan: {missing_emas}")
-        
-        # Validar sub-estructura de outcome_candle
-        outcome_candle_keys = ["timestamp", "open", "high", "low", "close", "volume", "direction"]
+        # Validar sub-estructura de outcome_candle (mínima)
+        outcome_candle_keys = ["timestamp", "direction"]
         missing_outcome_candle = [key for key in outcome_candle_keys if key not in record["outcome_candle"]]
         
         if missing_outcome_candle:
             raise ValueError(f"Campo 'outcome_candle' inválido. Faltan: {missing_outcome_candle}")
         
-        # Validar sub-estructura de outcome
-        outcome_keys = ["expected_direction", "actual_direction", "success"]
-        missing_outcome = [key for key in outcome_keys if key not in record["outcome"]]
-        
-        if missing_outcome:
-            raise ValueError(f"Campo 'outcome' inválido. Faltan: {missing_outcome}")
-        
         # Validar sub-estructura de metadata
-        metadata_keys = ["algo_version", "created_at"]
+        metadata_keys = ["algo_version"]
         missing_metadata = [key for key in metadata_keys if key not in record["metadata"]]
         
         if missing_metadata:
