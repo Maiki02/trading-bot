@@ -622,6 +622,10 @@ class AnalysisService:
             # PASO 3: ANALIZAR NUEVA VELA Y ABRIR NUEVO CICLO
             # ═════════════════════════════════════════════════════════════
             asyncio.create_task(self._analyze_last_closed_candle(source_key, candle, force_notification=False))
+            
+            # PASO 4: GENERAR GRÁFICO SI ESTÁ HABILITADO (Config.GENERATE_HISTORICAL_CHARTS)
+            if Config.GENERATE_HISTORICAL_CHARTS:
+                asyncio.create_task(self._generate_realtime_chart(source_key, candle))
         
         else:
             # Actualizar la vela actual (tick intra-candle)
@@ -1564,6 +1568,51 @@ class AnalysisService:
             # Emitir señal a Telegram en tiempo real (notificación inmediata)
             if self.on_pattern_detected:
                 await self.on_pattern_detected(signal)
+    
+    async def _generate_realtime_chart(self, source_key: str, candle: CandleData) -> None:
+        """
+        Genera y guarda un gráfico PNG para la vela cerrada actual.
+        Solo se ejecuta si Config.GENERATE_HISTORICAL_CHARTS == True.
+        
+        Args:
+            source_key: Clave de la fuente (ej: "IQOPTION_BID_EURUSD")
+            candle: Vela que acaba de cerrar
+        """
+        try:
+            from pathlib import Path
+            from datetime import datetime
+            import base64
+            from src.utils.charting import generate_chart_base64
+            
+            df = self.dataframes.get(source_key)
+            if df is None or len(df) < 10:
+                return
+            
+            # Generar gráfico
+            chart_title = f"{candle.source}:{candle.symbol} - Real-Time"
+            chart_base64 = await asyncio.to_thread(
+                generate_chart_base64,
+                df,
+                self.chart_lookback,
+                chart_title
+            )
+            
+            # Guardar en archivo
+            candle_time = datetime.fromtimestamp(candle.timestamp)
+            timestamp_str = candle_time.strftime("%Y%m%d_%H%M%S")
+            
+            chart_dir = Path("data") / "charts" / candle.symbol / "realtime"
+            chart_dir.mkdir(parents=True, exist_ok=True)
+            
+            chart_path = chart_dir / f"candle_{timestamp_str}.png"
+            
+            with open(chart_path, "wb") as f:
+                f.write(base64.b64decode(chart_base64))
+            
+            logger.info(f"📊 Gráfico en tiempo real guardado: {chart_path}")
+            
+        except Exception as e:
+            log_exception(logger, "Error generando gráfico en tiempo real", e)
     
     async def _save_detected_candle_to_test_data(
         self,

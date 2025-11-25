@@ -210,18 +210,22 @@ def generate_chart_base64(
     
     try:
         # Generar gráfico con returnfig=True para acceder a la figura
-        fig, axes = mpf.plot(
-            df_plot,
-            type='candle',
-            style=style,
-            title=dict(title=title, color='black', fontsize=14, weight='bold'),
-            ylabel='Price',
-            ylabel_lower='Volume',
-            volume=True,
-            addplot=additional_plots if additional_plots else None,
-            returnfig=True,
+        plot_kwargs = {
+            'type': 'candle',
+            'style': style,
+            'title': dict(title=title, color='black', fontsize=14, weight='bold'),
+            'ylabel': 'Price',
+            'ylabel_lower': 'Volume',
+            'volume': True,
+            'returnfig': True,
             **fig_config
-        )
+        }
+        
+        # Solo agregar addplot si hay plots adicionales (evitar None)
+        if additional_plots:
+            plot_kwargs['addplot'] = additional_plots
+        
+        fig, axes = mpf.plot(df_plot, **plot_kwargs)
         
         # Agregar leyenda para las EMAs en el panel principal (axes[0])
         if additional_plots:

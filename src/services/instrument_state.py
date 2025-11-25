@@ -128,13 +128,23 @@ class InstrumentState:
         Returns:
             CandleData si se cerró una vela MID, None si no
         """
+        import logging
+        logger = logging.getLogger(__name__)
+        
         async with self.lock:
             current_minute = int(tick.timestamp // 60) * 60  # Redondear a minuto
             mid_price = tick.mid
             
+            # LOG: Cálculo MID
+            logger.debug(
+                f"💱 TICK MID | {self.symbol} | "
+                f"BID={tick.bid:.5f} ASK={tick.ask:.5f} → MID={mid_price:.5f}"
+            )
+            
             # Inicializar builder si no existe
             if self.current_mid_builder is None:
                 self.current_mid_builder = CandleBuilder(timestamp=current_minute)
+                logger.debug(f"🆕 Nuevo builder MID iniciado para {self.symbol} @ {current_minute}")
             
             # Detectar cambio de minuto (cerrar vela anterior)
             if self.current_mid_builder.timestamp < current_minute:
@@ -143,6 +153,13 @@ class InstrumentState:
                 
                 if closed_candle:
                     self.mid_candles.append(closed_candle)
+                    logger.info(
+                        f"🕯️ VELA MID CERRADA | {self.symbol} | "
+                        f"T={closed_candle.timestamp} | "
+                        f"O={closed_candle.open:.5f} H={closed_candle.high:.5f} "
+                        f"L={closed_candle.low:.5f} C={closed_candle.close:.5f} | "
+                        f"Ticks={int(closed_candle.volume)}"
+                    )
                 
                 # Iniciar nueva vela
                 self.current_mid_builder = CandleBuilder(timestamp=current_minute)

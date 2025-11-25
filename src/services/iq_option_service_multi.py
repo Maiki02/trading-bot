@@ -465,8 +465,18 @@ class IqOptionServiceMultiAsync:
         
         logger.info(
             f"🚀 IQ Option Multi-Service iniciado | "
-            f"Monitoreando {len(Config.TARGET_ASSETS)} instrumentos"
+            f"Monitoreando {len(Config.TARGET_ASSETS)} instrumentos | "
+            f"Tareas de polling: {len(self.poll_tasks)}"
         )
+        
+        # CRÍTICO: Esperar a que las tareas de polling terminen (mantiene el programa vivo)
+        try:
+            logger.info("⏳ Esperando tareas de polling...")
+            await asyncio.gather(*self.poll_tasks)
+        except asyncio.CancelledError:
+            logger.info("🛑 Tareas de polling canceladas")
+        except Exception as e:
+            logger.error(f"❌ Error en tareas de polling: {e}", exc_info=True)
     
     async def stop(self) -> None:
         """Detiene el servicio asíncrono."""
@@ -609,6 +619,11 @@ class IqOptionServiceMultiAsync:
         while self._should_poll:
             try:
                 iteration += 1
+                
+                # Log cada 10 iteraciones para debug
+                if iteration % 10 == 0:
+                    logger.debug(f"🔄 Polling {symbol} - Iteración {iteration}")
+                
                 loop = asyncio.get_running_loop()
                 
                 # Obtener vela BID cerrada
@@ -619,6 +634,8 @@ class IqOptionServiceMultiAsync:
                 )
                 
                 if not candle_bid:
+                    if iteration <= 5:
+                        logger.debug(f"⏳ {symbol}: Esperando datos de vela...")
                     await asyncio.sleep(self._poll_interval)
                     continue
                 
@@ -636,18 +653,37 @@ class IqOptionServiceMultiAsync:
                     logger.info(
                         f"🕯️ VELA BID CERRADA | {symbol} | "
                         f"{candle_dt.strftime('%H:%M:%S')} | "
-                        f"Cierre: {candle_bid.close}"
+                        f"O={candle_bid.open:.5f} H={candle_bid.high:.5f} "
+                        f"L={candle_bid.low:.5f} C={candle_bid.close:.5f}"
                     )
                     
                     # Guardar en estado del instrumento
                     state = self.iq_service.instrument_states[symbol]
                     await state.add_bid_candle(candle_bid)
                     
-                    # Procesar en AnalysisService
+                    # ENVIAR A ANALYSIS: Preferir MID si está disponible, sino BID
                     if self.analysis_service:
-                        await self.analysis_service.process_realtime_candle(
-                            candle_bid
-                        )
+                        # Intentar obtener vela MID del mismo timestamp
+                        mid_candle = state.get_latest_mid_candle()
+                        
+                        if mid_candle and mid_candle.timestamp == candle_bid.timestamp:
+                            # Vela MID disponible - USAR ESTA
+                            logger.info(
+                                f"✅ Enviando VELA MID a Analysis | {symbol} | "
+                                f"T={mid_candle.timestamp}"
+                            )
+                            await self.analysis_service.process_realtime_candle(
+                                mid_candle
+                            )
+                        else:
+                            # Vela MID no disponible - usar BID como fallback
+                            logger.warning(
+                                f"⚠️ Vela MID no disponible, usando BID | {symbol} | "
+                                f"T={candle_bid.timestamp}"
+                            )
+                            await self.analysis_service.process_realtime_candle(
+                                candle_bid
+                            )
                     
                     self.last_processed_timestamps[symbol] = candle_bid.timestamp
                 
@@ -659,7 +695,8 @@ class IqOptionServiceMultiAsync:
                 )
                 
                 if tick and self.iq_service.candle_ticker:
-                    await self.iq_service.candle_ticker.process_tick(tick)
+                    # Procesar tick (construye velas MID)
+                    closed_mid_candle = await self.iq_service.instrument_states[symbol].process_tick(tick)
                 
                 await asyncio.sleep(self._poll_interval)
                 
