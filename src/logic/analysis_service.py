@@ -538,10 +538,17 @@ class AnalysisService:
         is_new_candle = self._is_new_candle(source_key, candle.timestamp)
         
         if is_new_candle:
-            # LOG: Vela cerrada con hora
+            # LOG: Vela cerrada con hora y detalles OHLC
             from datetime import datetime
-            candle_time = datetime.fromtimestamp(candle.timestamp).strftime("%H:%M")
-            logger.info(f"🕯️ VELA CERRADA | {source_key} | Hora: {candle_time}")
+            candle_time = datetime.fromtimestamp(candle.timestamp).strftime("%Y-%m-%d %H:%M:%S")
+            logger.info(
+                f"🕯️ VELA CERRADA | {source_key} | "
+                f"Fecha: {candle_time} | "
+                f"Apertura: {candle.open:.5f} | "
+                f"Máximo: {candle.high:.5f} | "
+                f"Mínimo: {candle.low:.5f} | "
+                f"Cierre: {candle.close:.5f}"
+            )
             
             # ═════════════════════════════════════════════════════════════
             # PASO 1: CERRAR CICLO ANTERIOR (Si existe señal pendiente)
@@ -1068,32 +1075,41 @@ class AnalysisService:
         )
         
         # Detectar los 4 patrones de velas japonesas
-        shooting_star_detected, shooting_star_conf = is_shooting_star(
+        shooting_star_detected, shooting_star_conf, shooting_star_reason = is_shooting_star(
             last_closed["open"],
             last_closed["high"],
             last_closed["low"],
             last_closed["close"]
         )
         
-        hanging_man_detected, hanging_man_conf = is_hanging_man(
+        hanging_man_detected, hanging_man_conf, hanging_man_reason = is_hanging_man(
             last_closed["open"],
             last_closed["high"],
             last_closed["low"],
             last_closed["close"]
         )
         
-        inverted_hammer_detected, inverted_hammer_conf = is_inverted_hammer(
+        inverted_hammer_detected, inverted_hammer_conf, inverted_hammer_reason = is_inverted_hammer(
             last_closed["open"],
             last_closed["high"],
             last_closed["low"],
             last_closed["close"]
         )
         
-        hammer_detected, hammer_conf = is_hammer(
+        hammer_detected, hammer_conf, hammer_reason = is_hammer(
             last_closed["open"],
             last_closed["high"],
             last_closed["low"],
             last_closed["close"]
+        )
+        
+        # Log de análisis de patrones
+        logger.info(
+            f"🔍 ANÁLISIS DE PATRONES:\n"
+            f"   • Shooting Star: {'✅ ' + shooting_star_reason if shooting_star_detected else '❌ ' + shooting_star_reason}\n"
+            f"   • Hanging Man: {'✅ ' + hanging_man_reason if hanging_man_detected else '❌ ' + hanging_man_reason}\n"
+            f"   • Inverted Hammer: {'✅ ' + inverted_hammer_reason if inverted_hammer_detected else '❌ ' + inverted_hammer_reason}\n"
+            f"   • Hammer: {'✅ ' + hammer_reason if hammer_detected else '❌ ' + hammer_reason}"
         )
         
         # Filtrar patrones por tendencia apropiada (solo si USE_TREND_FILTER está activo)

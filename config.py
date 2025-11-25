@@ -168,7 +168,7 @@ class Config:
     """Clase Singleton para acceso global a la configuración."""
     
     # Versión del algoritmo de análisis (para tracking en raw_data)
-    ALGO_VERSION: str = "v4.1"
+    ALGO_VERSION: str = "v4.2"
     
     # Payout de opciones binarias (ganancia neta si aciertas, en decimal)
     # Ejemplo: 0.86 = 86% de ganancia sobre la inversión
@@ -208,7 +208,7 @@ class Config:
     
     # Trading Parameters - Mean Reversion Strategy
     EMA_FAST_PERIOD: int = int(os.getenv("EMA_FAST_PERIOD", "7"))  # EMA rápida para detección de agotamiento
-    EMA_PERIOD: int = int(os.getenv("EMA_PERIOD", "200"))  # Mantener para visualización
+    EMA_PERIOD: int = int(os.getenv("EMA_PERIOD", "50"))  # EMA base (cambiar a 7 o 50 según estrategia)
     DUAL_SOURCE_WINDOW: float = float(os.getenv("DUAL_SOURCE_WINDOW", "2.0"))
     CHART_LOOKBACK: int = int(os.getenv("CHART_LOOKBACK", "30"))
     USE_TREND_FILTER: bool = os.getenv("USE_TREND_FILTER", "false").lower() == "true"
@@ -274,14 +274,18 @@ class Config:
         cls.TELEGRAM.validate()
         
         # Validar parámetros numéricos
-        if cls.EMA_PERIOD < 20:
-            raise ValueError(f"EMA_PERIOD must be >= 20, got {cls.EMA_PERIOD}")
+        if cls.EMA_PERIOD < 7:
+            raise ValueError(f"EMA_PERIOD must be >= 7, got {cls.EMA_PERIOD}")
         
-        if cls.DATA_PROVIDER == "TRADINGVIEW" and cls.TRADINGVIEW.snapshot_candles < cls.EMA_PERIOD * 3:
-            raise ValueError(
-                f"SNAPSHOT_CANDLES ({cls.TRADINGVIEW.snapshot_candles}) must be "
-                f"at least 3x EMA_PERIOD ({cls.EMA_PERIOD * 3})"
-            )
+        # Validar velas mínimas necesarias (3x EMA para cálculo preciso)
+        min_candles_required = cls.EMA_PERIOD * 3
+        
+        if cls.DATA_PROVIDER == "TRADINGVIEW":
+            if cls.TRADINGVIEW.snapshot_candles < min_candles_required:
+                raise ValueError(
+                    f"SNAPSHOT_CANDLES ({cls.TRADINGVIEW.snapshot_candles}) must be "
+                    f"at least 3x EMA_PERIOD ({min_candles_required})"
+                )
     
     @classmethod
     def get_websocket_headers(cls) -> Dict[str, str]:

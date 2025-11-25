@@ -125,7 +125,7 @@ def is_shooting_star(
     high: float,
     low: float,
     close: float
-) -> Tuple[bool, float]:
+) -> Tuple[bool, float, str]:
     """
     Detecta el patrón Shooting Star (Estrella Fugaz).
     
@@ -147,19 +147,19 @@ def is_shooting_star(
         close: Precio de cierre
         
     Returns:
-        Tuple[bool, float]: (es_shooting_star, confianza)
+        Tuple[bool, float, str]: (es_shooting_star, confianza, motivo_rechazo)
     """
     total_range, body_size, upper_wick, lower_wick, body_ratio = _calculate_candle_metrics(
         open_price, high, low, close
     )
     
     if total_range == 0:
-        return False, 0.0
+        return False, 0.0, "Vela sin rango (high == low)"
     
     # ⚠️ VALIDACIÓN CRÍTICA: Shooting Star debe ser ROJO o neutral
     # Si es vela VERDE (close > open), NO es Shooting Star
     if close > open_price:
-        return False, 0.0
+        return False, 0.0, "Vela verde (debe ser roja o neutral)"
     
     # Cálculo de ratios
     upper_wick_ratio = upper_wick / total_range
@@ -171,11 +171,20 @@ def is_shooting_star(
     has_small_lower_wick = lower_wick_ratio <= Config.CANDLE.OPPOSITE_WICK_MAX
     wick_to_body = (upper_wick / body_size) >= Config.CANDLE.WICK_TO_BODY_RATIO if body_size > 0 else False
     
-    # Validación del patrón
-    is_pattern = has_long_upper_wick and has_small_body and has_small_lower_wick and wick_to_body
+    # Validación del patrón y construcción del motivo
+    reasons = []
+    if not has_long_upper_wick:
+        reasons.append(f"Mecha superior muy corta ({upper_wick_ratio*100:.1f}%, necesita ≥60%)")
+    if not has_small_body:
+        reasons.append(f"Cuerpo demasiado grande ({body_ratio*100:.1f}%, necesita ≤30%)")
+    if not has_small_lower_wick:
+        reasons.append(f"Mecha inferior muy larga ({lower_wick_ratio*100:.1f}%, necesita ≤15%)")
+    if not wick_to_body:
+        ratio = (upper_wick / body_size) if body_size > 0 else 0
+        reasons.append(f"Mecha superior/cuerpo insuficiente ({ratio:.1f}x, necesita ≥2x)")
     
-    if not is_pattern:
-        return False, 0.0
+    if reasons:
+        return False, 0.0, " | ".join(reasons)
     
     # Cálculo de confianza (scoring)
     confidence = Config.CANDLE.BASE_CONFIDENCE
@@ -193,7 +202,7 @@ def is_shooting_star(
     # Limitar confianza a 1.0
     confidence = min(confidence, 1.0)
     
-    return True, confidence
+    return True, confidence, "Patrón válido"
 
 
 def is_hanging_man(
@@ -201,7 +210,7 @@ def is_hanging_man(
     high: float,
     low: float,
     close: float
-) -> Tuple[bool, float]:
+) -> Tuple[bool, float, str]:
     """
     Detecta el patrón Hanging Man (Hombre Colgado).
     
@@ -224,19 +233,19 @@ def is_hanging_man(
         close: Precio de cierre
         
     Returns:
-        Tuple[bool, float]: (es_hanging_man, confianza)
+        Tuple[bool, float, str]: (es_hanging_man, confianza, motivo_rechazo)
     """
     total_range, body_size, upper_wick, lower_wick, body_ratio = _calculate_candle_metrics(
         open_price, high, low, close
     )
     
     if total_range == 0:
-        return False, 0.0
+        return False, 0.0, "Vela sin rango (high == low)"
     
     # ⚠️ VALIDACIÓN CRÍTICA: Hanging Man debe ser ROJO o neutral
     # Si es vela VERDE (close > open), NO es Hanging Man
     if close > open_price:
-        return False, 0.0
+        return False, 0.0, "Vela verde (debe ser roja o neutral)"
     
     # Cálculo de ratios
     upper_wick_ratio = upper_wick / total_range
@@ -248,11 +257,20 @@ def is_hanging_man(
     has_small_upper_wick = upper_wick_ratio <= Config.CANDLE.OPPOSITE_WICK_MAX
     wick_to_body = (lower_wick / body_size) >= Config.CANDLE.WICK_TO_BODY_RATIO if body_size > 0 else False
     
-    # Validación del patrón
-    is_pattern = has_long_lower_wick and has_small_body and has_small_upper_wick and wick_to_body
+    # Validación del patrón y construcción del motivo
+    reasons = []
+    if not has_long_lower_wick:
+        reasons.append(f"Mecha inferior muy corta ({lower_wick_ratio*100:.1f}%, necesita ≥60%)")
+    if not has_small_body:
+        reasons.append(f"Cuerpo demasiado grande ({body_ratio*100:.1f}%, necesita ≤30%)")
+    if not has_small_upper_wick:
+        reasons.append(f"Mecha superior muy larga ({upper_wick_ratio*100:.1f}%, necesita ≤15%)")
+    if not wick_to_body:
+        ratio = (lower_wick / body_size) if body_size > 0 else 0
+        reasons.append(f"Mecha inferior/cuerpo insuficiente ({ratio:.1f}x, necesita ≥2x)")
     
-    if not is_pattern:
-        return False, 0.0
+    if reasons:
+        return False, 0.0, " | ".join(reasons)
     
     # Cálculo de confianza
     confidence = Config.CANDLE.BASE_CONFIDENCE
@@ -269,7 +287,7 @@ def is_hanging_man(
     
     confidence = min(confidence, 1.0)
     
-    return True, confidence
+    return True, confidence, "Patrón válido"
 
 
 def is_inverted_hammer(
@@ -277,7 +295,7 @@ def is_inverted_hammer(
     high: float,
     low: float,
     close: float
-) -> Tuple[bool, float]:
+) -> Tuple[bool, float, str]:
     """
     Detecta el patrón Inverted Hammer (Martillo Invertido).
     
@@ -301,19 +319,19 @@ def is_inverted_hammer(
         close: Precio de cierre
         
     Returns:
-        Tuple[bool, float]: (es_inverted_hammer, confianza)
+        Tuple[bool, float, str]: (es_inverted_hammer, confianza, motivo_rechazo)
     """
     total_range, body_size, upper_wick, lower_wick, body_ratio = _calculate_candle_metrics(
         open_price, high, low, close
     )
     
     if total_range == 0:
-        return False, 0.0
+        return False, 0.0, "Vela sin rango (high == low)"
     
     # ⚠️ VALIDACIÓN CRÍTICA: Inverted Hammer debe ser VERDE
     # Si es vela ROJA (close <= open), NO es Inverted Hammer (sería Shooting Star)
     if close <= open_price:
-        return False, 0.0
+        return False, 0.0, "Vela roja o neutral (debe ser verde)"
     
     # Cálculo de ratios
     upper_wick_ratio = upper_wick / total_range
@@ -325,11 +343,20 @@ def is_inverted_hammer(
     has_small_lower_wick = lower_wick_ratio <= Config.CANDLE.OPPOSITE_WICK_MAX
     wick_to_body = (upper_wick / body_size) >= Config.CANDLE.WICK_TO_BODY_RATIO if body_size > 0 else False
     
-    # Validación del patrón
-    is_pattern = has_long_upper_wick and has_small_body and has_small_lower_wick and wick_to_body
+    # Validación del patrón y construcción del motivo
+    reasons = []
+    if not has_long_upper_wick:
+        reasons.append(f"Mecha superior muy corta ({upper_wick_ratio*100:.1f}%, necesita ≥60%)")
+    if not has_small_body:
+        reasons.append(f"Cuerpo demasiado grande ({body_ratio*100:.1f}%, necesita ≤30%)")
+    if not has_small_lower_wick:
+        reasons.append(f"Mecha inferior muy larga ({lower_wick_ratio*100:.1f}%, necesita ≤15%)")
+    if not wick_to_body:
+        ratio = (upper_wick / body_size) if body_size > 0 else 0
+        reasons.append(f"Mecha superior/cuerpo insuficiente ({ratio:.1f}x, necesita ≥2x)")
     
-    if not is_pattern:
-        return False, 0.0
+    if reasons:
+        return False, 0.0, " | ".join(reasons)
     
     # Cálculo de confianza
     confidence = Config.CANDLE.BASE_CONFIDENCE
@@ -346,7 +373,7 @@ def is_inverted_hammer(
     
     confidence = min(confidence, 1.0)
     
-    return True, confidence
+    return True, confidence, "Patrón válido"
 
 
 def is_hammer(
@@ -354,7 +381,7 @@ def is_hammer(
     high: float,
     low: float,
     close: float
-) -> Tuple[bool, float]:
+) -> Tuple[bool, float, str]:
     """
     Detecta el patrón Hammer (Martillo).
     
@@ -382,19 +409,19 @@ def is_hammer(
         close: Precio de cierre
         
     Returns:
-        Tuple[bool, float]: (es_hammer, confianza)
+        Tuple[bool, float, str]: (es_hammer, confianza, motivo_rechazo)
     """
     total_range, body_size, upper_wick, lower_wick, body_ratio = _calculate_candle_metrics(
         open_price, high, low, close
     )
     
     if total_range == 0:
-        return False, 0.0
+        return False, 0.0, "Vela sin rango (high == low)"
     
     # ⚠️ VALIDACIÓN CRÍTICA: Hammer debe ser VERDE
     # Si es vela ROJA (close <= open), NO es Hammer (sería Hanging Man)
     if close <= open_price:
-        return False, 0.0
+        return False, 0.0, "Vela roja o neutral (debe ser verde)"
     
     # Cálculo de ratios
     upper_wick_ratio = upper_wick / total_range
@@ -406,11 +433,20 @@ def is_hammer(
     has_small_upper_wick = upper_wick_ratio <= Config.CANDLE.OPPOSITE_WICK_MAX
     wick_to_body = (lower_wick / body_size) >= Config.CANDLE.WICK_TO_BODY_RATIO if body_size > 0 else False
     
-    # Validación del patrón
-    is_pattern = has_long_lower_wick and has_small_body and has_small_upper_wick and wick_to_body
+    # Validación del patrón y construcción del motivo
+    reasons = []
+    if not has_long_lower_wick:
+        reasons.append(f"Mecha inferior muy corta ({lower_wick_ratio*100:.1f}%, necesita ≥60%)")
+    if not has_small_body:
+        reasons.append(f"Cuerpo demasiado grande ({body_ratio*100:.1f}%, necesita ≤30%)")
+    if not has_small_upper_wick:
+        reasons.append(f"Mecha superior muy larga ({upper_wick_ratio*100:.1f}%, necesita ≤15%)")
+    if not wick_to_body:
+        ratio = (lower_wick / body_size) if body_size > 0 else 0
+        reasons.append(f"Mecha inferior/cuerpo insuficiente ({ratio:.1f}x, necesita ≥2x)")
     
-    if not is_pattern:
-        return False, 0.0
+    if reasons:
+        return False, 0.0, " | ".join(reasons)
     
     # Cálculo de confianza
     confidence = Config.CANDLE.BASE_CONFIDENCE
@@ -430,4 +466,4 @@ def is_hammer(
     
     confidence = min(confidence, 1.0)
     
-    return True, confidence
+    return True, confidence, "Patrón válido"
