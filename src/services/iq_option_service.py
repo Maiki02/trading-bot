@@ -122,11 +122,6 @@ class IqOptionService:
     def get_latest_closed_candle(self) -> Optional[CandleData]:
         """
         Obtiene la última vela CERRADA (penúltima del stream).
-        
-        CORRECCIÓN CRÍTICA:
-        - Accede a timestamps[-2] en lugar de [-1].
-        - timestamps[-1] es la vela actual (en formación, incompleta).
-        - timestamps[-2] es la vela que acaba de cerrar (completa).
         """
         try:
             candles_dict = self.api.get_realtime_candles(self.asset, 60)
@@ -143,7 +138,7 @@ class IqOptionService:
             
             # --- CORRECCIÓN AQUÍ ---
             # Tomamos la PENÚLTIMA vela (la cerrada)
-            closed_candle_ts = timestamps[-2]
+            closed_candle_ts = timestamps[-1]
             raw_candle = candles_dict[closed_candle_ts]
             
             candle = self._map_realtime_candle(raw_candle)
@@ -252,7 +247,7 @@ class IqOptionServiceAsync:
     async def _poll_candles(self) -> None:
         """
         Bucle de detección.
-        Ahora que get_latest_closed_candle devuelve timestamps[-2],
+        Ahora que get_latest_closed_candle devuelve timestamps[-1],
         detectaremos cuando la vela CERRADA cambia.
         """
         iteration = 0

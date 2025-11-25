@@ -271,7 +271,7 @@ class IqOptionMultiService:
                 return None
             
             # Penúltima vela (cerrada)
-            closed_candle_ts = timestamps[-2]
+            closed_candle_ts = timestamps[-1]
             raw_candle = candles_dict[closed_candle_ts]
             
             candle = self._map_realtime_candle(raw_candle, symbol)

@@ -2441,5 +2441,12 @@
     "title": "*EURUSD*\nMensaje informativo. No hay nada importante detectado.\n",
     "message": "━━━━━━━━━━━━━━━━━━━━━━\n🔹 Señal: NONE\n🔹 Fuente: IQOPTION\n🔹 Patrón: INVERTED_HAMMER\n🔹 Fecha: 2025-11-25 00:13:00\n➖ Sin agotamiento\n⚪ Sin ruptura de nivel\n🔹 Tendencia: STRONG_BEARISH\n🔹 Score: -10.0/10.0\n\n\n🔍 Mensaje de info\n❌ Cumple Tendencia alcista\n❌ Agotamiento Bollinger (NO)\n❌ Agotamiento de Vela (NO)\n\n━━━━━━━━━━━━━━━━━━━━━━\n",
     "image_name": "chart_20251125_001501_994271.png"
+  },
+  {
+    "timestamp": "20251125_173101_669319",
+    "datetime": "2025-11-25T17:31:01.681778",
+    "title": "*EURUSD*\nMensaje informativo. No hay nada importante detectado.\n",
+    "message": "━━━━━━━━━━━━━━━━━━━━━━\n🔹 Señal: NONE\n🔹 Fuente: IQOPTION_BID\n🔹 Patrón: HANGING_MAN\n🔹 Fecha: 2025-11-25 17:30:00\n➖ Sin agotamiento\n⚪ Sin ruptura de nivel\n🔹 Tendencia: STRONG_BEARISH\n🔹 Score: -10.0/10.0\n\n\n🔍 Mensaje de info\n✅ Cumple Tendencia Bajista\n❌ Agotamiento Bollinger (NO)\n❌ Agotamiento de Vela (NO)\n\n━━━━━━━━━━━━━━━━━━━━━━\n",
+    "image_name": "chart_20251125_173101_669319.png"
   }
 ]

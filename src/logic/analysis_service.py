@@ -1135,15 +1135,6 @@ class AnalysisService:
             last_closed["close"]
         )
         
-        # Log de análisis de patrones
-        logger.info(
-            f"🔍 ANÁLISIS DE PATRONES:\n"
-            f"   • Shooting Star: {'✅ ' + shooting_star_reason if shooting_star_detected else '❌ ' + shooting_star_reason}\n"
-            f"   • Hanging Man: {'✅ ' + hanging_man_reason if hanging_man_detected else '❌ ' + hanging_man_reason}\n"
-            f"   • Inverted Hammer: {'✅ ' + inverted_hammer_reason if inverted_hammer_detected else '❌ ' + inverted_hammer_reason}\n"
-            f"   • Hammer: {'✅ ' + hammer_reason if hammer_detected else '❌ ' + hammer_reason}"
-        )
-        
         # Filtrar patrones por tendencia apropiada (solo si USE_TREND_FILTER está activo)
         # BEARISH signals (reversión bajista): Shooting Star y Hanging Man en tendencia alcista
         # BULLISH signals (reversión alcista): Hammer e Inverted Hammer en tendencia bajista
