@@ -11,10 +11,12 @@ Author: Trading Bot Architecture Team
 """
 
 import asyncio
+import json
 import logging
 import threading
 import time
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Optional, Dict, Any, Callable
 from iqoptionapi.stable_api import IQ_Option
 
@@ -44,9 +46,12 @@ class IqOptionService:
             password: Contraseña de la cuenta
             asset: Par a operar (ej: "EURUSD-OTC", "EURUSD")
         """
+        # Inicializar logger como atributo de instancia
+        self.logger = logging.getLogger(__name__)
+        
         self.email = email
         self.password = password
-        self.asset = asset
+        self.asset = asset.upper()  # Asegurar mayúsculas
         
         # API de IQ Option
         self.api: Optional[IQ_Option] = None
@@ -60,7 +65,7 @@ class IqOptionService:
         self._reconnect_thread: Optional[threading.Thread] = None
         self._should_reconnect = True
         
-        logger.info(f"IQ Option Service initialized for {asset}")
+        self.logger.info(f"IQ Option Service initialized for {asset}")
     
     def connect(self) -> bool:
         """
@@ -106,12 +111,19 @@ class IqOptionService:
     def _subscribe_to_candles(self) -> None:
         """
         Suscribe al stream de velas en tiempo real.
+        
+        Configura el buffer de velas (maxdict) desde Config.SNAPSHOT_CANDLES
+        para asegurar que tengamos suficiente historial para análisis.
         """
         try:
-            logger.info(f"Subscribing to candle stream for {self.asset}...")
+            # Obtener tamaño del buffer desde configuración global
+            buffer_size = Config.SNAPSHOT_CANDLES
             
-            # Suscribirse a velas de 60 segundos (1 minuto)
-            self.api.start_candles_stream(self.asset, 60, 1)
+            logger.info(f"Subscribing to candle stream for {self.asset} (buffer: {buffer_size} velas)...")
+            
+            # Suscribirse a velas de 60 segundos (1 minuto) con buffer configurado
+            # maxdict: Número de velas a mantener en el buffer interno de iqoptionapi
+            self.api.start_candles_stream(self.asset, 60, buffer_size)
             
             # Dar tiempo para que llegue la primera vela
             time.sleep(2)
@@ -191,53 +203,90 @@ class IqOptionService:
             logger.error(f"❌ Error getting historical candles: {e}", exc_info=True)
             return []
     
-    def get_latest_candle(self) -> Optional[CandleData]:
+    def get_latest_candle(self, symbol: str, timeframe: int = 60) -> Optional[Dict]:
         """
-        Obtiene la última vela en formato estandarizado CandleData.
+        Obtiene la última vela CERRADA del stream.
         
-        Returns:
-            Optional[CandleData]: Objeto CandleData o None
+        CRÍTICO: 
+        - iqoptionapi devuelve la vela actual (en formación) como última.
+        - Debemos tomar la ANTERIOR (timestamps[-2]) para tener la vela cerrada completa.
+        - Usamos solo el campo 'from' (segundos Unix), NO 'at' (nanosegundos).
         """
-        if not self._connected or not self.api:
-            return None
-        
         try:
-            # Obtener velas desde la API (devuelve las últimas velas del stream)
-            candles_data = self.api.get_realtime_candles(self.asset, 60)
+            # Obtener tamaño del buffer desde configuración
+            buffer_size = Config.SNAPSHOT_CANDLES
             
-            if not candles_data:
-                return self._latest_candle  # Retornar la última conocida
+            # 1. Obtener velas del buffer local de la librería
+            # get_realtime_candles devuelve un dict {timestamp: {data}}
+            symbol_upper = symbol.upper()  # Asegurar mayúsculas
+            candles_dict = self.api.get_realtime_candles(symbol_upper, timeframe)
             
-            # Obtener la vela más reciente
-            # candles_data es un dict con timestamp como keys
-            latest_timestamp = max(candles_data.keys())
-            raw_candle = candles_data[latest_timestamp]
+            # --- DEBUGGING: DUMP RAW DATA ---
+            # Guardar en archivo para inspección manual del usuario
+            try:
+                debug_path = Path("data/debug_iq_response.json")
+                debug_path.parent.mkdir(exist_ok=True)
+                with open(debug_path, "w", encoding="utf-8") as f:
+                    json.dump(candles_dict, f, indent=2, default=str)
+                self.logger.debug(f"🔍 Raw IQ data saved to {debug_path}")
+            except Exception as debug_err:
+                self.logger.warning(f"Could not save debug data: {debug_err}")
+            # --------------------------------
             
-            # LOG: Mostrar estructura de la vela cruda de IQ Option (ANTES del mapeo)
-            logger.info(f"📦 VELA CRUDA DE IQ OPTION (antes de mapear): {raw_candle}")
+            # 2. Validación de Flujo (Evitar Crash)
+            if not candles_dict:
+                self.logger.warning(f"⚠️ Stream vacío para {symbol_upper}. Esperando datos...")
+                return None
+
+            # 3. Ordenar por timestamp
+            timestamps = sorted(list(candles_dict.keys()))
             
-            # Mapear al formato estándar
-            with self._candle_lock:
-                self._latest_candle = self._map_candle_data(raw_candle)
+            # 4. Validación de Longitud (FIX PRINCIPAL - Necesitamos al menos 2 velas)
+            # La última vela está en formación (actualización en tiempo real)
+            # La anteúltima es la última vela CERRADA
+            if len(timestamps) < 2:
+                self.logger.info(
+                    f"⏳ Buffer cargando... ({len(timestamps)}/{buffer_size} velas, mínimo 2 necesarias para {symbol_upper})"
+                )
+                return None
             
-            # LOG: Mostrar objeto CandleData mapeado (DESPUÉS del mapeo)
-            logger.info(
-                f"📊 CANDLE DATA MAPEADO (después de mapear): "
-                f"timestamp={self._latest_candle.timestamp}, "
-                f"open={self._latest_candle.open:.5f}, "
-                f"high={self._latest_candle.high:.5f}, "
-                f"low={self._latest_candle.low:.5f}, "
-                f"close={self._latest_candle.close:.5f}, "
-                f"volume={self._latest_candle.volume}, "
-                f"source={self._latest_candle.source}, "
-                f"symbol={self._latest_candle.symbol}"
-            )
+            # 5. Seleccionar la vela CERRADA (La anteúltima del stream)
+            # La última (timestamps[-1]) es la que se está moviendo ahora (segundo a segundo).
+            # La anteúltima (timestamps[-2]) es la que acaba de cerrar.
+            closed_candle_ts = timestamps[-2]
+            raw_candle = candles_dict[closed_candle_ts]
+
+            # 6. MAPEO DE DATOS (IQ Option -> Nuestro Formato)
+            # CRÍTICO: Usar solo 'from' (segundos Unix estándar)
+            # NO usar 'at' (viene en nanosegundos y causa confusión)
+            timestamp_seconds = raw_candle.get('from')
             
-            return self._latest_candle
+            if not timestamp_seconds:
+                self.logger.error(f"⚠️ Timestamp 'from' no encontrado en vela: {raw_candle}")
+                return None
             
+            # IQ usa 'max'/'min', nosotros 'high'/'low'
+            mapped_candle = {
+                "timestamp": int(timestamp_seconds),  # Asegurar que sea int
+                "open": float(raw_candle["open"]),
+                "high": float(raw_candle["max"]),
+                "low": float(raw_candle["min"]),
+                "close": float(raw_candle["close"]),
+                "volume": float(raw_candle.get("volume", 0)),
+                "symbol": symbol_upper,
+                "source": "IQOPTION"
+            }
+
+            # 7. Validación de integridad (evitar Dojis vacíos si la API falló)
+            if mapped_candle['high'] == 0 or mapped_candle['low'] == 0:
+                self.logger.warning(f"⚠️ Vela inválida con high/low en cero para {symbol_upper}")
+                return None
+
+            return mapped_candle
+
         except Exception as e:
-            logger.error(f"Error getting latest candle: {e}")
-            return self._latest_candle  # Retornar la última conocida
+            self.logger.error(f"❌ Error crítico en get_latest_candle: {e}", exc_info=True)
+            return None
     
     def _map_candle_data(self, raw_candle: Dict[str, Any]) -> CandleData:
         """
@@ -245,8 +294,9 @@ class IqOptionService:
         
         Estructura IQ Option:
         {
-            'from': 1764027300,        # timestamp inicio (segundos Unix)
+            'from': 1764027300,        # timestamp inicio (segundos Unix) - USAR ESTE
             'to': 1764027360,          # timestamp fin (segundos Unix)
+            'at': 1764027083000000000, # timestamp en nanosegundos - NO USAR
             'open': 1.159475,
             'close': 1.159735,
             'min': 1.159375,           # low
@@ -258,15 +308,16 @@ class IqOptionService:
             CandleData: Objeto con la estructura esperada por AnalysisService
         """
         try:
-            # Usar 'from' que está en segundos Unix normales
-            timestamp_seconds = raw_candle.get('from', raw_candle.get('to', 0))
+            # CRÍTICO: Usar solo 'from' (segundos Unix estándar)
+            # NO usar 'at' (nanosegundos) ni 'to' (fin de vela)
+            timestamp_seconds = raw_candle.get('from')
             
-            if timestamp_seconds == 0:
-                raise ValueError(f"No valid timestamp found in candle")
+            if not timestamp_seconds:
+                raise ValueError(f"Campo 'from' no encontrado en vela. Keys disponibles: {raw_candle.keys()}")
             
             # Crear objeto CandleData (dataclass)
             return CandleData(
-                timestamp=timestamp_seconds,
+                timestamp=int(timestamp_seconds),  # Asegurar que sea int
                 open=float(raw_candle['open']),
                 high=float(raw_candle['max']),    # MAPEO: max -> high
                 low=float(raw_candle['min']),     # MAPEO: min -> low
@@ -505,7 +556,8 @@ class IqOptionServiceAsync:
                 loop = asyncio.get_running_loop()
                 candle = await loop.run_in_executor(
                     None,
-                    self.iq_service.get_latest_candle
+                    self.iq_service.get_latest_candle,  # La función
+                    self.iq_service.asset               # <--- EL ARGUMENTO QUE FALTABA
                 )
                 
                 # LOG: Mostrar vela recibida (INMEDIATAMENTE después de obtenerla)

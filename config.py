@@ -180,6 +180,8 @@ class Config:
     # Data Provider Selection
     DATA_PROVIDER: str = os.getenv("DATA_PROVIDER", "TRADINGVIEW").upper()  # "TRADINGVIEW" o "IQOPTION"
     
+    SNAPSHOT_CANDLES: int = int(os.getenv("SNAPSHOT_CANDLES", "300"))
+
     # TradingView Authentication & WebSocket
     TRADINGVIEW = TradingViewConfig(
         session_id=os.getenv("TV_SESSION_ID", ""),
