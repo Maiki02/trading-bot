@@ -1,6 +1,21 @@
 """
-IQ Option Market Data Service
-==============================
+IQ Option Market Data Service (OBSOLETO - Legacy)
+==================================================
+⚠️ DEPRECATED: Este archivo es la versión mono-instrumento heredada.
+⚠️ Usar: src/services/iq_option_service_multi.py para nuevos desarrollos.
+
+RAZÓN DE OBSOLESCENCIA:
+- Arquitectura mono-instrumento (solo 1 activo)
+- No implementa sistema de velas MID (BID+ASK)/2
+- No soporta procesamiento asíncrono de ticks via cola
+- Reemplazado por IqOptionMultiService + CandleTicker
+
+MIGRACIÓN:
+Para sistemas multi-activo con cálculo MID, usar:
+- IqOptionMultiService: Gestión de múltiples instrumentos
+- CandleTicker: Procesamiento asíncrono de ticks con patrón Producer-Consumer
+- InstrumentState: Buffers duales BID/MID por instrumento
+
 Implementa la interfaz MarketDataService para obtener datos de mercado
 desde IQ Option en tiempo real mediante iqoptionapi.
 

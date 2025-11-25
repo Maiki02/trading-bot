@@ -144,7 +144,7 @@ class InstrumentState:
             # Inicializar builder si no existe
             if self.current_mid_builder is None:
                 self.current_mid_builder = CandleBuilder(timestamp=current_minute)
-                logger.debug(f"🆕 Nuevo builder MID iniciado para {self.symbol} @ {current_minute}")
+                logger.info(f"🆕 Nuevo builder MID iniciado para {self.symbol} @ {current_minute}")
             
             # Detectar cambio de minuto (cerrar vela anterior)
             if self.current_mid_builder.timestamp < current_minute:

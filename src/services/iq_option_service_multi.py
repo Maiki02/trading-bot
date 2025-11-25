@@ -695,8 +695,9 @@ class IqOptionServiceMultiAsync:
                 )
                 
                 if tick and self.iq_service.candle_ticker:
-                    # Procesar tick (construye velas MID)
-                    closed_mid_candle = await self.iq_service.instrument_states[symbol].process_tick(tick)
+                    # PRODUCER: Enviar tick a la cola del CandleTicker
+                    # El worker (_process_tick_queue) lo procesará de forma asíncrona
+                    await self.iq_service.candle_ticker.process_tick(tick)
                 
                 await asyncio.sleep(self._poll_interval)
                 
