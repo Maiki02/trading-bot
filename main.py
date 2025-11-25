@@ -58,6 +58,15 @@ class TradingBot:
         """
         logger.info("🔧 Initializing services...")
         
+        # Log de instrumentos objetivo
+        if Config.DATA_PROVIDER == "IQOPTION":
+            logger.info(
+                f"🎯 Target Assets (Multi-Instrument): {', '.join(Config.TARGET_ASSETS)}"
+            )
+            logger.info(
+                f"📊 Generate Historical Charts: {'Enabled' if Config.GENERATE_HISTORICAL_CHARTS else 'Disabled'}"
+            )
+        
         # 1. Storage Service (capa de persistencia - sin dependencias)
         self.storage_service = StorageService(
             data_dir="data",
@@ -113,7 +122,13 @@ class TradingBot:
         # Registrar handlers de señales para graceful shutdown
         self._register_signal_handlers()
         
-        logger.info("🚀 Trading Bot started. Monitoring EUR/USD for Shooting Star patterns...")
+        logger.info("🚀 Trading Bot started. Monitoring for patterns...")
+        
+        if Config.DATA_PROVIDER == "IQOPTION":
+            logger.info(
+                f"📊 Monitoring {len(Config.TARGET_ASSETS)} instruments: "
+                f"{', '.join(Config.TARGET_ASSETS)}"
+            )
         
         # Iniciar Connection Service (blocking)
         try:

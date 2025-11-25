@@ -971,6 +971,34 @@ class AnalysisService:
         Analiza la última vela cerrada en busca de patrones y genera gráfico.
         Solo envía notificación si detecta uno de los 4 patrones con tendencia apropiada.
         
+        AISLAMIENTO: Esta función se ejecuta de forma totalmente aislada por instrumento.
+        El procesamiento de EURUSD no bloquea a GBPUSD.
+        
+        Args:
+            source_key: Clave de la fuente
+            current_candle: Vela actual (la siguiente a la cerrada)
+            force_notification: Si True, envía notificación incluso sin patrón (uso interno)
+        """
+        # AISLAMIENTO: Crear task independiente para no bloquear otros instrumentos
+        # Cada instrumento se procesa en su propia tarea asíncrona
+        await asyncio.create_task(
+            self._analyze_last_closed_candle_isolated(
+                source_key,
+                current_candle,
+                force_notification
+            )
+        )
+    
+    async def _analyze_last_closed_candle_isolated(
+        self,
+        source_key: str,
+        current_candle: CandleData,
+        force_notification: bool = False
+    ) -> None:
+        """
+        Análisis aislado de vela cerrada (ejecución independiente por instrumento).
+        Esta función se ejecuta completamente aislada del resto de instrumentos.
+        
         Args:
             source_key: Clave de la fuente
             current_candle: Vela actual (la siguiente a la cerrada)

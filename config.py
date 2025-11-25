@@ -197,6 +197,13 @@ class Config:
         asset=os.getenv("IQ_ASSET", "EURUSD-OTC")
     )
     
+    # Target Assets for Multi-Instrument Support
+    # Lista de activos a monitorear simultáneamente
+    TARGET_ASSETS: List[str] = os.getenv("TARGET_ASSETS", "EURUSD,GBPUSD,USDJPY").split(",")
+    
+    # Historical Chart Generation (only on first load)
+    GENERATE_HISTORICAL_CHARTS: bool = os.getenv("GENERATE_HISTORICAL_CHARTS", "false").lower() == "true"
+    
     # Telegram Notifications
     TELEGRAM = TelegramConfig(
         api_url=os.getenv("TELEGRAM_API_URL", ""),

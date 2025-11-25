@@ -670,8 +670,8 @@ def get_market_data_service(analysis_service, on_auth_failure_callback=None):
     Factory function que retorna el servicio de datos de mercado configurado.
     
     Según la variable DATA_PROVIDER en config.py, instancia:
-    - TradingViewService: Si DATA_PROVIDER == "TRADINGVIEW"
-    - IqOptionServiceAsync: Si DATA_PROVIDER == "IQOPTION"
+    - TradingViewService: Si DATA_PROVIDER == "TRADINGVIEW" (implementación pendiente)
+    - IqOptionServiceMultiAsync: Si DATA_PROVIDER == "IQOPTION" (multi-instrumento con MID)
     
     Args:
         analysis_service: Instancia de AnalysisService para procesar velas
@@ -692,15 +692,18 @@ def get_market_data_service(analysis_service, on_auth_failure_callback=None):
     
     if Config.DATA_PROVIDER == "TRADINGVIEW":
         logger.info(f"🔌 Using TradingView as data provider")
-        return TradingViewService(
+        return ConnectionService(
             analysis_service=analysis_service,
             on_auth_failure_callback=on_auth_failure_callback
         )
     
     elif Config.DATA_PROVIDER == "IQOPTION":
-        logger.info(f"🔌 Using IQ Option as data provider")
-        from src.services.iq_option_service import create_iq_option_service_async
-        return create_iq_option_service_async(
+        logger.info(
+            f"🔌 Using IQ Option Multi-Instrument as data provider | "
+            f"Instruments: {', '.join(Config.TARGET_ASSETS)}"
+        )
+        from src.services.iq_option_service_multi import create_iq_option_service_multi_async
+        return create_iq_option_service_multi_async(
             analysis_service=analysis_service,
             on_auth_failure_callback=on_auth_failure_callback
         )
