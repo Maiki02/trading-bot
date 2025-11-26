@@ -26,6 +26,8 @@ from iqoptionapi.stable_api import IQ_Option
 from config import Config
 from src.services.connection_service import CandleData
 from src.services.instrument_state import InstrumentState, TickData
+import json
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -147,6 +149,110 @@ class IqOptionMultiService:
             f"✅ IQ Option Multi-Service inicializado | "
             f"Instrumentos: {', '.join(self.target_assets)}"
         )
+
+    def _hijack_websocket_stream(self):
+        """
+        Intercepta el tráfico WebSocket de bajo nivel para capturar campos 'bid' y 'ask'
+        que la librería estándar descarta u oculta.
+        """
+        if not self.api or not hasattr(self.api, 'api') or not self.api.api.websocket_client:
+            self.logger.error("❌ No se puede interceptar WebSocket: API no inicializada o estructura desconocida")
+            return
+
+        original_on_message = self.api.api.websocket_client.on_message
+
+        def custom_on_message(wss, message):
+            # 1. Persistencia de Datos Crudos (Audit Log)
+            try:
+                # Asegurar directorio
+                log_dir = Path("data/debug")
+                log_dir.mkdir(parents=True, exist_ok=True)
+                
+                with open(log_dir / "raw_stream.jsonl", "a", encoding="utf-8") as f:
+                    f.write(str(message) + "\n")
+            except Exception:
+                pass # No bloquear por logging
+
+            # 2. Extracción de Inteligencia (Bid/Ask)
+            try:
+                data = json.loads(message)
+                
+                # Detectar evento candle-generated
+                if data.get("name") == "candle-generated":
+                    msg_data = data.get("msg", {})
+                    symbol = msg_data.get("active_id") # Ojo: active_id suele ser int, mapping necesario si usamos str
+                    # En iqoptionapi, el active_id viene en el mensaje.
+                    # Pero para simplificar, intentaremos extraer del contenido si es posible
+                    # O confiar en que el 'active_id' mapea a nuestro symbol.
+                    # La librería hace este mapeo internamente.
+                    
+                    # NOTA: El mensaje raw de candle-generated suele tener esta estructura:
+                    # {"name":"candle-generated","msg":{"active_id":1,"size":60,"at":1732628066,"from":1732628040,"to":1732628100,"id":551234,"volume":12,"open":1.0485,"close":1.04855,"min":1.0485,"max":1.04855,"ask":1.04866,"bid":1.04844,"phase":"E"}}
+                    
+                    # Necesitamos mapear active_id a Symbol nombre (ej: 1 -> EURUSD)
+                    # self.api.instruments_categories tiene info, pero es complejo.
+                    # Estrategia: Iterar sobre nuestros target_assets y ver si coincide el ID
+                    # O más simple: Si tenemos el symbol en el contexto, bien. Si no, difícil.
+                    # Afortunadamente, la librería ya procesa esto.
+                    # Pero nosotros queremos interceptar ANTES.
+                    
+                    # Vamos a intentar extraer bid/ask y pasarlo si podemos identificar el activo.
+                    # Si no podemos identificarlo fácil, quizás debamos confiar en que el usuario solo opera pocos pares
+                    # y podemos deducirlo o hacer un lookup reverso si tenemos el mapa.
+                    
+                    # HACK: Por ahora, asumiremos que si encontramos bid/ask, intentamos matchear
+                    # con nuestros instrumentos suscritos.
+                    
+                    # Mejor approach: Usar el diccionario de la api si está disponible
+                    # self.api.get_name_by_active_id(active_id)
+                    
+                    active_id = msg_data.get("active_id")
+                    if active_id:
+                        # Intentar obtener nombre
+                        try:
+                            # Este método existe en algunas versiones de iqoptionapi, si no, fallback
+                            symbol_name = self.api.get_name_by_active_id(active_id).replace("t.c.", "").upper()
+                        except:
+                            symbol_name = None
+                        
+                        if symbol_name and symbol_name in self.target_assets:
+                            bid = msg_data.get("bid")
+                            ask = msg_data.get("ask")
+                            
+                            if bid is not None and ask is not None:
+                                tick = TickData(
+                                    timestamp=float(msg_data.get("at", time.time())),
+                                    bid=float(bid),
+                                    ask=float(ask),
+                                    symbol=symbol_name
+                                )
+                                
+                                # Inyectar directamente
+                                if self.candle_ticker:
+                                    # Usar create_task para no bloquear el websocket thread
+                                    # Pero process_tick es async, y estamos en sync callback.
+                                    # Necesitamos un loop.
+                                    
+                                    # HACK: Acceder al loop del ticker o crear tarea thread-safe
+                                    if self.candle_ticker.is_running and self.candle_ticker.processor_task:
+                                         # Encolar de forma thread-safe
+                                         loop = self.candle_ticker.processor_task.get_loop()
+                                         if loop.is_running():
+                                             asyncio.run_coroutine_threadsafe(
+                                                 self.candle_ticker.process_tick(tick),
+                                                 loop
+                                             )
+
+            except Exception as e:
+                # self.logger.error(f"Error parsing websocket message: {e}")
+                pass
+
+            # 3. Ejecución Original
+            original_on_message(wss, message)
+
+        # Aplicar el parche
+        self.api.api.websocket_client.on_message = custom_on_message
+        self.logger.info("🕵️ WebSocket Stream Hijacked successfully")
     
     def connect(self) -> bool:
         """Establece conexión con IQ Option."""
@@ -166,6 +272,9 @@ class IqOptionMultiService:
             # Cambiar a cuenta PRACTICE
             self.api.change_balance("PRACTICE")
             self.logger.info("💰 Usando cuenta PRACTICE")
+            
+            # INTERCEPTAR WEBSOCKET (Monkey Patch)
+            self._hijack_websocket_stream()
             
             # Suscribirse a todos los instrumentos
             self._subscribe_to_all_instruments()
@@ -588,7 +697,8 @@ class IqOptionServiceMultiAsync:
             chart_dir = Path("data") / "charts" / symbol
             chart_dir.mkdir(parents=True, exist_ok=True)
             
-            chart_path = chart_dir / f"init_{timestamp_str}.png"
+            # Guardar snapshot de inicio (siempre sobrescribe o crea uno específico)
+            chart_path = chart_dir / "boot_snapshot.png"
             
             import base64
             with open(chart_path, "wb") as f:
@@ -604,14 +714,12 @@ class IqOptionServiceMultiAsync:
     
     async def _poll_instrument(self, symbol: str) -> None:
         """
-        Loop de polling para un instrumento específico.
-        Detecta velas BID cerradas y procesa ticks para velas MID.
-        
-        Args:
-            symbol: Símbolo del instrumento a monitorear
+        Loop de monitoreo para un instrumento específico.
+        Ya no hace polling activo, solo verifica salud y loguea estado.
+        La data real llega por el WebSocket interceptado.
         """
         iteration = 0
-        logger.info(f"🕐 Polling iniciado para {symbol}")
+        logger.info(f"👀 Monitor iniciado para {symbol} (Polling desactivado)")
         
         # Inicializar timestamp
         self.last_processed_timestamps[symbol] = None
@@ -620,89 +728,24 @@ class IqOptionServiceMultiAsync:
             try:
                 iteration += 1
                 
-                # Log cada 10 iteraciones para debug
-                if iteration % 10 == 0:
-                    logger.debug(f"🔄 Polling {symbol} - Iteración {iteration}")
-                
-                loop = asyncio.get_running_loop()
-                
-                # Obtener vela BID cerrada
-                candle_bid = await loop.run_in_executor(
-                    None,
-                    self.iq_service.get_latest_closed_candle,
-                    symbol
-                )
-                
-                if not candle_bid:
-                    if iteration <= 5:
-                        logger.debug(f"⏳ {symbol}: Esperando datos de vela...")
-                    await asyncio.sleep(self._poll_interval)
-                    continue
-                
-                # Inicializar último timestamp si es la primera vez
-                if self.last_processed_timestamps[symbol] is None:
-                    self.last_processed_timestamps[symbol] = candle_bid.timestamp
-                    logger.info(
-                        f"🕐 {symbol} sincronizado. Esperando cierre de próxima vela..."
-                    )
-                    continue
-                
-                # DETECCIÓN: ¿La vela BID cerrada es nueva?
-                if candle_bid.timestamp > self.last_processed_timestamps[symbol]:
-                    candle_dt = datetime.utcfromtimestamp(candle_bid.timestamp)
-                    logger.info(
-                        f"🕯️ VELA BID CERRADA | {symbol} | "
-                        f"{candle_dt.strftime('%H:%M:%S')} | "
-                        f"O={candle_bid.open:.5f} H={candle_bid.high:.5f} "
-                        f"L={candle_bid.low:.5f} C={candle_bid.close:.5f}"
-                    )
+                # Log cada 60 segundos (si intervalo es 0.5s -> 120 iteraciones)
+                if iteration % 120 == 0:
+                    state = self.iq_service.instrument_states.get(symbol)
+                    last_mid = state.get_latest_mid_candle() if state else None
+                    last_bid = state.get_latest_bid_candle() if state else None
                     
-                    # Guardar en estado del instrumento
-                    state = self.iq_service.instrument_states[symbol]
-                    await state.add_bid_candle(candle_bid)
+                    mid_info = f"MID T={last_mid.timestamp}" if last_mid else "MID=None"
+                    bid_info = f"BID T={last_bid.timestamp}" if last_bid else "BID=None"
                     
-                    # ENVIAR A ANALYSIS: Preferir MID si está disponible, sino BID
-                    if self.analysis_service:
-                        # Intentar obtener vela MID del mismo timestamp
-                        mid_candle = state.get_latest_mid_candle()
-                        
-                        if mid_candle and mid_candle.timestamp == candle_bid.timestamp:
-                            # Vela MID disponible - USAR ESTA
-                            logger.info(
-                                f"✅ Enviando VELA MID a Analysis | {symbol} | "
-                                f"T={mid_candle.timestamp}"
-                            )
-                            await self.analysis_service.process_realtime_candle(
-                                mid_candle
-                            )
-                        else:
-                            # Vela MID no disponible - usar BID como fallback
-                            logger.warning(
-                                f"⚠️ Vela MID no disponible, usando BID | {symbol} | "
-                                f"T={candle_bid.timestamp}"
-                            )
-                            await self.analysis_service.process_realtime_candle(
-                                candle_bid
-                            )
-                    
-                    self.last_processed_timestamps[symbol] = candle_bid.timestamp
+                    logger.info(f"💓 Monitor {symbol} | {mid_info} | {bid_info}")
                 
-                # Obtener tick actual para construir vela MID
-                tick = await loop.run_in_executor(
-                    None,
-                    self.iq_service.get_current_tick,
-                    symbol
-                )
-                
-                if tick and self.iq_service.candle_ticker:
-                    # PRODUCER: Enviar tick a la cola del CandleTicker
-                    # El worker (_process_tick_queue) lo procesará de forma asíncrona
-                    await self.iq_service.candle_ticker.process_tick(tick)
+                # Aquí podríamos implementar lógica de watchdog:
+                # Si no llegan ticks en X segundos, intentar reconectar o alertar.
                 
                 await asyncio.sleep(self._poll_interval)
                 
             except Exception as e:
-                logger.error(f"❌ Error en polling de {symbol}: {e}", exc_info=True)
+                logger.error(f"❌ Error en monitor de {symbol}: {e}", exc_info=True)
                 await asyncio.sleep(5)
 
 
