@@ -393,22 +393,66 @@ class IqOptionMultiService:
                 self.logger.error(f"❌ Error en _subscribe_to_quotes: {e}")
 
     def _subscribe_to_all_instruments(self) -> None:
-        """Suscribe a los streams de velas para todos los instrumentos."""
+        """
+        Suscribe a los streams de velas INYECTANDO el mensaje crudo.
+        Bypass de la función start_candles_stream de la librería que parece fallar.
+        """
         buffer_size = Config.CHART_LOOKBACK + 10
         
         for symbol in self.target_assets:
             try:
-                self.logger.info(
-                    f"📡 Suscribiendo a {symbol} (buffer: {buffer_size})..."
-                )
+                self.logger.info(f"📡 Forzando suscripción a {symbol}...")
+                
+                # 1. Obtener ID del activo (Dejar que la librería lo busque o usar 1 para EURUSD)
+                active_id = None
+                
+                # Intenta obtenerlo de la constante de la librería si es posible
+                try:
+                    # Intentar acceso directo si la instancia lo expone
+                    if hasattr(self.api, 'OP_CODE') and hasattr(self.api.OP_CODE, 'ACTIVES'):
+                        active_id = self.api.OP_CODE.ACTIVES.get(symbol)
+                    # Intentar mediante get_active_id_by_name (común en forks)
+                    elif hasattr(self.api, 'get_active_id_by_name'):
+                        active_id = self.api.get_active_id_by_name(symbol)
+                except:
+                    pass
+
+                if not active_id:
+                    # Fallback manual conocido para pares mayores
+                    if symbol == "EURUSD": active_id = 1
+                    elif symbol == "GBPUSD": active_id = 5
+                    else:
+                        self.logger.error(f"❌ No se encontró ID para {symbol}")
+                        continue
+
+                # 2. Construir mensaje de suscripción (Ingeniería Inversa)
+                # Este es el mensaje estándar que usa la web/app
+                payload = {
+                    "name": "subscribeMessage",
+                    "msg": {
+                        "name": "candle-generated",
+                        "params": {
+                            "routingFilters": {
+                                "active_id": active_id,
+                                "size": 60  # 1 minuto
+                            }
+                        }
+                    }
+                }
+                
+                # 3. Enviar por el socket crudo
+                # Usamos dumps para convertir a string JSON
+                # self.api.send_websocket_request toma (name, msg)
+                self.api.send_websocket_request(payload["name"], payload["msg"])
+                
+                # También llamamos al método oficial para que la librería inicialice sus diccionarios internos
+                # (aunque el mensaje de red falle, esto prepara la memoria)
                 self.api.start_candles_stream(symbol, 60, buffer_size)
-                time.sleep(0.5)  # Evitar rate limiting
-                self.logger.info(f"✅ Suscrito a {symbol}")
-                print(f"DEBUG: Successfully subscribed to {symbol}")
+                
+                self.logger.info(f"✅ Suscripción Inyectada para {symbol} (ID: {active_id})")
                 
             except Exception as e:
                 self.logger.error(f"❌ Error suscribiendo a {symbol}: {e}")
-                print(f"DEBUG: Failed to subscribe to {symbol}: {e}")
     
     def disconnect(self) -> None:
         """Desconecta de IQ Option."""
