@@ -152,111 +152,138 @@ class IqOptionMultiService:
 
     def _hijack_websocket_stream(self):
         """
-        Intercepta el tráfico WebSocket de bajo nivel para capturar campos 'bid' y 'ask'
-        que la librería estándar descarta u oculta.
+        Monkey Patch para interceptar mensajes crudos del WebSocket.
+        Nos permite capturar 'candle-generated' con BID/ASK antes de que la librería los procese.
         """
         print("DEBUG: Attempting to hijack websocket stream...")
-        if not self.api or not hasattr(self.api, 'api') or not self.api.api.websocket_client:
-            self.logger.error("❌ No se puede interceptar WebSocket: API no inicializada o estructura desconocida")
-            print("DEBUG: Hijack failed - API structure mismatch")
+        
+        # Validar estructura interna de la librería (puede variar según versión)
+        # NOTA: Usamos self.api.api.websocket_client porque self.api es el wrapper IQ_Option
+        if not hasattr(self.api, 'api') or not hasattr(self.api.api, 'websocket_client'):
+            print("ERROR: self.api.api.websocket_client not found")
             return
 
         print("DEBUG: API structure verified. Hijacking...")
+        
+        # Guardamos la referencia al método original de la librería
         original_on_message = self.api.api.websocket_client.on_message
 
-        def custom_on_message(wss, message):
-            print(f"DEBUG: WS Message received: {message[:50]}...")
-            # 1. Persistencia de Datos Crudos (Audit Log)
+        def on_message_wrapper(wss, message):
+            # 1. Lógica de intercepción (Nuestra)
             try:
-                # Asegurar directorio
-                log_dir = Path("data/debug")
-                log_dir.mkdir(parents=True, exist_ok=True)
+                # Decodificar si viene en bytes
+                msg_str = message
+                if isinstance(message, bytes):
+                    msg_str = message.decode('utf-8')
                 
-                with open(log_dir / "raw_stream.jsonl", "a", encoding="utf-8") as f:
-                    f.write(str(message) + "\n")
-            except Exception:
-                pass # No bloquear por logging
+                # --- LOGGING CRÍTICO: Loguear TODO ---
+                # Imprimir en consola para feedback inmediato
+                print(f"DEBUG: RAW MSG RECEIVED: {str(msg_str)}")
+                
+                # Guardar en archivo para inspección completa
+                try:
+                    log_dir = Path("data/debug")
+                    log_dir.mkdir(parents=True, exist_ok=True)
+                    with open(log_dir / "raw_stream.jsonl", "a", encoding="utf-8") as f:
+                        f.write(str(msg_str) + "\n")
+                except Exception as e:
+                    print(f"DEBUG: Error writing to log file: {e}")
+                # -------------------------------------
 
-            # 2. Extracción de Inteligencia (Bid/Ask)
-            try:
-                data = json.loads(message)
+                import json
+                msg_json = json.loads(msg_str)
                 
-                # Detectar evento candle-generated
-                if data.get("name") == "candle-generated":
-                    msg_data = data.get("msg", {})
-                    symbol = msg_data.get("active_id") # Ojo: active_id suele ser int, mapping necesario si usamos str
-                    # En iqoptionapi, el active_id viene en el mensaje.
-                    # Pero para simplificar, intentaremos extraer del contenido si es posible
-                    # O confiar en que el 'active_id' mapea a nuestro symbol.
-                    # La librería hace este mapeo internamente.
-                    
-                    # NOTA: El mensaje raw de candle-generated suele tener esta estructura:
-                    # {"name":"candle-generated","msg":{"active_id":1,"size":60,"at":1732628066,"from":1732628040,"to":1732628100,"id":551234,"volume":12,"open":1.0485,"close":1.04855,"min":1.0485,"max":1.04855,"ask":1.04866,"bid":1.04844,"phase":"E"}}
-                    
-                    # Necesitamos mapear active_id a Symbol nombre (ej: 1 -> EURUSD)
-                    # self.api.instruments_categories tiene info, pero es complejo.
-                    # Estrategia: Iterar sobre nuestros target_assets y ver si coincide el ID
-                    # O más simple: Si tenemos el symbol en el contexto, bien. Si no, difícil.
-                    # Afortunadamente, la librería ya procesa esto.
-                    # Pero nosotros queremos interceptar ANTES.
-                    
-                    # Vamos a intentar extraer bid/ask y pasarlo si podemos identificar el activo.
-                    # Si no podemos identificarlo fácil, quizás debamos confiar en que el usuario solo opera pocos pares
-                    # y podemos deducirlo o hacer un lookup reverso si tenemos el mapa.
-                    
-                    # HACK: Por ahora, asumiremos que si encontramos bid/ask, intentamos matchear
-                    # con nuestros instrumentos suscritos.
-                    
-                    # Mejor approach: Usar el diccionario de la api si está disponible
-                    # self.api.get_name_by_active_id(active_id)
-                    
-                    active_id = msg_data.get("active_id")
-                    if active_id:
-                        # Intentar obtener nombre
-                        try:
-                            # Este método existe en algunas versiones de iqoptionapi, si no, fallback
-                            symbol_name = self.api.get_name_by_active_id(active_id).replace("t.c.", "").upper()
-                        except:
-                            symbol_name = None
+                # Filtrar solo lo que nos interesa: candle-generated
+                if msg_json.get("name") == "candle-generated":
+                    msg_data = msg_json.get("msg")
+                    if msg_data:
+                        # DEBUG: Confirmar que capturamos el evento
+                        print(f"DEBUG: CAPTURED CANDLE-GENERATED: {msg_data.keys()}")
                         
-                        if symbol_name and symbol_name in self.target_assets:
-                            bid = msg_data.get("bid")
-                            ask = msg_data.get("ask")
+                        # Extraer datos críticos
+                        symbol_id = msg_data.get("active_id")
+                        bid = msg_data.get("bid")
+                        ask = msg_data.get("ask")
+                        timestamp = msg_data.get("at")  # Nanosegundos
+                        
+                        # Si tenemos bid/ask, inyectar al ticker
+                        if bid is not None and ask is not None and self.candle_ticker:
+                            # Convertir a TickData
+                            symbol = self._get_symbol_by_id(symbol_id)
                             
-                            if bid is not None and ask is not None:
+                            if symbol:
+                                print(f"⚡ INJECTING TICK for {symbol}: {bid}/{ask}")
+                                # Normalizar timestamp a segundos
+                                ts_seconds = float(timestamp)
+                                if ts_seconds > 10000000000: # Probablemente nanosegundos
+                                    ts_seconds = ts_seconds / 1000000000.0
+                                
                                 tick = TickData(
-                                    timestamp=float(msg_data.get("at", time.time())),
+                                    timestamp=ts_seconds,
                                     bid=float(bid),
                                     ask=float(ask),
-                                    symbol=symbol_name
+                                    symbol=symbol
                                 )
                                 
-                                # Inyectar directamente
-                                if self.candle_ticker:
-                                    # Usar create_task para no bloquear el websocket thread
-                                    # Pero process_tick es async, y estamos en sync callback.
-                                    # Necesitamos un loop.
-                                    
-                                    # HACK: Acceder al loop del ticker o crear tarea thread-safe
-                                    if self.candle_ticker.is_running and self.candle_ticker.processor_task:
-                                         # Encolar de forma thread-safe
-                                         loop = self.candle_ticker.processor_task.get_loop()
-                                         if loop.is_running():
-                                             asyncio.run_coroutine_threadsafe(
-                                                 self.candle_ticker.process_tick(tick),
-                                                 loop
-                                             )
-
+                                # Enviar DIRECTO al ticker (bypass del polling)
+                                # Necesitamos el loop donde corre el ticker
+                                if self.candle_ticker.processor_task:
+                                    loop = self.candle_ticker.processor_task.get_loop()
+                                    if loop.is_running():
+                                        asyncio.run_coroutine_threadsafe(
+                                            self.candle_ticker.process_tick(tick),
+                                            loop
+                                        )
             except Exception as e:
-                # self.logger.error(f"Error parsing websocket message: {e}")
+                # No bloquear el flujo principal por errores nuestros
+                print(f"ERROR in hijack wrapper: {e}")
                 pass
 
-            # 3. Ejecución Original
-            original_on_message(wss, message)
+            # 2. Ejecutar lógica original de la librería (CRÍTICO)
+            try:
+                # Pasar msg_str (ya decodificado) para evitar problemas si la librería espera str
+                return original_on_message(wss, msg_str)
+            except Exception as e:
+                # Evitar crash si la librería falla internamente
+                # print(f"DEBUG: Error in original_on_message: {e}")
+                pass
+            return None
 
-        # Aplicar el parche
-        self.api.api.websocket_client.on_message = custom_on_message
-        self.logger.info("🕵️ WebSocket Stream Hijacked successfully")
+        # Aplicar el parche en el cliente de iqoptionapi
+        self.api.api.websocket_client.on_message = on_message_wrapper
+        
+        # CRÍTICO: Aplicar el parche TAMBIÉN en el objeto WebSocketApp subyacente
+        # Si la conexión ya está abierta, WebSocketApp usa su propio atributo .on_message
+        if hasattr(self.api.api.websocket_client, 'wss'):
+            print("DEBUG: Patching underlying WebSocketApp (wss)...")
+            self.api.api.websocket_client.wss.on_message = on_message_wrapper
+        else:
+            print("WARNING: 'wss' attribute not found in websocket_client. Interception might fail if connection is already open.")
+
+        self.logger.info("🕵️ WebSocket Stream Hijacked successfully (Double Patch)")
+
+    def _get_symbol_by_id(self, active_id: int) -> Optional[str]:
+        """
+        Intenta resolver el nombre del símbolo a partir de su ID.
+        """
+        if not active_id:
+            return None
+            
+        # 1. Intentar usar la API si tiene el método
+        try:
+            if hasattr(self.api, 'get_name_by_active_id'):
+                name = self.api.get_name_by_active_id(active_id)
+                if name:
+                    return name.replace("t.c.", "").upper()
+        except:
+            pass
+            
+        # 2. Fallback: Iterar sobre nuestros assets y ver si podemos hacer match
+        # Esto es difícil sin un mapa. Asumiremos que si solo hay 1 activo, es ese.
+        if len(self.target_assets) == 1:
+            return self.target_assets[0]
+            
+        return None
     
     def connect(self) -> bool:
         """Establece conexión con IQ Option."""
@@ -284,6 +311,10 @@ class IqOptionMultiService:
             # Suscribirse a todos los instrumentos
             self._subscribe_to_all_instruments()
             
+            # CRÍTICO: Intentar suscribirse a quotes (ticks reales) si la librería lo soporta
+            # Esto es experimental pero necesario si candle-generated no llega
+            self._subscribe_to_quotes()
+            
             # Iniciar monitor de reconexión
             self._start_reconnect_monitor()
             
@@ -294,6 +325,73 @@ class IqOptionMultiService:
             self._connected = False
             return False
     
+    def _subscribe_to_quotes(self):
+        """Intenta suscribirse al stream de quotes (ticks) para obtener Bid/Ask reales."""
+        for symbol in self.target_assets:
+            try:
+                self.logger.info(f"📡 Intentando suscribirse a quotes para {symbol}...")
+                
+                # 1. Obtener active_id (CRÍTICO)
+                active_id = None
+                
+                # Intentar obtenerlo del mapa interno de la API si existe
+                if hasattr(self.api, 'get_name_by_active_id'):
+                    # Iterar para encontrar el ID (costoso pero necesario si no hay mapa inverso)
+                    # NOTA: iqoptionapi suele tener 'OP_CODE' o similar.
+                    # Vamos a intentar usar una constante conocida o buscar en el dict de inicialización
+                    pass
+
+                # Fallback: Usar una lista hardcodeada común o intentar deducirlo
+                # Para EURUSD, el active_id suele ser 1. GBPUSD es 5.
+                # Esto es un hack, pero si la librería no expone el mapa, no hay opción.
+                # Mejor aún: Intentar llamar a get_all_init() o similar para ver los activos.
+                
+                # INTENTO 1: Usar get_active_id_by_name si existe (algunos forks lo tienen)
+                if hasattr(self.api, 'get_active_id_by_name'):
+                    active_id = self.api.get_active_id_by_name(symbol)
+                
+                # INTENTO 2: Usar el diccionario interno 'actives' si es accesible
+                elif hasattr(self.api, 'actives'):
+                    # self.api.actives suele ser {id: name} o similar
+                    pass
+
+                # INTENTO 3: Hardcode común para pruebas (EURUSD=1)
+                if not active_id and symbol == "EURUSD":
+                    active_id = 1
+                elif not active_id and symbol == "GBPUSD":
+                    active_id = 5
+
+                if active_id:
+                    # 2. Suscribirse
+                    # La firma suele ser subscribe_to_quote(active_id, symbol) o similar
+                    # Probaremos enviar el mensaje RAW si el método no existe
+                    
+                    if hasattr(self.api, 'subscribe_to_quote'):
+                        self.api.subscribe_to_quote(symbol, active_id)
+                        self.logger.info(f"✅ Suscrito a quotes para {symbol} (ID: {active_id}) vía método")
+                    else:
+                        # Enviar mensaje RAW manual
+                        # {"name":"subscribeMessage","msg":{"name":"quote-generated","params":{"routingFilters":{"active_id":1}}}}
+                        msg = {
+                            "name": "subscribeMessage",
+                            "msg": {
+                                "name": "quote-generated",
+                                "params": {
+                                    "routingFilters": {
+                                        "active_id": active_id
+                                    }
+                                }
+                            }
+                        }
+                        import json
+                        self.api.send_websocket_request(msg)
+                        self.logger.info(f"✅ Enviada suscripción RAW a quotes para {symbol} (ID: {active_id})")
+                else:
+                    self.logger.warning(f"⚠️ No se encontró ID para {symbol}, no se puede suscribir a quotes")
+
+            except Exception as e:
+                self.logger.error(f"❌ Error en _subscribe_to_quotes: {e}")
+
     def _subscribe_to_all_instruments(self) -> None:
         """Suscribe a los streams de velas para todos los instrumentos."""
         buffer_size = Config.CHART_LOOKBACK + 10
