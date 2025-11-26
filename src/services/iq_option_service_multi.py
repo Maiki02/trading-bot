@@ -155,13 +155,17 @@ class IqOptionMultiService:
         Intercepta el tráfico WebSocket de bajo nivel para capturar campos 'bid' y 'ask'
         que la librería estándar descarta u oculta.
         """
+        print("DEBUG: Attempting to hijack websocket stream...")
         if not self.api or not hasattr(self.api, 'api') or not self.api.api.websocket_client:
             self.logger.error("❌ No se puede interceptar WebSocket: API no inicializada o estructura desconocida")
+            print("DEBUG: Hijack failed - API structure mismatch")
             return
 
+        print("DEBUG: API structure verified. Hijacking...")
         original_on_message = self.api.api.websocket_client.on_message
 
         def custom_on_message(wss, message):
+            print(f"DEBUG: WS Message received: {message[:50]}...")
             # 1. Persistencia de Datos Crudos (Audit Log)
             try:
                 # Asegurar directorio
@@ -274,6 +278,7 @@ class IqOptionMultiService:
             self.logger.info("💰 Usando cuenta PRACTICE")
             
             # INTERCEPTAR WEBSOCKET (Monkey Patch)
+            print("DEBUG: Calling _hijack_websocket_stream from connect...")
             self._hijack_websocket_stream()
             
             # Suscribirse a todos los instrumentos
@@ -301,9 +306,11 @@ class IqOptionMultiService:
                 self.api.start_candles_stream(symbol, 60, buffer_size)
                 time.sleep(0.5)  # Evitar rate limiting
                 self.logger.info(f"✅ Suscrito a {symbol}")
+                print(f"DEBUG: Successfully subscribed to {symbol}")
                 
             except Exception as e:
                 self.logger.error(f"❌ Error suscribiendo a {symbol}: {e}")
+                print(f"DEBUG: Failed to subscribe to {symbol}: {e}")
     
     def disconnect(self) -> None:
         """Desconecta de IQ Option."""
