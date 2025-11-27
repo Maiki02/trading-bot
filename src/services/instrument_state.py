@@ -138,7 +138,7 @@ class InstrumentState:
             # LOG: Cálculo MID
             logger.debug(
                 f"💱 TICK MID | {self.symbol} | "
-                f"BID={tick.bid:.5f} ASK={tick.ask:.5f} → MID={mid_price:.5f}"
+                f"BID={tick.bid:.6f} ASK={tick.ask:.6f} → MID={mid_price:.6f}"
             )
             
             # Inicializar builder si no existe
@@ -152,14 +152,27 @@ class InstrumentState:
                 closed_candle = self.current_mid_builder.build(self.symbol)
                 
                 if closed_candle:
-                    self.mid_candles.append(closed_candle)
-                    logger.info(
-                        f"🕯️ VELA MID CERRADA | {self.symbol} | "
-                        f"T={closed_candle.timestamp} | "
-                        f"O={closed_candle.open:.5f} H={closed_candle.high:.5f} "
-                        f"L={closed_candle.low:.5f} C={closed_candle.close:.5f} | "
-                        f"Ticks={int(closed_candle.volume)}"
-                    )
+                    # FIX: Verificar si ya existe una vela con este timestamp (para evitar duplicados al inicio)
+                    if self.mid_candles and self.mid_candles[-1].timestamp == closed_candle.timestamp:
+                        # Actualizar la existente
+                        self.mid_candles[-1] = closed_candle
+                        logger.info(
+                            f"🕯️ VELA MID ACTUALIZADA | {self.symbol} | "
+                            f"T={closed_candle.timestamp} | "
+                            f"O={closed_candle.open:.6f} H={closed_candle.high:.6f} "
+                            f"L={closed_candle.low:.6f} C={closed_candle.close:.6f} | "
+                            f"Ticks={int(closed_candle.volume)}"
+                        )
+                    else:
+                        # Agregar nueva
+                        self.mid_candles.append(closed_candle)
+                        logger.info(
+                            f"🕯️ VELA MID CERRADA | {self.symbol} | "
+                            f"T={closed_candle.timestamp} | "
+                            f"O={closed_candle.open:.6f} H={closed_candle.high:.6f} "
+                            f"L={closed_candle.low:.6f} C={closed_candle.close:.6f} | "
+                            f"Ticks={int(closed_candle.volume)}"
+                        )
                 
                 # Iniciar nueva vela
                 self.current_mid_builder = CandleBuilder(timestamp=current_minute)
@@ -213,3 +226,72 @@ class InstrumentState:
             Lista de CandleData
         """
         return list(self.mid_candles)[-count:]
+
+    async def initialize_mid_candles(self, candles: List[CandleData]) -> None:
+        """
+        Inicializa el buffer de velas MID con datos históricos.
+        
+        Args:
+            candles: Lista de velas MID históricas
+        """
+        async with self.lock:
+            self.mid_candles.extend(candles)
+
+    async def update_last_candle_from_api(self, api_candle: Dict) -> Optional[CandleData]:
+        """
+        Actualiza la última vela cerrada con datos oficiales de la API (BID).
+        Esto corrige discrepancias de cierre (close price) debido a latencia de ticks.
+        
+        Args:
+            api_candle: Diccionario de vela cruda de la API
+            
+        Returns:
+            CandleData actualizado o None si no hubo match
+        """
+        async with self.lock:
+            if not self.mid_candles:
+                return None
+            
+            last_candle = self.mid_candles[-1]
+            api_ts = int(api_candle.get("from", 0))
+            
+            # Verificar match de timestamp
+            if last_candle.timestamp != api_ts:
+                return None
+            
+            # Actualizar valores con datos oficiales
+            # NOTA: Usamos los datos BID de la API como proxy del MID final
+            # O idealmente, si tuviéramos BID/ASK de cierre, recalcularíamos MID.
+            # Como IQ solo da BID en histórico, asumimos Close BID ≈ Close MID para el cierre
+            # O mantenemos el Close calculado si confiamos más en nuestros ticks.
+            # El usuario pidió: "Actualizar nuestra ultima vela registrada con la anteultima del buffer de la librería"
+            
+            try:
+                new_close = float(api_candle.get("close", last_candle.close))
+                new_high = float(api_candle.get("max", last_candle.high))
+                new_low = float(api_candle.get("min", last_candle.low))
+                new_open = float(api_candle.get("open", last_candle.open))
+                new_volume = float(api_candle.get("volume", last_candle.volume))
+                
+                # Actualizar objeto (CandleData es dataclass, pero mutable por defecto en Python)
+                # Sin embargo, es mejor reemplazarlo para evitar efectos secundarios si es frozen
+                updated_candle = CandleData(
+                    timestamp=last_candle.timestamp,
+                    open=new_open,
+                    high=max(last_candle.high, new_high), # El high real es el maximo entre lo visto y lo oficial
+                    low=min(last_candle.low, new_low),    # El low real es el minimo
+                    close=new_close,                      # El close oficial MANDA
+                    volume=new_volume,
+                    source=last_candle.source,
+                    symbol=last_candle.symbol
+                )
+                
+                # Reemplazar en deque
+                self.mid_candles[-1] = updated_candle
+                
+                return updated_candle
+                
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).error(f"❌ Error actualizando vela desde API: {e}")
+                return None

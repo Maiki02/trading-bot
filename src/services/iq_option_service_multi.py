@@ -150,6 +150,7 @@ class IqOptionMultiService:
                 
                 # Método estándar de la librería para iniciar el stream
                 # Esto llena el diccionario self.api.real_time_candles
+                # MODIFICADO: Usar Config.SNAPSHOT_CANDLES para asegurar histórico inicial suficiente
                 self.api.start_candles_stream(symbol, 60, buffer_size)
                 
                 self.logger.info(f"✅ Suscripción iniciada para {symbol}")
@@ -272,51 +273,7 @@ class IqOptionMultiService:
         except Exception as e:
             self.logger.error(f"❌ Error en get_latest_closed_candle para {symbol}: {e}")
             return None
-    
-    def get_current_tick(self, symbol: str) -> Optional[TickData]:
-        """
-        Obtiene el tick actual (BID/ASK) para un instrumento.
-        NOTA: IQ Option API no expone directamente BID/ASK separados en tiempo real.
-        Esta implementación usa la vela actual como proxy.
-        
-        Args:
-            symbol: Símbolo del instrumento
-            
-        Returns:
-            TickData o None
-        """
-        try:
-            candles_dict = self.api.get_realtime_candles(symbol, 60)
-            
-            if not candles_dict:
-                return None
-            
-            timestamps = sorted(list(candles_dict.keys()))
-            if len(timestamps) < 1:
-                return None
-            
-            # Última vela (en formación)
-            current_ts = timestamps[-1]
-            raw_candle = candles_dict[current_ts]
-            
-            # Simular BID/ASK usando close ± spread estimado
-            # NOTA: Esto es una aproximación. IQ Option no expone BID/ASK reales.
-            close_price = float(raw_candle.get("close", 0))
-            # estimated_spread = 0.00002  # 0.2 pips para EURUSD
-            
-            tick = TickData(
-                timestamp=float(raw_candle.get("from", time.time())),
-                bid=close_price, # - estimated_spread / 2,
-                ask=close_price, #+ estimated_spread / 2,
-                symbol=symbol
-            )
-            
-            return tick
-            
-        except Exception as e:
-            self.logger.error(f"❌ Error obteniendo tick para {symbol}: {e}")
-            return None
-    
+
     def _map_realtime_candle(self, raw_candle: Dict, symbol: str) -> Optional[CandleData]:
         """Mapea vela en tiempo real a CandleData BID."""
         try:
@@ -417,7 +374,7 @@ class IqOptionServiceMultiAsync:
         self.on_auth_failure_callback = on_auth_failure_callback
         self.iq_service: Optional[IqOptionMultiService] = None
         self._should_poll = False
-        self._poll_interval = 2
+        self._poll_interval = 0.5
         self.poll_tasks: List[asyncio.Task] = []
         
         # Tracking por instrumento
@@ -446,9 +403,7 @@ class IqOptionServiceMultiAsync:
             return
         
         logger.debug("Conectado a IQ Option...")
-        
-        logger.debug("Conectado a IQ Option...")
-        
+                
         # Iniciar polling para cada instrumento (ANTES de cargar históricos para evitar bloqueos)
         self._should_poll = True
         for symbol in Config.TARGET_ASSETS:
@@ -514,19 +469,31 @@ class IqOptionServiceMultiAsync:
                 )
                 
                 if historical_candles:
-                    # Guardar en estado del instrumento
+                    # Guardar en estado del instrumento (BID)
                     state = self.iq_service.instrument_states[symbol]
                     for candle in historical_candles:
                         await state.add_bid_candle(candle)
                     
-                    # Cargar en AnalysisService si está disponible
+                    # ---------------------------------------------------------
+                    # FIX: Inicializar también el buffer MID y AnalysisService
+                    # Usamos las velas BID históricas como proxy para las MID iniciales
+                    # ---------------------------------------------------------
+                    from dataclasses import replace
+                    mid_historical_candles = [
+                        replace(c, source="IQOPTION_MID") for c in historical_candles
+                    ]
+                    
+                    # 1. Llenar buffer MID en InstrumentState
+                    await state.initialize_mid_candles(mid_historical_candles)
+                    
+                    # 2. Cargar en AnalysisService (usando MID para que coincida con el stream)
                     if self.analysis_service:
                         self.analysis_service.load_historical_candles(
-                            historical_candles
+                            mid_historical_candles
                         )
                     
                     logger.info(
-                        f"✅ {len(historical_candles)} velas BID cargadas para {symbol}"
+                        f"✅ {len(historical_candles)} velas cargadas (BID & MID) para {symbol}"
                     )
                 
                 # Opcional: Generar gráfico histórico si está habilitado
@@ -598,18 +565,90 @@ class IqOptionServiceMultiAsync:
                 exc_info=True
             )
     
+    async def _save_candle_chart(
+        self,
+        symbol: str,
+        closed_candle: CandleData
+    ) -> None:
+        """
+        Genera y guarda un gráfico cuando cierra una vela.
+        
+        Args:
+            symbol: Símbolo del instrumento
+            closed_candle: La vela que acaba de cerrar
+        """
+        try:
+            from src.utils.charting import generate_chart_base64
+            import pandas as pd
+            from datetime import datetime
+            
+            # Obtener historial reciente para el contexto del gráfico
+            state = self.iq_service.instrument_states.get(symbol)
+            if not state:
+                return
+                
+            # Usar velas MID ya que son las que estamos construyendo
+            candles = state.get_mid_candles_list(Config.CHART_LOOKBACK)
+            
+            if not candles:
+                return
+
+            # Convertir a DataFrame
+            df = pd.DataFrame([
+                {
+                    "timestamp": c.timestamp,
+                    "open": c.open,
+                    "high": c.high,
+                    "low": c.low,
+                    "close": c.close,
+                    "volume": c.volume
+                }
+                for c in candles
+            ])
+            
+            # Generar gráfico
+            chart_title = f"{symbol} - {datetime.fromtimestamp(closed_candle.timestamp).strftime('%H:%M')}"
+            chart_base64 = await asyncio.to_thread(
+                generate_chart_base64,
+                df,
+                Config.CHART_LOOKBACK,
+                chart_title
+            )
+            
+            # Guardar en archivo
+            # Formato: data/charts/{symbol}/{timestamp}.png
+            timestamp_str = str(closed_candle.timestamp)
+            chart_dir = Path("data") / "charts" / symbol
+            chart_dir.mkdir(parents=True, exist_ok=True)
+            
+            chart_path = chart_dir / f"{timestamp_str}.png"
+            
+            import base64
+            with open(chart_path, "wb") as f:
+                f.write(base64.b64decode(chart_base64))
+            
+            logger.info(f"📊 Gráfico guardado: {chart_path}")
+            
+        except Exception as e:
+            logger.error(
+                f"❌ Error generando gráfico para {symbol}: {e}",
+                exc_info=True
+            )
+
     async def _poll_instrument(self, symbol: str) -> None:
         """
         Loop de polling individual para un instrumento.
-        Obtiene las últimas 3 velas cada X segundos y guarda un snapshot JSON.
+        Implementa la estrategia de "Polling con Snapshot de Seguridad".
         """
         logger.info(f"📡 Iniciando polling loop para {symbol}...")
         
+        # Variable local para mantener el último precio conocido (fallback)
+        last_known_mid: Optional[float] = None
+        
         while self._should_poll:
             try:
-                # logger.debug(f"🔄 [POLL] Iniciando ciclo para {symbol}")
-                
-                # 1. Obtener snapshot de las últimas 3 velas
+                # 1. Obtener snapshot PEQUEÑO (solo 3 velas)
+                # No necesitamos 300 velas cada 0.5s
                 loop = asyncio.get_running_loop()
                 snapshot = await loop.run_in_executor(
                     None,
@@ -618,34 +657,117 @@ class IqOptionServiceMultiAsync:
                     3
                 )
                 
-                if snapshot:
-                    # logger.debug(f"📦 [POLL] Snapshot recibido para {symbol}: {len(snapshot)} items")
-                    
-                    # 2. Guardar en archivo JSON para debug
-                    try:
-                        debug_path = Path(f"data/debug_iq_poll_{symbol}.json")
-                        debug_path.parent.mkdir(exist_ok=True, parents=True)
-                        
-                        await loop.run_in_executor(
-                            None,
-                            self._save_debug_json,
-                            debug_path,
-                            snapshot
-                        )
-                        
-                        # logger.info(f"💾 [POLL] JSON guardado en {debug_path}")
-                        
-                        # Loguear presencia de ASK/BID en la última vela
-                        last_candle = snapshot[-1]
-                        bid = last_candle.get("bid")
-                        ask = last_candle.get("ask")
-                        # logger.info(f"🔍 [POLL] {symbol} Last Candle: Bid={bid}, Ask={ask}")
-                        
-                    except Exception as e:
-                        logger.error(f"❌ Error guardando debug JSON para {symbol}: {e}")
-                else:
-                    logger.warning(f"⚠️ [POLL] Snapshot vacío para {symbol}")
+                valid_tick_found = False
+                tick_to_process: Optional[TickData] = None
                 
+                if snapshot:
+                    # 2. Algoritmo de Selección de Datos ("La Estrategia de 3 Velas")
+                    # Iterar en orden INVERSO (de la más nueva a la más vieja)
+                    # para encontrar la primera vela con datos válidos.
+                    
+                    for candle in reversed(snapshot):
+                        bid = candle.get("bid")
+                        ask = candle.get("ask")
+                        
+                        # Verificar si tiene datos de precio válidos
+                        if bid is not None and ask is not None:
+                            # ¡Encontrado!
+                            try:
+                                bid_val = float(bid)
+                                ask_val = float(ask)
+                                mid_val = (bid_val + ask_val) / 2.0
+                                
+                                # Actualizar fallback
+                                last_known_mid = mid_val
+                                
+                                # Crear TickData
+                                tick_to_process = TickData(
+                                    timestamp=float(candle.get("from", time.time())),
+                                    bid=bid_val,
+                                    ask=ask_val,
+                                    symbol=symbol
+                                )
+                                valid_tick_found = True
+                                break # Salir del loop apenas encontremos el dato más fresco
+                            except (ValueError, TypeError):
+                                continue
+                
+                # 3. Manejo de Fallback (si no se encontró dato válido en el snapshot)
+                if not valid_tick_found:
+                    if last_known_mid is not None:
+                        # Usar último conocido para mantener el "latido"
+                        # logger.warning(f"⚠️ [POLL] {symbol} sin datos frescos. Usando fallback MID={last_known_mid:.5f}")
+                        
+                        # Estimamos un spread artificial pequeño para reconstruir bid/ask
+                        # Esto es solo para mantener vivo el ticker, el precio importante es el MID
+                        spread_proxy = 0.0001
+                        tick_to_process = TickData(
+                            timestamp=time.time(), # Timestamp actual
+                            bid=last_known_mid - (spread_proxy/2),
+                            ask=last_known_mid + (spread_proxy/2),
+                            symbol=symbol
+                        )
+                    else:
+                        # Caso crítico: Arranque sin datos
+                        # logger.warning(f"⚠️ [POLL] {symbol} esperando primeros datos...")
+                        pass
+
+                # 4. Integración con el Ticker (Producer-Consumer)
+                if tick_to_process:
+                    # Enviar al InstrumentState para procesamiento
+                    state = self.iq_service.instrument_states.get(symbol)
+                    if state:
+                        closed_candle = await state.process_tick(tick_to_process)
+                        
+                        # Si se cerró una vela y está habilitada la generación de gráficos
+                        if closed_candle:
+                            # ---------------------------------------------------------
+                            # PASO EXTRA: Sincronizar con datos oficiales de la API
+                            # Buscamos la vela correspondiente en el snapshot para corregir el cierre
+                            # ---------------------------------------------------------
+                            if snapshot:
+                                # Buscar vela con mismo timestamp
+                                # snapshot es lista de dicts. 'from' es el timestamp de inicio.
+                                target_ts = closed_candle.timestamp
+                                api_match = next((c for c in snapshot if int(c.get("from", 0)) == target_ts), None)
+                                
+                                if api_match:
+                                    # Actualizar estado
+                                    updated_candle = await state.update_last_candle_from_api(api_match)
+                                    if updated_candle:
+                                        # logger.info(f"🔄 Vela corregida con API: Close {closed_candle.close} -> {updated_candle.close}")
+                                        closed_candle = updated_candle
+
+                            # 1. Enviar a Analysis Service (CRÍTICO)
+                            if self.analysis_service:
+                                await self.analysis_service.process_realtime_candle(closed_candle)
+
+                            # 2. Generar gráfico si está habilitado
+                            if Config.GENERATE_HISTORICAL_CHARTS:
+                                # Ejecutar en background para no bloquear el polling loop
+                                asyncio.create_task(
+                                    self._save_candle_chart(symbol, closed_candle)
+                                )
+                    
+                    # Guardar debug JSON (opcional, para auditoría)
+                    # Solo guardamos si hubo cambios o cada N ciclos para no saturar disco
+                    # Por ahora mantenemos la lógica original de guardar siempre que haya snapshot
+                    if snapshot:
+                        try:
+                            debug_path = Path(f"data/debug_iq_poll_{symbol}.json")
+                            # Optimizacion: No crear directorios en cada ciclo si ya existen
+                            if not debug_path.parent.exists():
+                                debug_path.parent.mkdir(exist_ok=True, parents=True)
+                            
+                            await loop.run_in_executor(
+                                None,
+                                self._save_debug_json,
+                                debug_path,
+                                snapshot
+                            )
+                        except Exception:
+                            pass
+
                 # Esperar antes del siguiente poll
                 await asyncio.sleep(self._poll_interval)
                 

@@ -667,11 +667,29 @@ class AnalysisService:
     def _add_new_candle(self, source_key: str, candle: CandleData) -> None:
         """
         Agrega una vela cerrada al buffer de pandas.
+        Si el timestamp ya existe (última vela), actualiza sus valores.
+        Si es nueva, la agrega y mantiene el tamaño del buffer.
         
         Args:
             source_key: Clave de la fuente
             candle: Datos de la vela
         """
+        df = self.dataframes[source_key]
+        
+        # Verificar si el DataFrame no está vacío y si el último timestamp coincide
+        if not df.empty and df.iloc[-1]["timestamp"] == candle.timestamp:
+            # ACTUALIZAR vela existente (Update in place)
+            idx = df.index[-1]
+            df.at[idx, "open"] = candle.open
+            df.at[idx, "high"] = candle.high
+            df.at[idx, "low"] = candle.low
+            df.at[idx, "close"] = candle.close
+            df.at[idx, "volume"] = candle.volume
+            # Nota: Los indicadores se recalcularán en _update_indicators
+            # logger.debug(f"🔄 Vela actualizada en buffer para {source_key} (T={candle.timestamp})")
+            return
+
+        # Si no existe, crear nueva fila
         new_row = pd.DataFrame([{
             "timestamp": candle.timestamp,
             "open": candle.open,
