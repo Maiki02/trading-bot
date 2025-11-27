@@ -2455,5 +2455,12 @@
     "title": "ℹ️ *EURUSD* ℹ️\n🔴 Posible operación a la BAJA.\nFalta confirmación de agotamiento.\nProbabilidad baja.",
     "message": "━━━━━━━━━━━━━━━━━━━━━━\n🔹 Señal: LOW\n🔹 Fuente: IQOPTION_MID\n🔹 Patrón: INVERTED_HAMMER\n🔹 Fecha: 2025-11-26 20:32:00\n🔺 Señal de techo\n⚪ Sin ruptura de nivel\n🔹 Tendencia: STRONG_BULLISH\n🔹 Score: +10.0/10.0\n\n\n🔍 Mensaje de info\n✅ Cumple Tendencia Alcista\n✅ Agotamiento Bollinger (PEAK/BOTTOM)\n❌ Agotamiento de Vela (NO)\n\n━━━━━━━━━━━━━━━━━━━━━━\n",
     "image_name": "chart_20251126_203403_227405.png"
+  },
+  {
+    "timestamp": "20251126_212602_184569",
+    "datetime": "2025-11-26T21:26:02.191802",
+    "title": "⚪ *EURUSD* ⚪\n🔴 Posible operación a la BAJA.\nSin agotamiento detectado - Analizar con precaución\nPobabilidad bajísima.",
+    "message": "━━━━━━━━━━━━━━━━━━━━━━\n🔹 Señal: VERY_LOW\n🔹 Fuente: IQOPTION_MID\n🔹 Patrón: SHOOTING_STAR\n🔹 Fecha: 2025-11-26 21:24:00\n➖ Sin agotamiento\n⚪ Sin ruptura de nivel\n🔹 Tendencia: WEAK_BULLISH\n🔹 Score: +3.0/10.0\n\n\n🔍 Mensaje de info\n✅ Cumple Tendencia Alcista\n❌ Agotamiento Bollinger (NO)\n❌ Agotamiento de Vela (NO)\n\n━━━━━━━━━━━━━━━━━━━━━━\n",
+    "image_name": "chart_20251126_212602_184569.png"
   }
 ]

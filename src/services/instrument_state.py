@@ -138,7 +138,7 @@ class InstrumentState:
             # LOG: Cálculo MID
             logger.debug(
                 f"💱 TICK MID | {self.symbol} | "
-                f"BID={tick.bid:.6f} ASK={tick.ask:.6f} → MID={mid_price:.6f}"
+                f"BID={tick.bid} ASK={tick.ask} → MID={mid_price}"
             )
             
             # Inicializar builder si no existe
@@ -159,8 +159,8 @@ class InstrumentState:
                         logger.info(
                             f"🕯️ VELA MID ACTUALIZADA | {self.symbol} | "
                             f"T={closed_candle.timestamp} | "
-                            f"O={closed_candle.open:.6f} H={closed_candle.high:.6f} "
-                            f"L={closed_candle.low:.6f} C={closed_candle.close:.6f} | "
+                            f"O={closed_candle.open} H={closed_candle.high} "
+                            f"L={closed_candle.low} C={closed_candle.close} | "
                             f"Ticks={int(closed_candle.volume)}"
                         )
                     else:
@@ -169,8 +169,8 @@ class InstrumentState:
                         logger.info(
                             f"🕯️ VELA MID CERRADA | {self.symbol} | "
                             f"T={closed_candle.timestamp} | "
-                            f"O={closed_candle.open:.6f} H={closed_candle.high:.6f} "
-                            f"L={closed_candle.low:.6f} C={closed_candle.close:.6f} | "
+                            f"O={closed_candle.open} H={closed_candle.high} "
+                            f"L={closed_candle.low} C={closed_candle.close} | "
                             f"Ticks={int(closed_candle.volume)}"
                         )
                 
