@@ -500,25 +500,6 @@ class IqOptionServiceMultiAsync:
                 if Config.GENERATE_HISTORICAL_CHARTS and len(historical_candles) > 0:
                     await self._generate_historical_chart(symbol, historical_candles)
                 
-                # ---------------------------------------------------------
-                # NUEVO: Guardar snapshot inicial en JSON para debug
-                # ---------------------------------------------------------
-                if historical_candles:
-                    try:
-                        from dataclasses import asdict
-                        snapshot_data = [asdict(c) for c in historical_candles]
-                        debug_path = Path(f"data/debug_initial_snapshot_{symbol}.json")
-                        
-                        await loop.run_in_executor(
-                            None,
-                            self._save_debug_json,
-                            debug_path,
-                            snapshot_data
-                        )
-                        logger.info(f"💾 Snapshot inicial guardado en {debug_path}")
-                    except Exception as e:
-                        logger.error(f"❌ Error guardando snapshot inicial JSON: {e}")
-                
             except Exception as e:
                 logger.error(
                     f"❌ Error cargando velas para {symbol}: {e}",
