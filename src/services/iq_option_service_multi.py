@@ -139,47 +139,21 @@ class IqOptionMultiService:
     
     def _subscribe_to_all_instruments(self) -> None:
         """
-        Suscribe a los streams de velas usando el método manual para forzar 'kind': 'binary'.
-        Esto es necesario para recibir los datos correctos de Opciones Binarias.
+        Suscribe a los streams de velas usando el método estándar de la librería.
+        Esto es necesario para que get_realtime_candles() tenga datos.
         """
-        from iqoptionapi.constants import ACTIVES
         buffer_size = Config.SNAPSHOT_CANDLES
         
         for symbol in self.target_assets:
             try:
-                self.logger.info(f"📡 Suscribiendo a stream de velas (BINARY) para {symbol}...")
+                self.logger.info(f"📡 Suscribiendo a stream de velas para {symbol}...")
                 
-                # 1. Obtener Active ID
-                active_id = ACTIVES.get(symbol)
-                if not active_id:
-                    self.logger.error(f"❌ No se encontró active_id para {symbol}")
-                    continue
+                # Método estándar de la librería para iniciar el stream
+                # Esto llena el diccionario self.api.real_time_candles
+                # MODIFICADO: Usar Config.SNAPSHOT_CANDLES para asegurar histórico inicial suficiente
+                self.api.start_candles_stream(symbol, 60, buffer_size)
                 
-                # 2. Inicializar estructuras de la librería (necesario para que procese los mensajes)
-                # FIX: Acceder a la API de bajo nivel a través de self.api.api
-                # FIX 2: Inicializar como diccionario {size: buffer_size}
-                self.api.api.real_time_candles_maxdict_table[symbol] = {60: buffer_size}
-                
-                if symbol not in self.api.api.real_time_candles:
-                    self.api.api.real_time_candles[symbol] = {}
-                # Inicializar buffer específico para 60s para evitar error en get_realtime_candles
-                self.api.api.real_time_candles[symbol][60] = {}
-                
-                # 3. Enviar Payload Manual con "kind": "binary"
-                payload = {
-                    "name": "candle-generated",
-                    "params": {
-                        "routingFilters": {
-                            "active_id": active_id,
-                            "size": 60,
-                            "kind": "binary"  # <--- CRÍTICO: Solicitar feed de Binarias
-                        }
-                    }
-                }
-                
-                self.api.api.send_websocket_request(name="subscribeMessage", msg=payload)
-                
-                self.logger.info(f"✅ Suscripción (BINARY) iniciada para {symbol} (ID: {active_id})")
+                self.logger.info(f"✅ Suscripción iniciada para {symbol}")
                 
             except Exception as e:
                 self.logger.error(f"❌ Error suscribiendo a {symbol}: {e}")
