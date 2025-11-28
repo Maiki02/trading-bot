@@ -22,10 +22,13 @@ class TickData:
     bid: float
     ask: float
     symbol: str
+    custom_mid: Optional[float] = None
     
     @property
     def mid(self) -> float:
-        """Calcula el precio MID como promedio de BID y ASK."""
+        """Calcula el precio MID como promedio de BID y ASK o usa custom_mid si existe."""
+        if self.custom_mid is not None:
+            return self.custom_mid
         return (self.bid + self.ask) / 2.0
 
 

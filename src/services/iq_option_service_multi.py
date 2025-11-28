@@ -675,7 +675,10 @@ class IqOptionServiceMultiAsync:
                             try:
                                 bid_val = float(bid)
                                 ask_val = float(ask)
-                                mid_val = (bid_val + ask_val) / 2.0
+                                # mid_val = (bid_val + ask_val) / 2.0  <-- REMOVED: Redundant calculation
+                                
+                                # Use 'close' as the authoritative MID price
+                                mid_val = float(candle.get("close", (bid_val + ask_val) / 2.0))
                                 
                                 # Actualizar fallback
                                 last_known_mid = mid_val
@@ -685,7 +688,8 @@ class IqOptionServiceMultiAsync:
                                     timestamp=float(candle.get("from", time.time())),
                                     bid=bid_val,
                                     ask=ask_val,
-                                    symbol=symbol
+                                    symbol=symbol,
+                                    custom_mid=mid_val  # Pass the explicit MID
                                 )
                                 valid_tick_found = True
                                 break # Salir del loop apenas encontremos el dato más fresco
