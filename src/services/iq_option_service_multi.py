@@ -374,7 +374,7 @@ class IqOptionServiceMultiAsync:
         self.on_auth_failure_callback = on_auth_failure_callback
         self.iq_service: Optional[IqOptionMultiService] = None
         self._should_poll = False
-        self._poll_interval = 0.5
+        self._poll_interval = 1
         self.poll_tasks: List[asyncio.Task] = []
         
         # Tracking por instrumento
