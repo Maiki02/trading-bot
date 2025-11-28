@@ -325,3 +325,55 @@ def validate_dataframe_for_chart(
             return False, f"NaN values found in column: {col}"
     
     return True, None
+
+
+async def process_and_save_chart(
+    symbol: str,
+    candles: list,
+    lookback: int,
+    output_path: str,
+    title: str
+) -> None:
+    """
+    Procesa una lista de velas, genera el gráfico y lo guarda en disco.
+    Maneja la conversión de CandleData a DataFrame y la decodificación de Base64.
+    
+    Args:
+        symbol: Símbolo del instrumento
+        candles: Lista de objetos CandleData
+        lookback: Número de velas a mostrar
+        output_path: Ruta absoluta donde guardar el archivo .png
+        title: Título del gráfico
+    """
+    import asyncio
+    from pathlib import Path
+    
+    # 1. Convertir a DataFrame
+    # Asumimos que 'candles' es una lista de objetos con atributos (timestamp, open, high, low, close, volume)
+    data = []
+    for c in candles:
+        data.append({
+            "timestamp": c.timestamp,
+            "open": c.open,
+            "high": c.high,
+            "low": c.low,
+            "close": c.close,
+            "volume": c.volume
+        })
+    
+    df = pd.DataFrame(data)
+    
+    # 2. Generar gráfico (bloqueante -> thread)
+    chart_base64 = await asyncio.to_thread(
+        generate_chart_base64,
+        df,
+        lookback,
+        title
+    )
+    
+    # 3. Guardar en archivo
+    path_obj = Path(output_path)
+    path_obj.parent.mkdir(parents=True, exist_ok=True)
+    
+    with open(path_obj, "wb") as f:
+        f.write(base64.b64decode(chart_base64))

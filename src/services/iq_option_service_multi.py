@@ -498,142 +498,30 @@ class IqOptionServiceMultiAsync:
                 
                 # Opcional: Generar gráfico histórico si está habilitado
                 if Config.GENERATE_HISTORICAL_CHARTS and len(historical_candles) > 0:
-                    await self._generate_historical_chart(symbol, historical_candles)
+                    try:
+                        from src.utils.charting import process_and_save_chart
+                        from datetime import datetime
+                        
+                        chart_dir = Path("data") / "charts" / symbol
+                        chart_path = chart_dir / "boot_snapshot.png"
+                        chart_title = f"{symbol} - Initial Snapshot"
+                        
+                        await process_and_save_chart(
+                            symbol=symbol,
+                            candles=historical_candles,
+                            lookback=Config.CHART_LOOKBACK,
+                            output_path=str(chart_path),
+                            title=chart_title
+                        )
+                        logger.info(f"📊 Gráfico histórico guardado: {chart_path}")
+                    except Exception as e:
+                        logger.error(f"❌ Error generando gráfico histórico para {symbol}: {e}")
                 
             except Exception as e:
                 logger.error(
                     f"❌ Error cargando velas para {symbol}: {e}",
                     exc_info=True
                 )
-    
-    async def _generate_historical_chart(
-        self,
-        symbol: str,
-        candles: List[CandleData]
-    ) -> None:
-        """
-        Genera gráfico histórico inicial (opcional, si GENERATE_HISTORICAL_CHARTS=true).
-        
-        Args:
-            symbol: Símbolo del instrumento
-            candles: Lista de velas históricas
-        """
-        try:
-            from src.utils.charting import generate_chart_base64
-            import pandas as pd
-            from datetime import datetime
-            
-            # Convertir a DataFrame
-            df = pd.DataFrame([
-                {
-                    "timestamp": c.timestamp,
-                    "open": c.open,
-                    "high": c.high,
-                    "low": c.low,
-                    "close": c.close,
-                    "volume": c.volume
-                }
-                for c in candles
-            ])
-            
-            # Generar gráfico
-            chart_title = f"{symbol} - Initial Snapshot"
-            chart_base64 = await asyncio.to_thread(
-                generate_chart_base64,
-                df,
-                Config.CHART_LOOKBACK,
-                chart_title
-            )
-            
-            # Guardar en archivo
-            timestamp_str = datetime.now().strftime("%Y%m%d_%H%M%S")
-            chart_dir = Path("data") / "charts" / symbol
-            chart_dir.mkdir(parents=True, exist_ok=True)
-            
-            # Guardar snapshot de inicio (siempre sobrescribe o crea uno específico)
-            chart_path = chart_dir / "boot_snapshot.png"
-            
-            import base64
-            with open(chart_path, "wb") as f:
-                f.write(base64.b64decode(chart_base64))
-            
-            logger.info(f"📊 Gráfico histórico guardado: {chart_path}")
-            
-        except Exception as e:
-            logger.error(
-                f"❌ Error generando gráfico para {symbol}: {e}",
-                exc_info=True
-            )
-    
-    async def _save_candle_chart(
-        self,
-        symbol: str,
-        closed_candle: CandleData
-    ) -> None:
-        """
-        Genera y guarda un gráfico cuando cierra una vela.
-        
-        Args:
-            symbol: Símbolo del instrumento
-            closed_candle: La vela que acaba de cerrar
-        """
-        try:
-            from src.utils.charting import generate_chart_base64
-            import pandas as pd
-            from datetime import datetime
-            
-            # Obtener historial reciente para el contexto del gráfico
-            state = self.iq_service.instrument_states.get(symbol)
-            if not state:
-                return
-                
-            # Usar velas MID ya que son las que estamos construyendo
-            candles = state.get_mid_candles_list(Config.CHART_LOOKBACK)
-            
-            if not candles:
-                return
-
-            # Convertir a DataFrame
-            df = pd.DataFrame([
-                {
-                    "timestamp": c.timestamp,
-                    "open": c.open,
-                    "high": c.high,
-                    "low": c.low,
-                    "close": c.close,
-                    "volume": c.volume
-                }
-                for c in candles
-            ])
-            
-            # Generar gráfico
-            chart_title = f"{symbol} - {datetime.fromtimestamp(closed_candle.timestamp).strftime('%H:%M')}"
-            chart_base64 = await asyncio.to_thread(
-                generate_chart_base64,
-                df,
-                Config.CHART_LOOKBACK,
-                chart_title
-            )
-            
-            # Guardar en archivo
-            # Formato: data/charts/{symbol}/{timestamp}.png
-            timestamp_str = str(closed_candle.timestamp)
-            chart_dir = Path("data") / "charts" / symbol
-            chart_dir.mkdir(parents=True, exist_ok=True)
-            
-            chart_path = chart_dir / f"{timestamp_str}.png"
-            
-            import base64
-            with open(chart_path, "wb") as f:
-                f.write(base64.b64decode(chart_base64))
-            
-            logger.info(f"📊 Gráfico guardado: {chart_path}")
-            
-        except Exception as e:
-            logger.error(
-                f"❌ Error generando gráfico para {symbol}: {e}",
-                exc_info=True
-            )
 
     async def _poll_instrument(self, symbol: str) -> None:
         """
@@ -675,7 +563,6 @@ class IqOptionServiceMultiAsync:
                             try:
                                 bid_val = float(bid)
                                 ask_val = float(ask)
-                                # mid_val = (bid_val + ask_val) / 2.0  <-- REMOVED: Redundant calculation
                                 
                                 # Use 'close' as the authoritative MID price
                                 mid_val = float(candle.get("close", (bid_val + ask_val) / 2.0))
@@ -704,11 +591,10 @@ class IqOptionServiceMultiAsync:
                         
                         # Estimamos un spread artificial pequeño para reconstruir bid/ask
                         # Esto es solo para mantener vivo el ticker, el precio importante es el MID
-                        spread_proxy = 0.0001
                         tick_to_process = TickData(
                             timestamp=time.time(), # Timestamp actual
-                            bid=last_known_mid - (spread_proxy/2),
-                            ask=last_known_mid + (spread_proxy/2),
+                            bid=last_known_mid,
+                            ask=last_known_mid,
                             symbol=symbol
                         )
                     else:
@@ -746,32 +632,6 @@ class IqOptionServiceMultiAsync:
                             if self.analysis_service:
                                 await self.analysis_service.process_realtime_candle(closed_candle)
 
-                            # 2. Generar gráfico si está habilitado
-                            if Config.GENERATE_HISTORICAL_CHARTS:
-                                # Ejecutar en background para no bloquear el polling loop
-                                asyncio.create_task(
-                                    self._save_candle_chart(symbol, closed_candle)
-                                )
-                    
-                    # Guardar debug JSON (opcional, para auditoría)
-                    # Solo guardamos si hubo cambios o cada N ciclos para no saturar disco
-                    # Por ahora mantenemos la lógica original de guardar siempre que haya snapshot
-                    if snapshot:
-                        try:
-                            debug_path = Path(f"data/debug_iq_poll_{symbol}.json")
-                            # Optimizacion: No crear directorios en cada ciclo si ya existen
-                            if not debug_path.parent.exists():
-                                debug_path.parent.mkdir(exist_ok=True, parents=True)
-                            
-                            await loop.run_in_executor(
-                                None,
-                                self._save_debug_json,
-                                debug_path,
-                                snapshot
-                            )
-                        except Exception:
-                            pass
-
                 # Esperar antes del siguiente poll
                 await asyncio.sleep(self._poll_interval)
                 
@@ -781,15 +641,6 @@ class IqOptionServiceMultiAsync:
             except Exception as e:
                 logger.error(f"❌ Error en polling loop de {symbol}: {e}")
                 await asyncio.sleep(1.0)
-    
-    def _save_debug_json(self, path: Path, data: List[Dict]) -> None:
-        """Helper para guardar JSON en disco."""
-        try:
-            with open(path, "w", encoding="utf-8") as f:
-                json.dump(data, f, indent=2, default=str)
-            # logger.debug(f"📝 Archivo escrito: {path}")
-        except Exception as e:
-            logger.error(f"❌ Error escribiendo archivo {path}: {e}")
 
 
 def create_iq_option_service_multi_async(
