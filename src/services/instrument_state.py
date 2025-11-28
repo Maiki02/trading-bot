@@ -77,7 +77,7 @@ class CandleBuilder:
             low=self.low,
             close=self.close,
             volume=float(self.tick_count),  # Usar tick_count como proxy de volumen
-            source="IQOPTION_MID",
+            source="IQ",
             symbol=symbol
         )
 

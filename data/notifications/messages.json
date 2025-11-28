@@ -2462,5 +2462,26 @@
     "title": "⚪ *EURUSD* ⚪\n🔴 Posible operación a la BAJA.\nSin agotamiento detectado - Analizar con precaución\nPobabilidad bajísima.",
     "message": "━━━━━━━━━━━━━━━━━━━━━━\n🔹 Señal: VERY_LOW\n🔹 Fuente: IQOPTION_MID\n🔹 Patrón: SHOOTING_STAR\n🔹 Fecha: 2025-11-26 21:24:00\n➖ Sin agotamiento\n⚪ Sin ruptura de nivel\n🔹 Tendencia: WEAK_BULLISH\n🔹 Score: +3.0/10.0\n\n\n🔍 Mensaje de info\n✅ Cumple Tendencia Alcista\n❌ Agotamiento Bollinger (NO)\n❌ Agotamiento de Vela (NO)\n\n━━━━━━━━━━━━━━━━━━━━━━\n",
     "image_name": "chart_20251126_212602_184569.png"
+  },
+  {
+    "timestamp": "20251128_155301_190431",
+    "datetime": "2025-11-28T15:53:01.206852",
+    "title": "⚪ *GBPUSD-BIN* ⚪\n🔴 Posible operación a la BAJA.\nSin agotamiento detectado - Analizar con precaución\nPobabilidad bajísima.",
+    "message": "━━━━━━━━━━━━━━━━━━━━━━\n🔹 Señal: VERY_LOW\n🔹 Fuente: IQOPTION_MID\n🔹 Patrón: SHOOTING_STAR\n🔹 Fecha: 2025-11-28 15:51:00\n➖ Sin agotamiento\n⚪ Sin ruptura de nivel\n🔹 Tendencia: STRONG_BULLISH\n🔹 Score: +7.0/10.0\n\n\n🔍 Mensaje de info\n✅ Cumple Tendencia Alcista\n❌ Agotamiento Bollinger (NO)\n❌ Agotamiento de Vela (NO)\n\n━━━━━━━━━━━━━━━━━━━━━━\n",
+    "image_name": "chart_20251128_155301_190431.png"
+  },
+  {
+    "timestamp": "20251128_155301_309909",
+    "datetime": "2025-11-28T15:53:01.340824",
+    "title": "*EURUSD-BIN*\nMensaje informativo. No hay nada importante detectado.\n",
+    "message": "━━━━━━━━━━━━━━━━━━━━━━\n🔹 Señal: NONE\n🔹 Fuente: IQOPTION_MID\n🔹 Patrón: INVERTED_HAMMER\n🔹 Fecha: 2025-11-28 15:51:00\n➖ Sin agotamiento\n⚪ Sin ruptura de nivel\n🔹 Tendencia: STRONG_BEARISH\n🔹 Score: -10.0/10.0\n\n\n🔍 Mensaje de info\n❌ Cumple Tendencia alcista\n❌ Agotamiento Bollinger (NO)\n❌ Agotamiento de Vela (NO)\n\n━━━━━━━━━━━━━━━━━━━━━━\n",
+    "image_name": "chart_20251128_155301_309909.png"
+  },
+  {
+    "timestamp": "20251128_155701_308457",
+    "datetime": "2025-11-28T15:57:01.328787",
+    "title": "*NZDUSD-BIN*\nMensaje informativo. No hay nada importante detectado.\n",
+    "message": "━━━━━━━━━━━━━━━━━━━━━━\n🔹 Señal: NONE\n🔹 Fuente: IQOPTION_MID\n🔹 Patrón: SHOOTING_STAR\n🔹 Fecha: 2025-11-28 15:55:00\n➖ Sin agotamiento\n⚪ Sin ruptura de nivel\n🔹 Tendencia: STRONG_BEARISH\n🔹 Score: -10.0/10.0\n\n\n🔍 Mensaje de info\n❌ Cumple Tendencia alcista\n❌ Agotamiento Bollinger (NO)\n❌ Agotamiento de Vela (NO)\n\n━━━━━━━━━━━━━━━━━━━━━━\n",
+    "image_name": "chart_20251128_155701_308457.png"
   }
 ]

@@ -480,7 +480,7 @@ class IqOptionServiceMultiAsync:
                     # ---------------------------------------------------------
                     from dataclasses import replace
                     mid_historical_candles = [
-                        replace(c, source="IQOPTION_MID") for c in historical_candles
+                        replace(c, source="IQ") for c in historical_candles
                     ]
                     
                     # 1. Llenar buffer MID en InstrumentState

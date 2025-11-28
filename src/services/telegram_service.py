@@ -124,6 +124,15 @@ class TelegramService:
         await self._send_to_telegram(message, chart)
     
 
+    def _format_symbol_for_display(self, symbol: str) -> str:
+        """
+        Formatea el símbolo para mostrar en el mensaje.
+        Si estamos en IQOPTION, quita el sufijo -BIN.
+        """
+        if Config.DATA_PROVIDER == "IQOPTION":
+            return symbol.replace("-BIN", "")
+        return symbol
+
     def _format_standard_message(self, signal: PatternSignal) -> AlertMessage:
         """
         Formatea un mensaje de alerta estándar con sistema de clasificación de fuerza.
@@ -135,6 +144,9 @@ class TelegramService:
             AlertMessage: Mensaje formateado
         """
         timestamp_str = datetime.fromtimestamp(signal.timestamp).strftime("%Y-%m-%d %H:%M:%S")
+        
+        # Obtener símbolo formateado
+        display_symbol = self._format_symbol_for_display(signal.symbol)
         
         # ═════════════════════════════════════════════════════════════════════
         # TÍTULO BASADO EN SIGNAL_STRENGTH (Nuevo Sistema)
@@ -153,7 +165,7 @@ class TelegramService:
                 icon = "⚪"
                 text = "Vela no reconocida"
 
-            title = f"{icon * 3} *{signal.symbol}* {icon * 3}\n{icon} {text}.\nPROBABILIDAD MUY ALTA\n"
+            title = f"{icon * 3} *{display_symbol}* {icon * 3}\n{icon} {text}.\nPROBABILIDAD MUY ALTA\n"
 
         elif signal.signal_strength == "HIGH":
             # 🚨 ALERTA FUERTE (Patrón Principal + Bollinger Exhaustion)
@@ -167,20 +179,20 @@ class TelegramService:
                 icon = "⚪"
                 text = "Vela no reconocida"
 
-            title = f"{icon * 2} *{signal.symbol}* {icon * 2}\n{icon} {text}.\nPROBABILIDAD ALTA\n"
+            title = f"{icon * 2} *{display_symbol}* {icon * 2}\n{icon} {text}.\nPROBABILIDAD ALTA\n"
 
         elif signal.signal_strength == "MEDIUM":
             # ⚠️ AVISO (Patrón Secundario + Ambos Exhaustion)
             
             # Patrones Bajistas
             if signal.pattern in ["INVERTED_HAMMER"]:
-                title = f"⚠️ *{signal.symbol}* ⚠️\n🔴 Posible operación a la BAJA\nPROBABILIDAD MEDIA\n"
+                title = f"⚠️ *{display_symbol}* ⚠️\n🔴 Posible operación a la BAJA\nPROBABILIDAD MEDIA\n"
             
             # Patrones Alcistas
             elif signal.pattern in ["HANGING_MAN"]:
-                title = f"⚠️ *{signal.symbol}* ⚠️\n🟢 Posible operación al ALZA\nPROBABILIDAD MEDIA\n"
+                title = f"⚠️ *{display_symbol}* ⚠️\n🟢 Posible operación al ALZA\nPROBABILIDAD MEDIA\n"
             else:
-                title = f"⚠️ *{signal.symbol}* ⚠️\n⚪Vela no reconocida\nPROBABILIDAD MEDIA\n"
+                title = f"⚠️ *{display_symbol}* ⚠️\n⚪Vela no reconocida\nPROBABILIDAD MEDIA\n"
 
         elif signal.signal_strength == "LOW":
             # ℹ️ SEÑAL BAJA
@@ -191,7 +203,7 @@ class TelegramService:
             else:
                 text = "⚪ Vela no reconocida"
 
-            title = f"ℹ️ *{signal.symbol}* ℹ️\n{text}.\nFalta confirmación de agotamiento.\nProbabilidad baja."
+            title = f"ℹ️ *{display_symbol}* ℹ️\n{text}.\nFalta confirmación de agotamiento.\nProbabilidad baja."
         
         elif signal.signal_strength == "VERY_LOW":
             # ⚪ SEÑAL MUY BAJA
@@ -202,10 +214,10 @@ class TelegramService:
             else:
                 text = "⚪ Vela no reconocida"
 
-            title = f"⚪ *{signal.symbol}* ⚪\n{text}.\nSin agotamiento detectado - Analizar con precaución\nPobabilidad bajísima."
+            title = f"⚪ *{display_symbol}* ⚪\n{text}.\nSin agotamiento detectado - Analizar con precaución\nPobabilidad bajísima."
         
         else:  # NONE
-            title = f"*{signal.symbol}*\nMensaje informativo. No hay nada importante detectado.\n"
+            title = f"*{display_symbol}*\nMensaje informativo. No hay nada importante detectado.\n"
 
         # Formatear EMAs (mostrar N/A si no están disponibles)
         import math
@@ -441,7 +453,8 @@ class TelegramService:
             direction: Dirección de la vela ("VERDE" o "ROJA")
             chart_base64: Imagen del gráfico codificada en Base64 (opcional)
         """
-        title = f"📊 Resultado Vela - {source}:{symbol}"
+        display_symbol = self._format_symbol_for_display(symbol)
+        title = f"📊 Resultado Vela - {source}:{display_symbol}"
         message = f"La vela resultante fue: {direction}"
         
         await self._send_telegram_notification(
