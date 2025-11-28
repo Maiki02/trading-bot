@@ -554,7 +554,7 @@ class IqOptionServiceMultiAsync:
                     # para encontrar la primera vela con datos válidos.
                     
                     for candle in reversed(snapshot):
-                        
+                        logger.debug(f" Candle: {candle} y Snapshot: {snapshot}")
                         try:
                             # Use 'close' as the authoritative MID price
                             mid_val = float(candle.get("close"))
