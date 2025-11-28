@@ -479,6 +479,10 @@ class TelegramService:
             message: Cuerpo del mensaje
             chart_base64: Imagen del gráfico codificada en Base64 (opcional)
         """
+        # FIX: Reemplazar guiones bajos por espacios para evitar errores de Markdown
+        title = title.replace("_", " ")
+        message = message.replace("_", " ")
+
         # Verificar si las notificaciones HTTP están habilitadas
         if not Config.TELEGRAM.enable_notifications:
             logger.debug("📵 Notificaciones HTTP deshabilitadas. Mensaje no enviado a Telegram API.")
@@ -492,7 +496,7 @@ class TelegramService:
         payload = {
             "first_message": title,
             "image_base64": chart_base64 if chart_base64 else "",
-            #"message_type": "markdown",
+            "message_type": "markdown",
             "entries": [
                 {
                     "subscription": subscription,

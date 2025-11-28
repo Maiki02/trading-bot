@@ -2490,5 +2490,19 @@
     "title": "⚪ *GBPUSD* ⚪\n🔴 Posible operación a la BAJA.\nSin agotamiento detectado - Analizar con precaución\nPobabilidad bajísima.",
     "message": "━━━━━━━━━━━━━━━━━━━━━━\n🔹 Señal: VERY_LOW\n🔹 Fuente: IQ\n🔹 Patrón: SHOOTING_STAR\n🔹 Fecha: 2025-11-28 16:04:00\n➖ Sin agotamiento\n⚪ Sin ruptura de nivel\n🔹 Tendencia: WEAK_BULLISH\n🔹 Score: +5.0/10.0\n\n\n🔍 Mensaje de info\n✅ Cumple Tendencia Alcista\n❌ Agotamiento Bollinger (NO)\n❌ Agotamiento de Vela (NO)\n\n━━━━━━━━━━━━━━━━━━━━━━\n",
     "image_name": "chart_20251128_160602_413036.png"
+  },
+  {
+    "timestamp": "20251128_163701_953586",
+    "datetime": "2025-11-28T16:37:01.963884",
+    "title": "*EURUSD*\nMensaje informativo. No hay nada importante detectado.\n",
+    "message": "━━━━━━━━━━━━━━━━━━━━━━\n🔹 Señal: NONE\n🔹 Fuente: IQ\n🔹 Patrón: SHOOTING_STAR\n🔹 Fecha: 2025-11-28 16:35:00\n➖ Sin agotamiento\n⚪ Sin ruptura de nivel\n🔹 Tendencia: STRONG_BEARISH\n🔹 Score: -7.0/10.0\n\n\n🔍 Mensaje de info\n❌ Cumple Tendencia alcista\n❌ Agotamiento Bollinger (NO)\n❌ Agotamiento de Vela (NO)\n\n━━━━━━━━━━━━━━━━━━━━━━\n",
+    "image_name": "chart_20251128_163701_953586.png"
+  },
+  {
+    "timestamp": "20251128_163702_192533",
+    "datetime": "2025-11-28T16:37:02.202573",
+    "title": "*NZDUSD*\nMensaje informativo. No hay nada importante detectado.\n",
+    "message": "━━━━━━━━━━━━━━━━━━━━━━\n🔹 Señal: NONE\n🔹 Fuente: IQ\n🔹 Patrón: SHOOTING_STAR\n🔹 Fecha: 2025-11-28 16:35:00\n➖ Sin agotamiento\n⚪ Sin ruptura de nivel\n🔹 Tendencia: WEAK_BEARISH\n🔹 Score: -2.0/10.0\n\n\n🔍 Mensaje de info\n❌ Cumple Tendencia alcista\n❌ Agotamiento Bollinger (NO)\n❌ Agotamiento de Vela (NO)\n\n━━━━━━━━━━━━━━━━━━━━━━\n",
+    "image_name": "chart_20251128_163702_192533.png"
   }
 ]
