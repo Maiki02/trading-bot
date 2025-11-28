@@ -554,40 +554,32 @@ class IqOptionServiceMultiAsync:
                     # para encontrar la primera vela con datos válidos.
                     
                     for candle in reversed(snapshot):
-                        bid = candle.get("bid")
-                        ask = candle.get("ask")
                         
-                        # Verificar si tiene datos de precio válidos
-                        if bid is not None and ask is not None:
-                            # ¡Encontrado!
-                            try:
-                                bid_val = float(bid)
-                                ask_val = float(ask)
-                                
-                                # Use 'close' as the authoritative MID price
-                                mid_val = float(candle.get("close", (bid_val + ask_val) / 2.0))
-                                
-                                # Actualizar fallback
-                                last_known_mid = mid_val
-                                
-                                # Crear TickData
-                                tick_to_process = TickData(
-                                    timestamp=float(candle.get("from", time.time())),
-                                    bid=bid_val,
-                                    ask=ask_val,
-                                    symbol=symbol,
-                                    custom_mid=mid_val  # Pass the explicit MID
+                        try:
+                            # Use 'close' as the authoritative MID price
+                            mid_val = float(candle.get("close"))
+                            
+                            # Actualizar fallback
+                            last_known_mid = mid_val
+                            
+                            # Crear TickData
+                            tick_to_process = TickData(
+                                timestamp=float(candle.get("from", time.time())),
+                                bid=mid_val,
+                                ask=mid_val,
+                                symbol=symbol,
+                                custom_mid=mid_val  # Pass the explicit MID
                                 )
-                                valid_tick_found = True
-                                break # Salir del loop apenas encontremos el dato más fresco
-                            except (ValueError, TypeError):
-                                continue
+                            valid_tick_found = True
+                            break # Salir del loop apenas encontremos el dato más fresco
+                        except (ValueError, TypeError):
+                            continue
                 
                 # 3. Manejo de Fallback (si no se encontró dato válido en el snapshot)
                 if not valid_tick_found:
                     if last_known_mid is not None:
                         # Usar último conocido para mantener el "latido"
-                        # logger.warning(f"⚠️ [POLL] {symbol} sin datos frescos. Usando fallback MID={last_known_mid:.5f}")
+                        logger.warning(f"⚠️ [POLL] {symbol} sin datos frescos. Usando fallback MID={last_known_mid:.5f}")
                         
                         # Estimamos un spread artificial pequeño para reconstruir bid/ask
                         # Esto es solo para mantener vivo el ticker, el precio importante es el MID
@@ -599,7 +591,7 @@ class IqOptionServiceMultiAsync:
                         )
                     else:
                         # Caso crítico: Arranque sin datos
-                        # logger.warning(f"⚠️ [POLL] {symbol} esperando primeros datos...")
+                        logger.warning(f"⚠️ [POLL] {symbol} esperando primeros datos...")
                         pass
 
                 # 4. Integración con el Ticker (Producer-Consumer)
