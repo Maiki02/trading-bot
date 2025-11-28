@@ -13,6 +13,7 @@ Author: TradingView Pattern Monitor Team
 """
 
 import asyncio
+import logging
 import signal
 import sys
 from typing import Optional
@@ -24,6 +25,7 @@ from src.services.storage_service import StorageService
 from src.logic import AnalysisService
 from src.utils.logger import get_logger, log_startup_banner, log_shutdown, log_critical_auth_failure
 
+import iqoptionapi.constants
 
 logger = get_logger(__name__)
 
@@ -193,6 +195,33 @@ class TradingBot:
             pass
 
 
+
+def inject_custom_actives():
+    """
+    Inyecta los activos personalizados definidos en Config dentro 
+    de las constantes de la librería iqoptionapi.
+    """
+    if not Config.CUSTOM_ACTIVES:
+        return
+
+    logger = logging.getLogger(__name__)
+    logger.info(f"💉 Inyectando {len(Config.CUSTOM_ACTIVES)} activos personalizados en la librería...")
+
+    count = 0
+    for item in Config.CUSTOM_ACTIVES:
+        key = item.get("key")
+        active_id = item.get("id")
+
+        if key and active_id:
+            # ACÁ OCURRE LA MAGIA: Modificamos la librería en memoria
+            iqoptionapi.constants.ACTIVES[key] = active_id
+            logger.debug(f"   + Activo inyectado: {key} -> {active_id}")
+            count += 1
+        else:
+            logger.warning(f"⚠️ Formato inválido en activo personalizado: {item}")
+
+    logger.info(f"✅ Se agregaron {count} nuevos activos a IQ Option API.")
+
 # =============================================================================
 # ENTRY POINT
 # =============================================================================
@@ -201,6 +230,10 @@ async def main() -> None:
     """
     Función principal asíncrona.
     """
+    # 1. EJECUTAR LA INYECCIÓN ANTES DE CUALQUIER CONEXIÓN
+    inject_custom_actives()
+
+    # 2. INICIAR EL BOT
     bot = TradingBot()
     
     try:

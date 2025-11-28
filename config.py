@@ -9,7 +9,7 @@ Author: TradingView Pattern Monitor Team
 
 import os
 import random
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Union
 from dataclasses import dataclass
 from dotenv import load_dotenv
 
@@ -168,8 +168,20 @@ class Config:
     """Clase Singleton para acceso global a la configuración."""
     
     # Versión del algoritmo de análisis (para tracking en raw_data)
-    ALGO_VERSION: str = "v4.2"
-    
+    ALGO_VERSION: str = "v5"
+
+    # -------------------------------------------------------------------------
+    # CUSTOM ACTIVES INJECTION
+    # -------------------------------------------------------------------------
+    # Lista de nuevos activos para inyectar en la librería iqoptionapi.
+    # Formato: {"key": "NOMBRE_ACTIVO", "id": ID_NUMERICO}
+    CUSTOM_ACTIVES: List[Dict[str, Union[str, int]]] = [
+        # Ejemplo:
+        # {"key": "BITCOIN_X100", "id": 12345},
+        # { "key": "EURUSD-BIN", "id": 1861},
+    ]
+
+
     # Payout de opciones binarias (ganancia neta si aciertas, en decimal)
     # Ejemplo: 0.86 = 86% de ganancia sobre la inversión
     BINARY_PAYOUT: float = 0.86
@@ -178,7 +190,7 @@ class Config:
     CANDLE = CandleConfig()
     
     # Data Provider Selection
-    DATA_PROVIDER: str = os.getenv("DATA_PROVIDER", "TRADINGVIEW").upper()  # "TRADINGVIEW" o "IQOPTION"
+    DATA_PROVIDER: str = os.getenv("DATA_PROVIDER", "IQOPTION").upper()  # "TRADINGVIEW" o "IQOPTION"
     
     SNAPSHOT_CANDLES: int = int(os.getenv("SNAPSHOT_CANDLES", "300"))
 
