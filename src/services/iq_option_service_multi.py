@@ -379,6 +379,17 @@ class IqOptionServiceMultiAsync:
         
         # Tracking por instrumento
         self.last_processed_timestamps: Dict[str, Optional[int]] = {}
+        
+        # Nuevas variables de rastreo de timestamps
+        self.last_candle_timestamps: Dict[str, int] = {}    # Última vela cerrada (usada en gráfico)
+        self.current_candle_timestamps: Dict[str, int] = {} # Vela generándose actualmente
+
+    def _update_candle_timestamps(self, symbol: str, closed_ts: int, generating_ts: int) -> None:
+        """
+        Actualiza los timestamps de seguimiento para un instrumento.
+        """
+        self.last_candle_timestamps[symbol] = closed_ts
+        self.current_candle_timestamps[symbol] = generating_ts
     
     async def start(self) -> None:
         """Inicia el servicio asíncrono."""
@@ -451,7 +462,8 @@ class IqOptionServiceMultiAsync:
     async def _load_all_historical_candles(self) -> None:
         """Carga velas históricas BID para todos los instrumentos."""
         min_candles = Config.EMA_PERIOD * 3
-        candles_to_request = min(min_candles + 50, 1000)
+        # Solicitamos +1 vela para tener margen de descartar la última (generándose)
+        candles_to_request = min(min_candles + 1, 1000)
         
         loop = asyncio.get_running_loop()
         
@@ -469,9 +481,41 @@ class IqOptionServiceMultiAsync:
                 )
                 
                 if historical_candles:
-                    # Guardar en estado del instrumento (BID)
+                    # ---------------------------------------------------------
+                    # MODIFICACIÓN: Separar última vela (generándose) de las históricas (cerradas)
+                    # ---------------------------------------------------------
+                    
+                    # La última vela de la lista es la que se está generando actualmente
+                    current_generating_candle = historical_candles[-1]
+                    
+                    # Las velas cerradas son todas menos la última
+                    closed_candles = historical_candles[:-1]
+                    
+                    if not closed_candles:
+                        logger.warning(f"⚠️ Pocas velas históricas para {symbol}, no se pudo separar cerrada/actual")
+                        continue
+
+                    # Guardar timestamps usando helper
+                    last_closed_candle = closed_candles[-1]
+                    self._update_candle_timestamps(
+                        symbol, 
+                        last_closed_candle.timestamp, 
+                        current_generating_candle.timestamp
+                    )
+                    
+                    # Imprimir Debug con horas legibles
+                    last_closed_time = datetime.fromtimestamp(last_closed_candle.timestamp).strftime('%Y-%m-%d %H:%M:%S')
+                    current_gen_time = datetime.fromtimestamp(current_generating_candle.timestamp).strftime('%Y-%m-%d %H:%M:%S')
+                    
+                    logger.info(
+                        f"⏱️ TIMESTAMPS INICIALES {symbol} | "
+                        f"Última Cerrada: {last_closed_time} ({last_closed_candle.timestamp}) | "
+                        f"Generando: {current_gen_time} ({current_generating_candle.timestamp})"
+                    )
+
+                    # Guardar en estado del instrumento (BID) - SOLO LAS CERRADAS
                     state = self.iq_service.instrument_states[symbol]
-                    for candle in historical_candles:
+                    for candle in closed_candles:
                         await state.add_bid_candle(candle)
                     
                     # ---------------------------------------------------------
@@ -480,7 +524,7 @@ class IqOptionServiceMultiAsync:
                     # ---------------------------------------------------------
                     from dataclasses import replace
                     mid_historical_candles = [
-                        replace(c, source="IQ") for c in historical_candles
+                        replace(c, source="IQ") for c in closed_candles
                     ]
                     
                     # 1. Llenar buffer MID en InstrumentState
@@ -493,7 +537,7 @@ class IqOptionServiceMultiAsync:
                         )
                     
                     logger.info(
-                        f"✅ {len(historical_candles)} velas cargadas (BID & MID) para {symbol}"
+                        f"✅ {len(closed_candles)} velas CERRADAS cargadas (BID & MID) para {symbol}"
                     )
                 
                 # Opcional: Generar gráfico histórico si está habilitado
@@ -526,113 +570,150 @@ class IqOptionServiceMultiAsync:
     async def _poll_instrument(self, symbol: str) -> None:
         """
         Loop de polling individual para un instrumento.
-        Implementa la estrategia de "Polling con Snapshot de Seguridad".
+        Implementa estrategia "Sleep & Burst":
+        1. Duerme hasta el segundo 59 del minuto actual.
+        2. Despierta y hace polling de alta frecuencia (0.1s) al buffer interno.
+        3. Detecta cambio de vela comparando con self.last_candle_timestamps.
         """
-        logger.info(f"📡 Iniciando polling loop para {symbol}...")
+        logger.info(f"📡 Iniciando polling loop INTELIGENTE para {symbol}...")
         
-        # Variable local para mantener el último precio conocido (fallback)
-        last_known_mid: Optional[float] = None
+        from datetime import datetime, timedelta
         
         while self._should_poll:
             try:
-                # 1. Obtener snapshot PEQUEÑO (solo 3 velas)
-                # No necesitamos 300 velas cada 0.5s
-                loop = asyncio.get_running_loop()
-                snapshot = await loop.run_in_executor(
-                    None,
-                    self.iq_service.get_latest_candles_snapshot,
-                    symbol,
-                    3
-                )
+                # ---------------------------------------------------------
+                # FASE 0: PRE-CHECK (Verificar si ya hay vela nueva antes de dormir)
+                # ---------------------------------------------------------
+                # Esto cubre el caso donde el proceso de arranque o el ciclo anterior
+                # tomaron tiempo y justo cruzamos la frontera del minuto.
+                await self._check_and_process_candle(symbol)
+
+                # ---------------------------------------------------------
+                # FASE 1: SLEEP (Dormir hasta el segundo 59.9)
+                # ---------------------------------------------------------
+                now = datetime.now()
+                # Objetivo: Segundo 59 del minuto actual
+                target_time = now.replace(second=59, microsecond=900000) # 59.9s
                 
-                valid_tick_found = False
-                tick_to_process: Optional[TickData] = None
+                if now > target_time:
+                    # Si ya pasamos el 59.9, apuntar al siguiente minuto
+                    target_time += timedelta(minutes=1)
                 
-                if snapshot:
-                    # 2. Algoritmo de Selección de Datos ("La Estrategia de 3 Velas")
-                    # Iterar en orden INVERSO (de la más nueva a la más vieja)
-                    # para encontrar la primera vela con datos válidos.
+                wait_seconds = (target_time - now).total_seconds()
+                
+                if wait_seconds > 0.1:
+                    # logger.debug(f"💤 {symbol} durmiendo {wait_seconds:.2f}s hasta burst...")
+                    await asyncio.sleep(wait_seconds)
+                
+                # ---------------------------------------------------------
+                # FASE 2: BURST (Polling de Alta Frecuencia)
+                # ---------------------------------------------------------
+                # logger.debug(f"⚡ {symbol} iniciando BURST polling...")
+                
+                candle_detected = False
+                burst_start = time.time()
+                
+                # Mantenemos el burst por un máximo de 5 segundos para seguridad
+                while self._should_poll and (time.time() - burst_start < 5.0):
                     
-                    for candle in reversed(snapshot):
-                        logger.debug(f" Candle: {candle} y Snapshot: {snapshot}")
-                        try:
-                            # Use 'close' as the authoritative MID price
-                            mid_val = float(candle.get("close"))
-                            
-                            # Actualizar fallback
-                            last_known_mid = mid_val
-                            
-                            # Crear TickData
-                            tick_to_process = TickData(
-                                timestamp=float(candle.get("from", time.time())),
-                                bid=mid_val,
-                                ask=mid_val,
-                                symbol=symbol,
-                                custom_mid=mid_val  # Pass the explicit MID
-                                )
-                            valid_tick_found = True
-                            break # Salir del loop apenas encontremos el dato más fresco
-                        except (ValueError, TypeError):
-                            continue
+                    if await self._check_and_process_candle(symbol):
+                        candle_detected = True
+                        break # Salir del burst, volver a dormir
+                    
+                    # Pequeña pausa en el burst para no saturar CPU (10ms - 100ms)
+                    await asyncio.sleep(0.1)
                 
-                # 3. Manejo de Fallback (si no se encontró dato válido en el snapshot)
-                if not valid_tick_found:
-                    if last_known_mid is not None:
-                        # Usar último conocido para mantener el "latido"
-                        logger.warning(f"⚠️ [POLL] {symbol} sin datos frescos. Usando fallback MID={last_known_mid:.5f}")
-                        
-                        # Estimamos un spread artificial pequeño para reconstruir bid/ask
-                        # Esto es solo para mantener vivo el ticker, el precio importante es el MID
-                        tick_to_process = TickData(
-                            timestamp=time.time(), # Timestamp actual
-                            bid=last_known_mid,
-                            ask=last_known_mid,
-                            symbol=symbol
-                        )
-                    else:
-                        # Caso crítico: Arranque sin datos
-                        logger.warning(f"⚠️ [POLL] {symbol} esperando primeros datos...")
-                        pass
+                if not candle_detected:
+                    pass
 
-                # 4. Integración con el Ticker (Producer-Consumer)
-                if tick_to_process:
-                    # Enviar al InstrumentState para procesamiento
-                    state = self.iq_service.instrument_states.get(symbol)
-                    if state:
-                        closed_candle = await state.process_tick(tick_to_process)
-                        
-                        # Si se cerró una vela y está habilitada la generación de gráficos
-                        if closed_candle:
-                            # ---------------------------------------------------------
-                            # PASO EXTRA: Sincronizar con datos oficiales de la API
-                            # Buscamos la vela correspondiente en el snapshot para corregir el cierre
-                            # ---------------------------------------------------------
-                            if snapshot:
-                                # Buscar vela con mismo timestamp
-                                # snapshot es lista de dicts. 'from' es el timestamp de inicio.
-                                target_ts = closed_candle.timestamp
-                                api_match = next((c for c in snapshot if int(c.get("from", 0)) == target_ts), None)
-                                
-                                if api_match:
-                                    # Actualizar estado
-                                    updated_candle = await state.update_last_candle_from_api(api_match)
-                                    if updated_candle:
-                                        # logger.info(f"🔄 Vela corregida con API: Close {closed_candle.close} -> {updated_candle.close}")
-                                        closed_candle = updated_candle
-
-                            # 1. Enviar a Analysis Service (CRÍTICO)
-                            if self.analysis_service:
-                                await self.analysis_service.process_realtime_candle(closed_candle)
-
-                # Esperar antes del siguiente poll
-                await asyncio.sleep(self._poll_interval)
-                
             except asyncio.CancelledError:
                 logger.info(f"🛑 Polling cancelado para {symbol}")
                 break
             except Exception as e:
-                logger.error(f"❌ Error en polling loop de {symbol}: {e}")
+                logger.error(f"❌ Error en polling loop de {symbol}: {e}", exc_info=True)
                 await asyncio.sleep(1.0)
+
+    async def _check_and_process_candle(self, symbol: str) -> bool:
+        """
+        Verifica si hay una nueva vela cerrada en el buffer y la procesa.
+        Retorna True si se detectó y procesó una nueva vela.
+        """
+        try:
+            loop = asyncio.get_running_loop()
+            snapshot = await loop.run_in_executor(
+                None,
+                self.iq_service.get_latest_candles_snapshot,
+                symbol,
+                3 # Solo necesitamos las últimas 3 para ver el cambio
+            )
+            
+            if snapshot and len(snapshot) >= 2:
+                # La estructura del snapshot es cronológica: [..., antepenultima, penultima, ultima]
+                # La "última" (índice -1) es la que se está generando (current)
+                # La "penúltima" (índice -2) es la candidata a ser la nueva vela cerrada
+                
+                candidate_closed_candle = snapshot[-2]
+                candidate_ts = int(candidate_closed_candle.get("from", 0))
+                
+                last_stored_ts = self.last_candle_timestamps.get(symbol, 0)
+                
+                # Si el timestamp de la candidata es MAYOR que el último almacenado,
+                # significa que se ha cerrado una nueva vela.
+                if candidate_ts > last_stored_ts:
+                    logger.info(f"🕯️ NUEVA VELA DETECTADA {symbol} | TS: {candidate_ts} (Anterior: {last_stored_ts})")
+                    
+                    # Procesar la nueva vela cerrada
+                    await self._process_new_candle(symbol, candidate_closed_candle, snapshot[-1])
+                    return True
+            
+            return False
+            
+        except Exception as e:
+            logger.error(f"❌ Error en check_and_process_candle {symbol}: {e}")
+            return False
+
+    async def _process_new_candle(self, symbol: str, closed_candle_dict: Dict, new_generating_candle_dict: Dict) -> None:
+        """
+        Procesa una nueva vela cerrada detectada durante el polling.
+        """
+        try:
+            # 1. Actualizar Timestamps
+            closed_ts = int(closed_candle_dict.get("from", 0))
+            generating_ts = int(new_generating_candle_dict.get("from", 0))
+            
+            # 1. Actualizar Timestamps
+            closed_ts = int(closed_candle_dict.get("from", 0))
+            generating_ts = int(new_generating_candle_dict.get("from", 0))
+            
+            self._update_candle_timestamps(symbol, closed_ts, generating_ts)
+            
+            # 2. Mapear a objeto CandleData
+            # Usamos el helper del servicio síncrono
+            closed_candle = self.iq_service._map_realtime_candle(closed_candle_dict, symbol)
+            
+            if closed_candle:
+                # 3. Actualizar Estado (InstrumentState)
+                state = self.iq_service.instrument_states.get(symbol)
+                if state:
+                    # Añadir a buffers (BID y MID)
+                    # Nota: Al venir de IQ, es data BID. Asumimos MID = BID para el cierre histórico
+                    await state.add_bid_candle(closed_candle)
+                    
+                    # Para el buffer MID, lo añadimos directamente
+                    # (En un futuro podríamos refinar esto si tuviéramos ticks reales de cierre)
+                    async with state.lock:
+                        state.mid_candles.append(closed_candle)
+                
+                # 4. Enviar a Analysis Service
+                if self.analysis_service:
+                    await self.analysis_service.process_realtime_candle(closed_candle)
+                    
+                # Log de confirmación
+                closed_time_str = datetime.fromtimestamp(closed_ts).strftime('%H:%M:%S')
+                logger.info(f"✅ Vela procesada {symbol} @ {closed_time_str} | Close: {closed_candle.close}")
+                
+        except Exception as e:
+            logger.error(f"❌ Error procesando nueva vela {symbol}: {e}", exc_info=True)
 
 
 def create_iq_option_service_multi_async(
