@@ -8,7 +8,7 @@ Sistema de puntuación y clasificación de señales basado en la combinación de
 4. **Tendencia**: 5 estados basados en **scoring ponderado de EMAs**
 
 **Fecha de Implementación:** 24 de Noviembre de 2025  
-**Versión:** v4.1 - Sistema Matricial con Puntuación Ponderada
+**Versión:** v5 - Sistema Matricial con Puntuación Ponderada
 
 ---
 

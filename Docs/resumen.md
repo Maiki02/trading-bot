@@ -21,7 +21,7 @@ Ver documentación completa en: `Docs/sistema_probabilidad_historica.md`
 **Funcionalidad:** Sistema de **Clasificación de Fuerza de Señal** basado en **Bollinger Bands** para filtrar señales de alta calidad.
 
 **Cambios principales:**
-- ✅ **Bollinger Bands (BB_PERIOD=20, BB_STD_DEV=2.5)** - Detección de agotamiento de tendencia
+- ✅ **Bollinger Bands (BB_PERIOD=20, BB_STD_DEV=2.0)** - Detección de agotamiento de tendencia
 - ✅ **Signal Strength Classification** - HIGH (🚨), MEDIUM (⚠️), LOW (ℹ️)
 - ✅ **Exhaustion Type Detection** - PEAK (Cúspide), BOTTOM (Base), NONE (Zona Neutra)
 - ✅ **Counter-Trend Filtering** - Patrones contra-tendencia clasificados como LOW
@@ -318,88 +318,40 @@ Sistema más agresivo que notifica CUALQUIER patrón detectado sin importar la t
 
 **📅 ÚLTIMA ACTUALIZACIÓN: 22/Nov/2025** - Sistema optimizado para opciones binarias con énfasis en momentum de corto plazo.
 
-### 4.1. Sistema de Momentum Scoring (Análisis de Tendencia)
+### 4.1. Sistema de Puntuación Ponderada (Análisis de Tendencia)
 
-El sistema utiliza un **algoritmo de scoring ponderado optimizado para OPCIONES BINARIAS (1 minuto)** que evalúa la relación entre el precio y EMAs, priorizando el momentum de corto plazo sobre la tendencia macro.
+El sistema utiliza un **algoritmo de scoring ponderado con 7 EMAs** optimizado para opciones binarias en velas de 1 minuto.
 
-**Filosofía:** En temporalidades de 1 minuto, el momentum inmediato (EMA 20) es 4x más importante que la tendencia macro (EMA 200). Se permite operar contra-tendencia si hay fuerza de corto plazo.
+**Filosofía:** Gradualidad y precisión. Cada EMA contribuye con un peso específico al score total (-10.0 a +10.0).
 
-#### EMAs Calculadas
+#### EMAs y Pesos
 
-| EMA | Período | Velas Mínimas | Propósito | Uso en Score |
-|-----|---------|---------------|-----------|--------------|
-| EMA 20 | 20 min | 20 | Momentum inmediato (CRÍTICO) | ✓ Reglas 1 y 2 (±7 pts) |
-| EMA 30 | 30 min | 30 | Visualización | ✗ Solo visualización |
-| EMA 50 | 50 min | 50 | Zona de valor / Soporte dinámico | ✓ Reglas 2 y 3 |
-| EMA 100 | 100 min | 100 | Visualización | ✗ Solo visualización |
-| EMA 200 | 200 min | 600* | Contexto macro | ✓ Regla 4 (peso reducido) |
+| EMA | Peso | Velocidad | Uso Principal |
+|-----|------|-----------|---------------|
+| **EMA 5** | 2.5 pts | Ultra rápida | Detección inmediata de reversiones |
+| **EMA 7** | 2.0 pts | Muy rápida | Señales inmediatas y sobre-extensión |
+| **EMA 10** | 1.5 pts | Rápida | Confirmación de momentum ultra corto |
+| **EMA 15** | 1.5 pts | Rápida-Media | Transición de momentum |
+| **EMA 20** | 1.0 pt | Media | Confirmación de momentum |
+| **EMA 30** | 1.0 pt | Media-Lenta | Contexto de tendencia |
+| **EMA 50** | 0.5 pt | Lenta | Validación de tendencia establecida |
 
-*EMA 200 requiere 3x el período (600 velas) para convergencia adecuada.
-
-**Cálculo Condicional:** Si no hay suficientes velas históricas, la EMA se marca como `NaN` y no participa en el scoring.
-
-#### Algoritmo de Scoring (4 Reglas Ponderadas - Optimizado para Opciones Binarias)
-
-**Función:** `analyze_trend(close, emas)` en `src/logic/analysis_service.py`
-
-**Rango del Score:** -10 a +10 puntos
-
-**Filosofía:** Sistema optimizado para **OPCIONES BINARIAS (1 minuto)** donde el momentum de corto plazo es CRÍTICO. Los pesos priorizan las EMAs más cercanas al precio, permitiendo operar contra-tendencia macro si hay momentum fuerte.
-
-**Reglas (Ordenadas por Prioridad):**
-
-1. **Precio vs EMA 20 (Momentum Inmediato)** - Peso: ±4 puntos (🔴 CRÍTICO)
-   - Si `close > ema_20`: +4 (fuerza alcista inmediata)
-   - Si `close < ema_20`: -4 (fuerza bajista inmediata)
-   - Justificación: En 1 minuto, indica la dirección ACTUAL del flujo de órdenes. Es 4x más importante que la tendencia macro.
-
-2. **EMA 20 vs EMA 50 (Dirección del Flujo)** - Peso: ±3 puntos (🔴 CRÍTICO)
-   - Si `ema_20 > ema_50`: +3 (cruce alcista confirmado)
-   - Si `ema_20 < ema_50`: -3 (cruce bajista confirmado)
-   - Justificación: Confirma que el momentum no es solo un spike temporal, sino una tendencia de corto plazo establecida.
-
-3. **Precio vs EMA 50 (Zona de Valor)** - Peso: ±2 puntos (🟡 MEDIO)
-   - Si `close > ema_50`: +2 (soporte dinámico alcista)
-   - Si `close < ema_50`: -2 (resistencia dinámica bajista)
-   - Justificación: Indica si el precio está en zona "cara" o "barata" a mediano plazo.
-
-4. **Precio vs EMA 200 (Filtro Macro)** - Peso: ±1 punto (🟢 BAJO)
-   - Si `close > ema_200`: +1 (macro alcista)
-   - Si `close < ema_200`: -1 (macro bajista)
-   - Justificación: Solo contexto general. NO penaliza fuertemente operar contra-tendencia macro si hay momentum de corto plazo.
-
-**⚠️ Cambio Clave vs Versión Anterior:**
-- **EMA 20:** Aumentó de ±2 pts a **±4 pts** (prioridad máxima)
-- **EMA 20 vs EMA 50:** Aumentó de ±1 pt a **±3 pts** (confirmación crítica)
-- **EMA 200:** Disminuyó de ±3 pts a **±1 pt** (solo contexto)
-- **EMA 100:** Eliminada del scoring (solo visualización)
-
-**Ejemplo:** Score +7 sin EMA 200 favorable es válido para entrar:
-- Precio > EMA 20: +4
-- EMA 20 > EMA 50: +3
-- Total: +7 = STRONG_BULLISH (operar contra macro está permitido)
+**Total Máximo:** 10.0 Puntos
 
 #### Clasificación del Score
 
-| Score Range | Status | Interpretación Español |
-|------------|--------|------------------------|
-| ≥ 6 | `STRONG_BULLISH` | Momentum alcista muy fuerte |
-| 2 a 5 | `WEAK_BULLISH` | Momentum alcista débil |
-| -1 a 1 | `NEUTRAL` | Rango o indecisión |
-| -5 a -2 | `WEAK_BEARISH` | Momentum bajista débil |
-| ≤ -6 | `STRONG_BEARISH` | Momentum bajista muy fuerte |
+| Score Range | Estado | Descripción |
+|-------------|--------|-------------|
+| **[6.0 a 10.0]** | `STRONG_BULLISH` | Alcista fuerte |
+| **[2.0 a 6.0)** | `WEAK_BULLISH` | Alcista débil |
+| **(-2.0 a 2.0)** | `NEUTRAL` | Sin tendencia clara |
+| **(-6.0 a -2.0]** | `WEAK_BEARISH` | Bajista débil |
+| **[-10.0 a -6.0]** | `STRONG_BEARISH` | Bajista fuerte |
 
-**Nota:** Las interpretaciones ahora reflejan "momentum" en vez de "tendencia" para enfatizar el enfoque de corto plazo.
+**Detección de Alineación (Fanning):**
+- `is_aligned = True` solo si las EMAs están ordenadas perfectamente (ej: P > 5 > 7 > 10 > 20 > 50).
 
-#### Detección de Alineación
-
-**Alineación Alcista Perfecta:** `EMA20 > EMA50 > EMA200`
-
-**Alineación Bajista Perfecta:** `EMA20 < EMA50 < EMA200`
-
-**Campo `is_aligned`:** `True` solo si se cumple una de las dos condiciones exactas.
-
-**Objeto Retornado:** `TrendAnalysis(status: str, score: int, is_aligned: bool)`
+Ver `Docs/tendencia.md` para detalles completos.
 
 ### 4.2. Detección de Patrones de Velas Japonesas
 

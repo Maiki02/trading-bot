@@ -2721,5 +2721,33 @@
     "title": "*EURUSD*\nMensaje informativo. No hay nada importante detectado.\n",
     "message": "━━━━━━━━━━━━━━━━━━━━━━\n🔹 Señal: NONE\n🔹 Patrón: SHOOTING_STAR\n🔹 Fecha: 2025-12-01 12:36:00\n🔹 Tendencia: STRONG_BEARISH\n🔹 Score: -10.0/10.0\n\n\n🔍 Mensaje de info\n❌ Cumple Tendencia alcista\n❌ Agotamiento Bollinger (NONE)\n✅ Agotamiento de Vela (rompió nivel anterior)\n\n",
     "image_name": "chart_20251201_123601_466888.png"
+  },
+  {
+    "timestamp": "20251201_131700_548745",
+    "datetime": "2025-12-01T13:17:00.560886",
+    "title": "ℹ️ *GBPUSD* ℹ️\n🟢 Posible operación al ALZA.\nFalta confirmación de agotamiento.\nProbabilidad baja.",
+    "message": "━━━━━━━━━━━━━━━━━━━━━━\n🔹 Señal: LOW\n🔹 Patrón: HAMMER\n🔹 Fecha: 2025-12-01 13:16:00\n🔹 Tendencia: STRONG_BEARISH\n🔹 Score: -10.0/10.0\n\n\n🔍 Mensaje de info\n✅ Cumple Tendencia Bajista\n❌ Agotamiento Bollinger (NONE)\n✅ Agotamiento de Vela (rompió nivel anterior)\n\n",
+    "image_name": "chart_20251201_131700_548745.png"
+  },
+  {
+    "timestamp": "20251201_132300_516809",
+    "datetime": "2025-12-01T13:23:00.551320",
+    "title": "*NZDUSD*\nMensaje informativo. No hay nada importante detectado.\n",
+    "message": "━━━━━━━━━━━━━━━━━━━━━━\n🔹 Señal: NONE\n🔹 Patrón: HAMMER\n🔹 Fecha: 2025-12-01 13:22:00\n🔹 Tendencia: WEAK_BULLISH\n🔹 Score: +2.0/10.0\n\n\n🔍 Mensaje de info\n❌ Cumple Tendencia bajista\n❌ Agotamiento Bollinger (NONE)\n❌ Agotamiento de Vela (NO)\n\n",
+    "image_name": "chart_20251201_132300_516809.png"
+  },
+  {
+    "timestamp": "20251201_132501_895358",
+    "datetime": "2025-12-01T13:25:01.919774",
+    "title": "*NZDUSD*\nMensaje informativo. No hay nada importante detectado.\n",
+    "message": "━━━━━━━━━━━━━━━━━━━━━━\n🔹 Señal: NONE\n🔹 Patrón: INVERTED_HAMMER\n🔹 Fecha: 2025-12-01 13:24:00\n🔹 Tendencia: STRONG_BEARISH\n🔹 Score: -10.0/10.0\n\n\n🔍 Mensaje de info\n❌ Cumple Tendencia alcista\n❌ Agotamiento Bollinger (NONE)\n❌ Agotamiento de Vela (NO)\n\n",
+    "image_name": "chart_20251201_132501_895358.png"
+  },
+  {
+    "timestamp": "20251201_132901_361451",
+    "datetime": "2025-12-01T13:29:01.394123",
+    "title": "*NZDUSD*\nMensaje informativo. No hay nada importante detectado.\n",
+    "message": "━━━━━━━━━━━━━━━━━━━━━━\n🔹 Señal: NONE\n🔹 Patrón: SHOOTING_STAR\n🔹 Fecha: 2025-12-01 13:29:00\n🔹 Tendencia: STRONG_BEARISH\n🔹 Score: -10.0/10.0\n\n\n🔍 Mensaje de info\n❌ Cumple Tendencia alcista\n❌ Agotamiento Bollinger (NONE)\n✅ Agotamiento de Vela (rompió nivel anterior)\n\n",
+    "image_name": "chart_20251201_132901_361451.png"
   }
 ]

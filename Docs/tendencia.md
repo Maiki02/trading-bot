@@ -4,7 +4,7 @@
 Sistema de clasificación de tendencia basado en **puntuación ponderada** donde cada EMA contribuye con un peso específico al score total. Optimizado para operaciones en velas de 1 minuto (M1) en opciones binarias.
 
 **Fecha de Implementación:** 24 de Noviembre de 2025  
-**Versión:** v4.1 - Sistema de Puntuación Ponderada
+**Versión:** v5 - Sistema de Puntuación Ponderada
 
 ---
 

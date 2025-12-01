@@ -270,28 +270,28 @@ Cada patrón evalúa condiciones adicionales que otorgan +0.10 de confianza:
 
 ---
 
-## 6. Filtrado por Tendencia (EMA 200)
+## 6. Filtrado por Tendencia (Weighted Score)
 
-La detección de patrones en `AnalysisService` aplica filtrado por tendencia:
+La detección de patrones en `AnalysisService` aplica filtrado por tendencia utilizando el **Sistema de Puntuación Ponderada** (ver `Docs/tendencia.md`):
 
-### Tendencia Alcista (Close > EMA 200)
-- **Busca reversión bajista**: Shooting Star, Hanging Man
+### Lógica de Alineación
 
-### Tendencia Bajista (Close < EMA 200)
-- **Busca reversión alcista**: Hammer, Inverted Hammer
+El sistema determina si el patrón está alineado con la tendencia actual (`trend_analysis.status`):
 
-### Fórmula de Tendencia
+- **Tendencia Alcista** (`STRONG_BULLISH` o `WEAK_BULLISH`):
+  - Busca patrones de reversión bajista: **Shooting Star**, **Hanging Man**.
+  
+- **Tendencia Bajista** (`STRONG_BEARISH` o `WEAK_BEARISH`):
+  - Busca patrones de reversión alcista: **Hammer**, **Inverted Hammer**.
 
-```python
-threshold = 0.0001  # Tolerancia para evitar falsos neutrales
+- **Tendencia Neutral** (`NEUTRAL`):
+  - Degrada la fuerza de la señal (ej: HIGH → MEDIUM).
 
-if Close < EMA_200 - threshold:
-    Trend = "BEARISH"
-elif Close > EMA_200 + threshold:
-    Trend = "BULLISH"
-else:
-    Trend = "NEUTRAL"
-```
+### Configuración
+
+El filtrado se controla mediante la variable `USE_TREND_FILTER` en `config.py`:
+- `True`: Solo notifica patrones alineados con la tendencia.
+- `False`: Notifica cualquier patrón detectado (útil para estrategias agresivas o contra-tendencia).
 
 ---
 
