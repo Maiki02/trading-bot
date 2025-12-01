@@ -1603,7 +1603,8 @@ class AnalysisService:
                 generate_chart_base64,
                 df,
                 self.chart_lookback,
-                chart_title
+                chart_title,
+                show_emas=True
             )
             
             # Guardar en archivo
@@ -1622,13 +1623,58 @@ class AnalysisService:
             
         except Exception as e:
             log_exception(logger, "Error generando gráfico en tiempo real", e)
-    
+
+    async def generate_initial_chart(self, source_key: str, last_candle: CandleData) -> None:
+        """
+        Genera el gráfico inicial (snapshot) después de cargar históricos.
+        Se guarda como 'boot_snapshot.png'.
+        
+        Args:
+            source_key: Clave de la fuente
+            last_candle: Última vela cerrada (para referencia en título)
+        """
+        if not Config.GENERATE_HISTORICAL_CHARTS:
+            return
+
+        try:
+            from pathlib import Path
+            import base64
+            from src.utils.charting import generate_chart_base64
+            
+            df = self.dataframes.get(source_key)
+            if df is None or len(df) < 10:
+                logger.warning(f"⚠️ No hay suficientes datos para gráfico inicial de {source_key}")
+                return
+            
+            # Generar gráfico
+            chart_title = f"{last_candle.source}:{last_candle.symbol} - Initial Snapshot"
+            chart_base64 = await asyncio.to_thread(
+                generate_chart_base64,
+                df,
+                self.chart_lookback,
+                chart_title,
+                show_emas=False
+            )
+            
+            # Guardar en archivo
+            chart_dir = Path("data") / "charts" / last_candle.symbol
+            chart_dir.mkdir(parents=True, exist_ok=True)
+            
+            chart_path = chart_dir / "boot_snapshot.png"
+            
+            with open(chart_path, "wb") as f:
+                f.write(base64.b64decode(chart_base64))
+            
+            logger.info(f"📊 Gráfico inicial guardado: {chart_path}")
+            
+        except Exception as e:
+            logger.error(f"❌ Error generando gráfico inicial para {source_key}: {e}")
+
     async def _save_detected_candle_to_test_data(
         self,
         apertura: float,
         maximo: float,
         minimo: float,
-        cierre: float,
         pattern: str
     ) -> None:
         """

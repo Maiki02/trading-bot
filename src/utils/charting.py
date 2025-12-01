@@ -31,7 +31,8 @@ from matplotlib.lines import Line2D
 def generate_chart_base64(
     dataframe: pd.DataFrame,
     lookback: int,
-    title: str = "Price Chart"
+    title: str = "Price Chart",
+    show_emas: bool = True
 ) -> str:
     """
     Genera un gráfico de velas japonesas y lo retorna en Base64.
@@ -43,6 +44,7 @@ def generate_chart_base64(
         dataframe: DataFrame con columnas ['timestamp', 'open', 'high', 'low', 'close', 'volume', 'ema_200']
         lookback: Número de velas hacia atrás a mostrar
         title: Título del gráfico
+        show_emas: Si es True, muestra las EMAs. Si es False, solo precio y volumen.
         
     Returns:
         str: Imagen del gráfico codificada en Base64
@@ -75,100 +77,120 @@ def generate_chart_base64(
     df_plot = df_subset[['open', 'high', 'low', 'close', 'volume']].copy()
     df_plot.columns = ['Open', 'High', 'Low', 'Close', 'Volume']
     
-    # Preparar EMAs como additional plots
-    # Sistema de Puntuación Ponderada - Todas las EMAs con colores únicos
+    # Preparar plots adicionales (EMAs y Dojis)
     additional_plots = []
     
-    # EMA 5 - Ultra Rápida (Peso: 2.0) - Rojo brillante
-    if 'ema_5' in df_subset.columns and not df_subset['ema_5'].isna().all():
-        ema_5_data = df_subset['ema_5'].copy()
-        ema_5_plot = mpf.make_addplot(
-            ema_5_data,
-            color='#FF0000',  # Rojo brillante
-            width=3.0,
-            panel=0,
-            secondary_y=False,
-            label='EMA 5 (2.0pts)'
-        )
-        additional_plots.append(ema_5_plot)
+    # -------------------------------------------------------------------------
+    # 1. DOJI COLORING (Gray Overlay) & MARKET COLORS
+    # -------------------------------------------------------------------------
+    # Definición de Doji: Precio de apertura IGUAL al de cierre (Strict Doji)
+    # Usamos marketcolor_overrides para pintar cada vela individualmente
     
-    # EMA 7 - Muy Rápida (Peso: 2.0) - Magenta
-    if 'ema_7' in df_subset.columns and not df_subset['ema_7'].isna().all():
-        ema_7_data = df_subset['ema_7'].copy()
-        ema_7_plot = mpf.make_addplot(
-            ema_7_data,
-            color='#FF00FF',  # Magenta brillante
-            width=2.8,
-            panel=0,
-            secondary_y=False,
-            label='EMA 7 (2.0pts)'
-        )
-        additional_plots.append(ema_7_plot)
-    
-    # EMA 10 - Rápida (Peso: 1.5) - Naranja
-    if 'ema_10' in df_subset.columns and not df_subset['ema_10'].isna().all():
-        ema_10_data = df_subset['ema_10'].copy()
-        ema_10_plot = mpf.make_addplot(
-            ema_10_data,
-            color='#FF8000',  # Naranja
-            width=2.5,
-            panel=0,
-            secondary_y=False,
-            label='EMA 10 (1.5pts)'
-        )
-        additional_plots.append(ema_10_plot)
-    
-    # EMA 15 - Rápida-Media (Peso: 1.5) - Amarillo
-    if 'ema_15' in df_subset.columns and not df_subset['ema_15'].isna().all():
-        ema_15_data = df_subset['ema_15'].copy()
-        ema_15_plot = mpf.make_addplot(
-            ema_15_data,
-            color='#FFD700',  # Amarillo dorado
-            width=2.2,
-            panel=0,
-            secondary_y=False,
-            label='EMA 15 (1.5pts)'
-        )
-        additional_plots.append(ema_15_plot)
-    
-    # EMA 20 - Media (Peso: 1.0) - Verde Lima
-    if 'ema_20' in df_subset.columns and not df_subset['ema_20'].isna().all():
-        ema_20_data = df_subset['ema_20'].copy()
-        ema_20_plot = mpf.make_addplot(
-            ema_20_data,
-            color='#00FF00',  # Verde lima
-            width=2.0,
-            panel=0,
-            secondary_y=False,
-            label='EMA 20 (1.0pt)'
-        )
-        additional_plots.append(ema_20_plot)
-    
-    # EMA 30 - Media-Lenta (Peso: 1.0) - Cyan
-    if 'ema_30' in df_subset.columns and not df_subset['ema_30'].isna().all():
-        ema_30_data = df_subset['ema_30'].copy()
-        ema_30_plot = mpf.make_addplot(
-            ema_30_data,
-            color='#00FFFF',  # Cyan
-            width=1.8,
-            panel=0,
-            secondary_y=False,
-            label='EMA 30 (1.0pt)'
-        )
-        additional_plots.append(ema_30_plot)
-    
-    # EMA 50 - Lenta (Peso: 1.0) - Azul
-    if 'ema_50' in df_subset.columns and not df_subset['ema_50'].isna().all():
-        ema_50_data = df_subset['ema_50'].copy()
-        ema_50_plot = mpf.make_addplot(
-            ema_50_data,
-            color='#0080FF',  # Azul brillante
-            width=1.5,
-            panel=0,
-            secondary_y=False,
-            label='EMA 50 (1.0pt)'
-        )
-        additional_plots.append(ema_50_plot)
+    colors = []
+    for index, row in df_plot.iterrows():
+        if row['Open'] == row['Close']:
+            colors.append('#808080')  # Gris (Doji Estricto)
+        elif row['Close'] > row['Open']:
+            colors.append('#00FF00')  # Verde (Alcista)
+        else:
+            colors.append('#FF0000')  # Rojo (Bajista)
+
+    # -------------------------------------------------------------------------
+    # 2. EMAs (Solo si show_emas=True)
+    # -------------------------------------------------------------------------
+    if show_emas:
+        # Sistema de Puntuación Ponderada - Todas las EMAs con colores únicos
+        
+        # EMA 5 - Ultra Rápida (Peso: 2.0) - Rojo brillante
+        if 'ema_5' in df_subset.columns and not df_subset['ema_5'].isna().all():
+            ema_5_data = df_subset['ema_5'].copy()
+            ema_5_plot = mpf.make_addplot(
+                ema_5_data,
+                color='#FF0000',  # Rojo brillante
+                width=3.0,
+                panel=0,
+                secondary_y=False,
+                label='EMA 5 (2.0pts)'
+            )
+            additional_plots.append(ema_5_plot)
+        
+        # EMA 7 - Muy Rápida (Peso: 2.0) - Magenta
+        if 'ema_7' in df_subset.columns and not df_subset['ema_7'].isna().all():
+            ema_7_data = df_subset['ema_7'].copy()
+            ema_7_plot = mpf.make_addplot(
+                ema_7_data,
+                color='#FF00FF',  # Magenta brillante
+                width=2.8,
+                panel=0,
+                secondary_y=False,
+                label='EMA 7 (2.0pts)'
+            )
+            additional_plots.append(ema_7_plot)
+        
+        # EMA 10 - Rápida (Peso: 1.5) - Naranja
+        if 'ema_10' in df_subset.columns and not df_subset['ema_10'].isna().all():
+            ema_10_data = df_subset['ema_10'].copy()
+            ema_10_plot = mpf.make_addplot(
+                ema_10_data,
+                color='#FF8000',  # Naranja
+                width=2.5,
+                panel=0,
+                secondary_y=False,
+                label='EMA 10 (1.5pts)'
+            )
+            additional_plots.append(ema_10_plot)
+        
+        # EMA 15 - Rápida-Media (Peso: 1.5) - Amarillo
+        if 'ema_15' in df_subset.columns and not df_subset['ema_15'].isna().all():
+            ema_15_data = df_subset['ema_15'].copy()
+            ema_15_plot = mpf.make_addplot(
+                ema_15_data,
+                color='#FFD700',  # Amarillo dorado
+                width=2.2,
+                panel=0,
+                secondary_y=False,
+                label='EMA 15 (1.5pts)'
+            )
+            additional_plots.append(ema_15_plot)
+        
+        # EMA 20 - Media (Peso: 1.0) - Verde Lima
+        if 'ema_20' in df_subset.columns and not df_subset['ema_20'].isna().all():
+            ema_20_data = df_subset['ema_20'].copy()
+            ema_20_plot = mpf.make_addplot(
+                ema_20_data,
+                color='#00FF00',  # Verde lima
+                width=2.0,
+                panel=0,
+                secondary_y=False,
+                label='EMA 20 (1.0pt)'
+            )
+            additional_plots.append(ema_20_plot)
+        
+        # EMA 30 - Media-Lenta (Peso: 1.0) - Cyan
+        if 'ema_30' in df_subset.columns and not df_subset['ema_30'].isna().all():
+            ema_30_data = df_subset['ema_30'].copy()
+            ema_30_plot = mpf.make_addplot(
+                ema_30_data,
+                color='#00FFFF',  # Cyan
+                width=1.8,
+                panel=0,
+                secondary_y=False,
+                label='EMA 30 (1.0pt)'
+            )
+            additional_plots.append(ema_30_plot)
+        
+        # EMA 50 - Lenta (Peso: 1.0) - Azul
+        if 'ema_50' in df_subset.columns and not df_subset['ema_50'].isna().all():
+            ema_50_data = df_subset['ema_50'].copy()
+            ema_50_plot = mpf.make_addplot(
+                ema_50_data,
+                color='#0080FF',  # Azul brillante
+                width=1.5,
+                panel=0,
+                secondary_y=False,
+                label='EMA 50 (1.0pt)'
+            )
+            additional_plots.append(ema_50_plot)
     
     # Configurar estilo del gráfico
     # Colores: Velas alcistas (verdes), velas bajistas (rojas)
@@ -218,6 +240,7 @@ def generate_chart_base64(
             'ylabel_lower': 'Volume',
             'volume': True,
             'returnfig': True,
+            'marketcolor_overrides': colors, # ← APLICAR COLORES PERSONALIZADOS
             **fig_config
         }
         

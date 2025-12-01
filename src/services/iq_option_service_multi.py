@@ -435,8 +435,14 @@ class IqOptionServiceMultiAsync:
             return
         
         logger.debug("Conectado a IQ Option...")
+        
+        # 1. Cargar datos históricos para cada instrumento (ANTES de iniciar polling)
+        # Esto asegura que los buffers estén llenos y listos para procesar nuevas velas
+        await self._load_all_historical_candles()
+        
+        logger.debug("Datos históricos cargados...")
                 
-        # Iniciar polling para cada instrumento (ANTES de cargar históricos para evitar bloqueos)
+        # 2. Iniciar polling para cada instrumento
         self._should_poll = True
         for symbol in Config.TARGET_ASSETS:
             task = asyncio.create_task(self._poll_instrument(symbol))
@@ -449,11 +455,6 @@ class IqOptionServiceMultiAsync:
             f"Monitoreando {len(Config.TARGET_ASSETS)} instrumentos | "
             f"Tareas de polling: {len(self.poll_tasks)}"
         )
-
-        # Cargar datos históricos para cada instrumento
-        await self._load_all_historical_candles()
-        
-        logger.debug("Datos históricos cargados...")
         
         # CRÍTICO: Esperar a que las tareas de polling terminen (mantiene el programa vivo)
         try:
@@ -481,67 +482,76 @@ class IqOptionServiceMultiAsync:
             await loop.run_in_executor(None, self.iq_service.disconnect)
     
     async def _load_all_historical_candles(self) -> None:
-        """Carga velas históricas BID para todos los instrumentos."""
-        min_candles = Config.EMA_PERIOD * 3
-        # Solicitamos +1 vela para tener margen de descartar la última (generándose)
-        candles_to_request = min(min_candles + 1, 1000)
+        """
+        Carga velas históricas para inicializar los buffers.
+        Estrategia: Solicitar (EMA * 3) + 1, descartar la última y cargar el resto.
+        """
+        # 1. Definir cantidad exacta: EMA * 3 + 1 (para descartar la actual)
+        min_candles_required = Config.EMA_PERIOD * 3
+        count_to_request = min_candles_required + 1
         
         loop = asyncio.get_running_loop()
         
+        logger.info(f"⚡ INICIALIZACIÓN: Solicitando {count_to_request} velas por activo...")
+        
         for symbol in Config.TARGET_ASSETS:
             try:
-                logger.info(
-                    f"📥 Cargando {candles_to_request} velas BID para {symbol}..."
-                )
-                
+                # Solicitar datos a la API (Blocking call run in executor)
                 historical_candles = await loop.run_in_executor(
                     None,
                     self.iq_service.get_historical_candles,
                     symbol,
-                    candles_to_request
+                    count_to_request
                 )
                 
-                if historical_candles:
-                    # ---------------------------------------------------------
-                    # MODIFICACIÓN: Separar última vela (generándose) de las históricas (cerradas)
-                    # ---------------------------------------------------------
-                    
-                    # La última vela de la lista es la que se está generando actualmente
-                    current_generating_candle = historical_candles[-1]
-                    
-                    # Las velas cerradas son todas menos la última
-                    closed_candles = historical_candles[:-1]
-                    
-                    if not closed_candles:
-                        logger.warning(f"⚠️ Pocas velas históricas para {symbol}, no se pudo separar cerrada/actual")
-                        continue
+                if not historical_candles:
+                    logger.warning(f"⚠️ No se recibieron velas históricas para {symbol}")
+                    continue
 
-                    # Guardar timestamps usando helper
-                    last_closed_candle = closed_candles[-1]
-                    self._update_candle_timestamps(
-                        symbol, 
-                        last_closed_candle.timestamp, 
-                        current_generating_candle.timestamp
-                    )
-                    
-                    # Imprimir Debug con horas legibles
-                    last_closed_time = datetime.fromtimestamp(last_closed_candle.timestamp).strftime('%Y-%m-%d %H:%M:%S')
-                    current_gen_time = datetime.fromtimestamp(current_generating_candle.timestamp).strftime('%Y-%m-%d %H:%M:%S')
-                    
-                    logger.info(
-                        f"⏱️ TIMESTAMPS INICIALES {symbol} | "
-                        f"Última Cerrada: {last_closed_time} ({last_closed_candle.timestamp}) | "
-                        f"Generando: {current_gen_time} ({current_generating_candle.timestamp})"
-                    )
+                # 2. Lógica de Filtrado: Eliminar la última vela (en formación)
+                # La API retorna [..., antepenultima, penultima, ultima(actual)]
+                # Nosotros queremos asegurar que SOLO trabajamos con velas cerradas.
+                
+                if len(historical_candles) > 0:
+                    current_generating_candle = historical_candles[-1] # La descartamos para análisis
+                    closed_candles = historical_candles[:-1]           # Nos quedamos con estas
+                else:
+                    closed_candles = []
 
-                    # Guardar en estado del instrumento (BID) - SOLO LAS CERRADAS
-                    state = self.iq_service.instrument_states[symbol]
-                    for candle in closed_candles:
-                        await state.add_bid_candle(candle)
+                if not closed_candles:
+                    logger.warning(f"⚠️ Insuficientes velas cerradas para {symbol}")
+                    continue
+
+                # Actualizar timestamps de seguimiento
+                last_closed_candle = closed_candles[-1]
+                
+                self._update_candle_timestamps(
+                    symbol, 
+                    last_closed_candle.timestamp, 
+                    current_generating_candle.timestamp
+                )
+                
+                # 3. CRÍTICO: Cargar en AnalysisService (Esto faltaba)
+                if self.analysis_service:
+                    self.analysis_service.load_historical_candles(closed_candles)
+                    logger.info(f"✅ {symbol}: {len(closed_candles)} velas históricas cargadas en AnalysisService.")
+                    
+                    # 4. Generar gráfico inicial (Snapshot)
+                    if Config.GENERATE_HISTORICAL_CHARTS:
+                        source_key = f"{last_closed_candle.source}_{symbol}"
+                        await self.analysis_service.generate_initial_chart(source_key, last_closed_candle)
+
+                # 4. Cargar en InstrumentState (Buffer interno de IQ Service)
+                state = self.iq_service.instrument_states[symbol]
+                for candle in closed_candles:
+                    await state.add_bid_candle(candle)
+                    # Opcional: Si queremos pre-llenar MID candles (asumiendo BID=MID en histórico)
+                    async with state.lock:
+                        state.mid_candles.append(candle)
                 
             except Exception as e:
                 logger.error(
-                    f"❌ Error cargando velas para {symbol}: {e}",
+                    f"❌ Error crítico cargando históricos para {symbol}: {e}",
                     exc_info=True
                 )
 
