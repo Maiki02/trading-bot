@@ -246,7 +246,7 @@ class Config:
     RECONNECT_MAX_TIMEOUT: int = int(os.getenv("RECONNECT_MAX_TIMEOUT", "300"))
     
     # Logging
-    LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO").upper()
+    LOG_LEVEL: str = os.getenv("LOG_LEVEL", "DEBUG").upper()
     LOG_FILE: Optional[str] = os.getenv("LOG_FILE") or None
     
     # Instruments Configuration (MVP: EUR/USD only)

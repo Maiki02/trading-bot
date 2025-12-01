@@ -1028,8 +1028,8 @@ class AnalysisService:
         if len(df) < 2:
             return
         
-        # Obtener la última vela CERRADA (penúltima en el buffer)
-        last_closed = df.iloc[-2]
+        # Obtener la última vela CERRADA
+        last_closed = df.iloc[-1]
         
         # ⚠️ VALIDACIÓN: Filtrar velas vacías (sin movimiento real)
         # TradingView envía primer tick de vela nueva con todos los valores iguales

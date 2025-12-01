@@ -645,10 +645,9 @@ class IqOptionServiceMultiAsync:
             
             if snapshot and len(snapshot) >= 2:
                 # La estructura del snapshot es cronológica: [..., antepenultima, penultima, ultima]
-                # La "última" (índice -1) es la que se está generando (current)
-                # La "penúltima" (índice -2) es la candidata a ser la nueva vela cerrada
+                # La "última" (índice -1) es la que se generó
                 
-                candidate_closed_candle = snapshot[-2]
+                candidate_closed_candle = snapshot[-1]
                 candidate_ts = int(candidate_closed_candle.get("from", 0))
                 
                 last_stored_ts = self.last_candle_timestamps.get(symbol, 0)
