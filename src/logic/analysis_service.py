@@ -647,7 +647,7 @@ class AnalysisService:
         """
         self.dataframes[source_key] = pd.DataFrame(columns=[
             "timestamp", "open", "high", "low", "close", "volume", 
-            "ema_5", "ema_7", "ema_10", "ema_15", "ema_20", "ema_30", "ema_50",
+            "ema_5", "ema_7", "ema_10", "ema_15", "ema_20", "ema_30", "ema_50", "ema_200",
             "bb_middle", "bb_upper", "bb_lower"
         ])
         logger.debug(f"📋 DataFrame inicializado para {source_key}")
@@ -708,6 +708,7 @@ class AnalysisService:
             "ema_20": np.nan,
             "ema_30": np.nan,
             "ema_50": np.nan,
+            "ema_200": np.nan,
             "bb_middle": np.nan,
             "bb_upper": np.nan,
             "bb_lower": np.nan
@@ -789,6 +790,10 @@ class AnalysisService:
         # EMA 50 - Lenta (peso: 1.0)
         if len(df) >= 50:
             df["ema_50"] = calculate_ema(df["close"], 50)
+
+        # EMA 200 - Tendencia de largo plazo
+        if len(df) >= 200:
+            df["ema_200"] = calculate_ema(df["close"], 200)
         
         # Calcular Bollinger Bands (requiere al menos BB_PERIOD velas)
         bb_period = Config.CANDLE.BB_PERIOD
@@ -1679,6 +1684,7 @@ class AnalysisService:
         apertura: float,
         maximo: float,
         minimo: float,
+        cierre: float,
         pattern: str
     ) -> None:
         """
