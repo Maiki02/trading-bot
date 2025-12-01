@@ -460,7 +460,8 @@ class TelegramService:
         await self._send_telegram_notification(
             title=title,
             subscription=Config.TELEGRAM.outcome_subscription,
-            message=message
+            message=message,
+            chart_base64=chart_base64
         )
     
     async def _send_telegram_notification(

@@ -400,3 +400,67 @@ async def process_and_save_chart(
     
     with open(path_obj, "wb") as f:
         f.write(base64.b64decode(chart_base64))
+
+
+def generate_outcome_chart_base64(
+    base_df: pd.DataFrame,
+    outcome_candle, # Duck typing for CandleData to avoid circular imports
+    lookback: int,
+    title: str
+) -> str:
+    """
+    Genera un gráfico incluyendo la vela de resultado (outcome).
+    Realiza la manipulación del DataFrame y recálculo de indicadores internamente.
+    
+    Args:
+        base_df: DataFrame original (hasta la señal)
+        outcome_candle: Objeto CandleData de la vela de resultado
+        lookback: Ventana de visualización
+        title: Título del gráfico
+        
+    Returns:
+        str: Base64 del gráfico generado
+    """
+    from config import Config
+    from src.utils.indicators import calculate_ema, calculate_bollinger_bands
+    
+    # Crear fila de dataframe para la nueva vela
+    new_row = {
+        "timestamp": outcome_candle.timestamp,
+        "open": outcome_candle.open,
+        "high": outcome_candle.high,
+        "low": outcome_candle.low,
+        "close": outcome_candle.close,
+        "volume": outcome_candle.volume,
+        # "source": outcome_candle.source, # No requeridos para el gráfico
+        # "symbol": outcome_candle.symbol
+    }
+    
+    # Crear DF temporal copiando el actual y añadiendo la fila
+    df_temp = base_df.copy()
+    
+    # Añadir nueva fila
+    new_row_df = pd.DataFrame([new_row])
+    df_temp = pd.concat([df_temp, new_row_df], ignore_index=True)
+    
+    # Recalcular indicadores rápidos para el gráfico (solo los necesarios)
+    # BB Bands y EMAs principales
+    
+    # Recalcular solo lo necesario para el gráfico
+    df_temp["ema_20"] = calculate_ema(df_temp["close"], 20)
+    # df_temp["ema_50"] = calculate_ema(df_temp["close"], 50) # Opcional
+    
+    bb_period = Config.CANDLE.BB_PERIOD
+    bb_std_dev = Config.CANDLE.BB_STD_DEV
+    bb_middle, bb_upper, bb_lower = calculate_bollinger_bands(
+        df_temp["close"], period=bb_period, std_dev=bb_std_dev
+    )
+    df_temp["bb_upper"] = bb_upper
+    df_temp["bb_lower"] = bb_lower
+    
+    # Generar gráfico usando la función base
+    return generate_chart_base64(
+        df_temp,
+        lookback,
+        title
+    )

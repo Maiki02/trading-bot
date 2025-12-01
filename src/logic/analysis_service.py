@@ -949,8 +949,42 @@ class AnalysisService:
         # Enviar notificación del resultado a Telegram si está disponible
         if self.telegram_service:
             try:
-                # Obtener el chart del patrón original si existe
-                chart_base64 = pending_signal.chart_base64 if hasattr(pending_signal, 'chart_base64') else None
+                chart_base64 = None
+                
+                # 1. Decidir qué gráfico enviar
+                if Config.TELEGRAM.send_outcome_charts:
+                    # Generar NUEVO gráfico incluyendo la vela de resultado
+                    try:
+                        df_current = self.dataframes.get(source_key)
+                        if df_current is not None and not df_current.empty:
+                            
+                            # Generar gráfico
+                            chart_title = f"RESULTADO: {actual_direction} | {source_key}"
+                            
+                            # Ejecutar en hilo separado usando la nueva función helper
+                            import asyncio
+                            from src.utils.charting import generate_outcome_chart_base64
+                            
+                            chart_base64 = await asyncio.to_thread(
+                                generate_outcome_chart_base64,
+                                df_current,
+                                outcome_candle,
+                                self.chart_lookback,
+                                chart_title
+                            )
+                            logger.info(f"📸 Gráfico de resultado generado para {source_key}")
+                            
+                    except Exception as e:
+                        logger.error(f"❌ Error generando gráfico de resultado: {e}")
+                        # Fallback: No enviar gráfico o enviar el original si se prefiere
+                        chart_base64 = None
+                
+                else:
+                    # Comportamiento anterior: Enviar el gráfico original (del patrón) o nada
+                    # El usuario pidió: "en false no envíe".
+                    # Antes enviaba: pending_signal.chart_base64
+                    # Si queremos mantener compatibilidad estricta con "false = no envíe", ponemos None.
+                    chart_base64 = None
                 
                 await self.telegram_service.send_outcome_notification(
                     source=pending_signal.source,
@@ -958,7 +992,7 @@ class AnalysisService:
                     direction=actual_direction,
                     chart_base64=chart_base64
                 )
-                logger.info(f"📨 Notificación de resultado enviada | Dirección: {actual_direction}")
+                logger.info(f"📨 Notificación de resultado enviada | Dirección: {actual_direction} | Chart: {'Sí' if chart_base64 else 'No'}")
             except Exception as e:
                 log_exception(logger, "Error enviando notificación de resultado", e)
         else:
