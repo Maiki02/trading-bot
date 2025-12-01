@@ -1,7 +1,7 @@
 # Resumen
 
 ## 1. Objetivo del Proyecto
-Integrar un monitor automatizado 24/7 que capture datos de mercado en tiempo real de TradingView mediante ingeniería inversa de WebSocket. El sistema identificará patrones de velas japonesas en temporalidad de 1 minuto y, al detectar una configuración válida alineada con la tendencia, enviará alertas inmediatas vía Telegram con gráfico visual adjunto. **Adicionalmente, envía notificaciones de resultado** cuando cierra la vela siguiente, informando si el patrón tuvo éxito (VERDE/ROJA/DOJI).
+Integrar un monitor automatizado 24/7 que capture datos de mercado en tiempo real de IQ OPTION o TradingView mediante ingeniería inversa de WebSocket. El sistema identificará patrones de velas japonesas en temporalidad de 1 minuto y, al detectar una configuración válida alineada con la tendencia, enviará alertas inmediatas vía Telegram con gráfico visual adjunto. **Adicionalmente, envía notificaciones de resultado** cuando cierra la vela siguiente, informando si el patrón tuvo éxito (VERDE/ROJA/DOJI).
 
 ### 1.1. Objetivo Versión 0.0.4 (Sistema de Probabilidad Histórica en Tiempo Real) 🆕
 **Nueva Funcionalidad:** Sistema de **Probabilidades Históricas** que consulta el dataset JSONL para mostrar win rate, PnL promedio y racha reciente en las alertas de Telegram.
