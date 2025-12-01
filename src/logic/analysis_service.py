@@ -164,7 +164,7 @@ def detect_exhaustion(candle_high: float, candle_low: float, candle_close: float
 def get_candle_result_debug(
     pattern: str,
     trend_status: str,
-    bollinger_exhaustion: bool,
+    exhaustion_type: str,
     candle_exhaustion: bool
 ) -> str:
     """
@@ -173,7 +173,7 @@ def get_candle_result_debug(
     Args:
         pattern: Tipo de patrón (SHOOTING_STAR, HAMMER, etc.)
         trend_status: Estado de tendencia (STRONG_BULLISH, WEAK_BULLISH, etc.)
-        bollinger_exhaustion: Si hay agotamiento Bollinger (PEAK o BOTTOM)
+        exhaustion_type: Tipo de agotamiento Bollinger ("PEAK", "BOTTOM" o "NONE")
         candle_exhaustion: Si hay agotamiento de vela (rompió high/low anterior)
         
     Returns:
@@ -210,10 +210,14 @@ def get_candle_result_debug(
             lines.append("❌ Cumple Tendencia bajista")
     
     # 2. Verificar Bollinger Exhaustion
-    if bollinger_exhaustion:
-        lines.append("✅ Agotamiento Bollinger (PEAK/BOTTOM)")
+    # Patrones bajistas (SHOOTING_STAR, INVERTED_HAMMER) requieren BOTTOM
+    # Patrones alcistas (HAMMER, HANGING_MAN) requieren PEAK
+    if pattern_is_bearish and exhaustion_type == "BOTTOM":
+        lines.append("✅ Agotamiento Bollinger (BOTTOM)")
+    elif pattern_is_bullish and exhaustion_type == "PEAK":
+        lines.append("✅ Agotamiento Bollinger (PEAK)")
     else:
-        lines.append("❌ Agotamiento Bollinger (NO)")
+        lines.append(f"❌ Agotamiento Bollinger ({exhaustion_type})")
     
     # 3. Verificar Candle Exhaustion
     if candle_exhaustion:

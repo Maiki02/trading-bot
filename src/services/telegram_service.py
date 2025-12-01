@@ -283,7 +283,7 @@ class TelegramService:
             debug_info = get_candle_result_debug(
                 pattern=signal.pattern,
                 trend_status=signal.trend,
-                bollinger_exhaustion=(signal.exhaustion_type in ["PEAK", "BOTTOM"]),
+                exhaustion_type=signal.exhaustion_type,
                 candle_exhaustion=signal.candle_exhaustion
             )
         
@@ -291,15 +291,15 @@ class TelegramService:
         body = (
             f"━━━━━━━━━━━━━━━━━━━━━━\n"
             f"🔹 Señal: {signal.signal_strength}\n"
-            f"🔹 Fuente: {signal.source}\n"
+            # f"🔹 Fuente: {signal.source}\n"
             f"🔹 Patrón: {signal.pattern}\n"
             f"🔹 Fecha: {timestamp_str}\n"
-            f"{exhaustion_emoji} {exhaustion_text}\n"
-            f"{candle_exh_emoji} {candle_exh_text}\n"
+            # f"{exhaustion_emoji} {exhaustion_text}\n"
+            # f"{candle_exh_emoji} {candle_exh_text}\n"
             f"🔹 Tendencia: {signal.trend}\n"
             f"🔹 Score: {signal.trend_score:+.1f}/10.0\n"
             f"{debug_info}"
-            f"━━━━━━━━━━━━━━━━━━━━━━\n"
+            # f"━━━━━━━━━━━━━━━━━━━━━━\n"
         )
         
         return AlertMessage(
