@@ -545,48 +545,37 @@ class AnalysisService:
             # ═════════════════════════════════════════════════════════════
             # PASO 1: CERRAR CICLO ANTERIOR (Si existe señal pendiente)
             # ═════════════════════════════════════════════════════════════
-            # CRÍTICO: Buscar la vela SIGUIENTE al trigger (trigger_timestamp + 60s)
-            # NO usar df.iloc[-1] porque es la vela del patrón, no el outcome
+            # CRÍTICO: Verificar si la vela ENTRANTE es el outcome (trigger + 60s)
+            # Esto permite cerrar el ciclo INMEDIATAMENTE sin esperar a la siguiente vela
             if source_key in self.pending_signals:
                 pending_signal = self.pending_signals[source_key]
-                df = self.dataframes[source_key]
                 
-                # Buscar la primera vela DESPUÉS del trigger (outcome candle)
-                outcome_candidates = df[df['timestamp'] > pending_signal.timestamp]
+                # Verificar coincidencia exacta de tiempo (M1 = 60s)
+                expected_outcome_ts = pending_signal.timestamp + 60
                 
-                if len(outcome_candidates) > 0:
-                    # Tomar la primera vela disponible después del trigger
-                    outcome_row = outcome_candidates.iloc[0]
-                    
-                    # Calcular gap de timestamp
-                    timestamp_diff = int(outcome_row['timestamp']) - pending_signal.timestamp
-                    
-                    # LOG: Mostrar vela encontrada y gap
+                if candle.timestamp == expected_outcome_ts:
+                    # LOG: Outcome encontrado (la vela actual)
                     logger.info(
-                        f"📊 OUTCOME CANDLE ENCONTRADA:\n"
+                        f"📊 OUTCOME CANDLE RECIBIDA (Inmediato):\n"
                         f"   Trigger: T={pending_signal.timestamp}\n"
-                        f"   Outcome: T={int(outcome_row['timestamp'])} "
-                        f"O={outcome_row['open']:.5f} H={outcome_row['high']:.5f} "
-                        f"L={outcome_row['low']:.5f} C={outcome_row['close']:.5f}\n"
-                        f"   Gap: {timestamp_diff}s {'✅' if timestamp_diff == 60 else '⚠️ (esperado: 60s)'}"
+                        f"   Outcome: T={candle.timestamp} "
+                        f"O={candle.open:.5f} H={candle.high:.5f} "
+                        f"L={candle.low:.5f} C={candle.close:.5f}\n"
+                        f"   Gap: 60s ✅"
                     )
                     
-                    outcome_candle = CandleData(
-                        timestamp=int(outcome_row["timestamp"]),
-                        open=outcome_row["open"],
-                        high=outcome_row["high"],
-                        low=outcome_row["low"],
-                        close=outcome_row["close"],
-                        volume=outcome_row["volume"],
-                        source=candle.source,
-                        symbol=candle.symbol
-                    )
-                    await self._close_signal_cycle(source_key, outcome_candle)
-                else:
+                    await self._close_signal_cycle(source_key, candle)
+                
+                elif candle.timestamp > expected_outcome_ts:
+                    # Caso de recuperación: La vela entrante es posterior al outcome esperado
+                    # Esto pasa si hubo desconexión o si el sistema se reinició
                     logger.warning(
-                        f"⚠️  Señal pendiente pero no hay vela siguiente en DataFrame para {source_key}. "
-                        f"Esperando más datos..."
+                        f"⚠️  Outcome tardío/recuperado:\n"
+                        f"   Trigger: {pending_signal.timestamp}\n"
+                        f"   Actual: {candle.timestamp} (Diff: {candle.timestamp - pending_signal.timestamp}s)\n"
+                        f"   Intentando cerrar con esta vela..."
                     )
+                    await self._close_signal_cycle(source_key, candle)
             
             # ═════════════════════════════════════════════════════════════
             # PASO 2: AGREGAR NUEVA VELA Y CALCULAR INDICADORES

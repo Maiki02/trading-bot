@@ -264,7 +264,7 @@ class IqOptionMultiService:
                 return None
             
             # Penúltima vela (cerrada)
-            closed_candle_ts = timestamps[-1]
+            closed_candle_ts = timestamps[-2]
             raw_candle = candles_dict[closed_candle_ts]
             
             candle = self._map_realtime_candle(raw_candle, symbol)
@@ -647,7 +647,7 @@ class IqOptionServiceMultiAsync:
                 # La estructura del snapshot es cronológica: [..., antepenultima, penultima, ultima]
                 # La "última" (índice -1) es la que se generó
                 
-                candidate_closed_candle = snapshot[-1]
+                candidate_closed_candle = snapshot[-2]
                 candidate_ts = int(candidate_closed_candle.get("from", 0))
                 
                 last_stored_ts = self.last_candle_timestamps.get(symbol, 0)
