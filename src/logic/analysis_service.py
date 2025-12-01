@@ -542,18 +542,6 @@ class AnalysisService:
         is_new_candle = self._is_new_candle(source_key, candle.timestamp)
         
         if is_new_candle:
-            # LOG: Vela cerrada con hora y detalles OHLC
-            from datetime import datetime
-            candle_time = datetime.fromtimestamp(candle.timestamp).strftime("%Y-%m-%d %H:%M:%S")
-            logger.info(
-                f"🕯️ VELA CERRADA | {source_key} | "
-                f"Fecha: {candle_time} | "
-                f"Apertura: {candle.open:.5f} | "
-                f"Máximo: {candle.high:.5f} | "
-                f"Mínimo: {candle.low:.5f} | "
-                f"Cierre: {candle.close:.5f}"
-            )
-            
             # ═════════════════════════════════════════════════════════════
             # PASO 1: CERRAR CICLO ANTERIOR (Si existe señal pendiente)
             # ═════════════════════════════════════════════════════════════
@@ -1121,17 +1109,17 @@ class AnalysisService:
         bb_middle_str = f"{bb_middle:.5f}" if not pd.isna(bb_middle) else "N/A"
         bb_lower_str = f"{bb_lower:.5f}" if not pd.isna(bb_lower) else "N/A"
         
-        logger.info(
-            f"📈 Análisis de Tendencia: {trend_analysis}\n"
-            f"   • Status: {trend_analysis.status}\n"
-            f"   • Score: {trend_analysis.score:+.1f}/10.0 (weighted)\n"
-            f"   • Alineación EMAs: {'✓' if trend_analysis.is_aligned else '✗'}\n"
-            f"📊 Bollinger Bands:\n"
-            f"   • Superior: {bb_upper_str}\n"
-            f"   • Media: {bb_middle_str}\n"
-            f"   • Inferior: {bb_lower_str}\n"
-            f"   • Zona de Agotamiento: {exhaustion_type}\n"
-        )
+        # logger.info(
+        #     f"📈 Análisis de Tendencia: {trend_analysis}\n"
+        #     f"   • Status: {trend_analysis.status}\n"
+        #     f"   • Score: {trend_analysis.score:+.1f}/10.0 (weighted)\n"
+        #     f"   • Alineación EMAs: {'✓' if trend_analysis.is_aligned else '✗'}\n"
+        #     f"📊 Bollinger Bands:\n"
+        #     f"   • Superior: {bb_upper_str}\n"
+        #     f"   • Media: {bb_middle_str}\n"
+        #     f"   • Inferior: {bb_lower_str}\n"
+        #     f"   • Zona de Agotamiento: {exhaustion_type}\n"
+        # )
         
         # Detectar los 4 patrones de velas japonesas
         shooting_star_detected, shooting_star_conf, shooting_star_reason = is_shooting_star(
@@ -1593,7 +1581,7 @@ class AnalysisService:
         Solo se ejecuta si Config.GENERATE_HISTORICAL_CHARTS == True.
         
         Args:
-            source_key: Clave de la fuente (ej: "IQOPTION_BID_EURUSD")
+            source_key: Clave de la fuente (ej: "IQ_EURUSD_BIN")
             candle: Vela que acaba de cerrar
         """
         try:

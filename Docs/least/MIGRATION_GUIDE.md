@@ -305,8 +305,8 @@ grep "VELA MID CERRADA" logs/bot.log
 grep "PATTERN DETECTED" logs/bot.log
 
 # Should show multiple instruments:
-# PATTERN DETECTED | IQOPTION_BID | SHOOTING_STAR | EURUSD
-# PATTERN DETECTED | IQOPTION_BID | HAMMER | GBPUSD
+# PATTERN DETECTED | IQ | SHOOTING_STAR | EURUSD
+# PATTERN DETECTED | IQ | HAMMER | GBPUSD
 ```
 
 ### 4. Verify Dataset Storage

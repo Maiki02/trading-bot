@@ -291,7 +291,7 @@ class IqOptionMultiService:
                 low=float(raw_candle["min"]),
                 close=float(raw_candle["close"]),
                 volume=float(raw_candle.get("volume", 0)),
-                source="IQOPTION_BID",
+                source="IQ",
                 symbol=symbol
             )
         except Exception as e:
@@ -311,7 +311,7 @@ class IqOptionMultiService:
             low=float(raw_candle['min']),
             close=float(raw_candle['close']),
             volume=float(raw_candle.get('volume', 0)),
-            source="IQOPTION_BID",
+            source="IQ",
             symbol=symbol
         )
     
@@ -590,13 +590,16 @@ class IqOptionServiceMultiAsync:
                 wait_seconds = (target_time - now).total_seconds()
                 
                 if wait_seconds > 0.1:
-                    # logger.debug(f"💤 {symbol} durmiendo {wait_seconds:.2f}s hasta burst...")
+                    logger.debug(f"💤 {symbol} durmiendo {wait_seconds:.2f}s hasta burst...")
                     await asyncio.sleep(wait_seconds)
                 
                 # ---------------------------------------------------------
                 # FASE 2: BURST (Polling de Alta Frecuencia)
                 # ---------------------------------------------------------
-                # logger.debug(f"⚡ {symbol} iniciando BURST polling...")
+                # ---------------------------------------------------------
+                # FASE 2: BURST (Polling de Alta Frecuencia)
+                # ---------------------------------------------------------
+                logger.debug(f"⚡ {symbol} iniciando BURST polling...")
                 
                 candle_detected = False
                 burst_start = time.time()
@@ -610,6 +613,9 @@ class IqOptionServiceMultiAsync:
                     
                     # Pequeña pausa en el burst para no saturar CPU (10ms - 100ms)
                     await asyncio.sleep(0.1)
+                    logger.debug(f"🔄 {symbol} Burst iteration...")
+                
+                logger.debug(f"🛑 {symbol} Burst finished...")
                 
                 if not candle_detected:
                     pass
