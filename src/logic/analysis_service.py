@@ -212,10 +212,10 @@ def get_candle_result_debug(
     # 2. Verificar Bollinger Exhaustion
     # Patrones bajistas (SHOOTING_STAR, INVERTED_HAMMER) requieren BOTTOM
     # Patrones alcistas (HAMMER, HANGING_MAN) requieren PEAK
-    if pattern_is_bearish and exhaustion_type == "BOTTOM":
-        lines.append("✅ Agotamiento Bollinger (BOTTOM)")
-    elif pattern_is_bullish and exhaustion_type == "PEAK":
+    if pattern_is_bearish and exhaustion_type == "PEAK":
         lines.append("✅ Agotamiento Bollinger (PEAK)")
+    elif pattern_is_bullish and exhaustion_type == "BOTTOM":
+        lines.append("✅ Agotamiento Bollinger (BOTTOM)")
     else:
         lines.append(f"❌ Agotamiento Bollinger ({exhaustion_type})")
     
