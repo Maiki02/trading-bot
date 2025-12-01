@@ -333,14 +333,35 @@ class IqOptionMultiService:
         self._reconnect_thread.start()
     
     def _reconnect_loop(self) -> None:
-        """Loop de reconexión automática."""
+        """
+        Loop de reconexión automática con backoff exponencial.
+        Utiliza RECONNECT_INITIAL_TIMEOUT y RECONNECT_MAX_TIMEOUT de la configuración.
+        """
+        attempt = 0
+        current_timeout = Config.RECONNECT_INITIAL_TIMEOUT
+        
         while self._should_reconnect:
-            time.sleep(10)
+            time.sleep(1) # Chequeo frecuente de conexión
+            
             if not self._should_reconnect:
                 break
+                
             if not self.is_connected():
-                self.logger.warning("🔄 Conexión perdida. Reintentando...")
-                self.connect()
+                self.logger.warning(f"🔄 Conexión perdida. Intentando reconectar en {current_timeout}s... (Intento {attempt + 1})")
+                
+                # Esperar el tiempo de backoff
+                time.sleep(current_timeout)
+                
+                if self.connect():
+                    self.logger.info("✅ Reconexión exitosa")
+                    # Resetear contadores
+                    attempt = 0
+                    current_timeout = Config.RECONNECT_INITIAL_TIMEOUT
+                else:
+                    attempt += 1
+                    # Backoff exponencial: duplicar tiempo hasta el máximo
+                    current_timeout = min(current_timeout * 2, Config.RECONNECT_MAX_TIMEOUT)
+                    self.logger.error(f"❌ Fallo al reconectar. Próximo intento en {current_timeout}s")
 
 
 def create_iq_option_multi_service() -> IqOptionMultiService:
@@ -517,49 +538,6 @@ class IqOptionServiceMultiAsync:
                     state = self.iq_service.instrument_states[symbol]
                     for candle in closed_candles:
                         await state.add_bid_candle(candle)
-                    
-                    # ---------------------------------------------------------
-                    # FIX: Inicializar también el buffer MID y AnalysisService
-                    # Usamos las velas BID históricas como proxy para las MID iniciales
-                    # ---------------------------------------------------------
-                    from dataclasses import replace
-                    mid_historical_candles = [
-                        replace(c, source="IQ") for c in closed_candles
-                    ]
-                    
-                    # 1. Llenar buffer MID en InstrumentState
-                    await state.initialize_mid_candles(mid_historical_candles)
-                    
-                    # 2. Cargar en AnalysisService (usando MID para que coincida con el stream)
-                    if self.analysis_service:
-                        self.analysis_service.load_historical_candles(
-                            mid_historical_candles
-                        )
-                    
-                    logger.info(
-                        f"✅ {len(closed_candles)} velas CERRADAS cargadas (BID & MID) para {symbol}"
-                    )
-                
-                # Opcional: Generar gráfico histórico si está habilitado
-                if Config.GENERATE_HISTORICAL_CHARTS and len(historical_candles) > 0:
-                    try:
-                        from src.utils.charting import process_and_save_chart
-                        from datetime import datetime
-                        
-                        chart_dir = Path("data") / "charts" / symbol
-                        chart_path = chart_dir / "boot_snapshot.png"
-                        chart_title = f"{symbol} - Initial Snapshot"
-                        
-                        await process_and_save_chart(
-                            symbol=symbol,
-                            candles=historical_candles,
-                            lookback=Config.CHART_LOOKBACK,
-                            output_path=str(chart_path),
-                            title=chart_title
-                        )
-                        logger.info(f"📊 Gráfico histórico guardado: {chart_path}")
-                    except Exception as e:
-                        logger.error(f"❌ Error generando gráfico histórico para {symbol}: {e}")
                 
             except Exception as e:
                 logger.error(
@@ -633,9 +611,11 @@ class IqOptionServiceMultiAsync:
                 logger.error(f"❌ Error en polling loop de {symbol}: {e}", exc_info=True)
                 await asyncio.sleep(1.0)
 
+
     async def _check_and_process_candle(self, symbol: str) -> bool:
         """
         Verifica si hay una nueva vela cerrada en el buffer y la procesa.
+        También detecta GAPS de datos (desconexiones) y los rellena.
         Retorna True si se detectó y procesó una nueva vela.
         """
         try:
@@ -657,6 +637,16 @@ class IqOptionServiceMultiAsync:
                 
                 last_stored_ts = self.last_candle_timestamps.get(symbol, 0)
                 
+                # ---------------------------------------------------------
+                # DETECCIÓN DE GAPS
+                # ---------------------------------------------------------
+                # Si la diferencia es mayor a 60s, perdimos velas intermedias
+                if last_stored_ts > 0 and (candidate_ts - last_stored_ts) > 60:
+                    logger.warning(f"⚠️ GAP DETECTADO en {symbol}: Última {last_stored_ts} -> Nueva {candidate_ts} (Diff: {candidate_ts - last_stored_ts}s)")
+                    await self._fill_data_gaps(symbol, last_stored_ts, candidate_ts)
+                    # Después de rellenar, actualizamos last_stored_ts para que el siguiente check pase normal
+                    last_stored_ts = self.last_candle_timestamps.get(symbol, 0)
+
                 # Si el timestamp de la candidata es MAYOR que el último almacenado,
                 # significa que se ha cerrado una nueva vela.
                 if candidate_ts > last_stored_ts:
@@ -672,15 +662,87 @@ class IqOptionServiceMultiAsync:
             logger.error(f"❌ Error en check_and_process_candle {symbol}: {e}")
             return False
 
+    async def _fill_data_gaps(self, symbol: str, last_stored_ts: int, current_ts: int) -> None:
+        """
+        Rellena huecos de datos solicitando velas históricas.
+        Respeta la regla de NO incluir la vela en generación.
+        """
+        try:
+            # Calcular cuántas velas faltan
+            # Ejemplo: Last=100, Current=340. Diff=240. Missing = 240/60 = 4 velas.
+            # Queremos las velas 160, 220, 280, 340.
+            # Pero ojo, 'current_ts' es la vela CERRADA más reciente que vimos en el snapshot.
+            
+            missing_seconds = current_ts - last_stored_ts
+            candles_needed = int(missing_seconds / 60)
+            
+            if candles_needed <= 0:
+                return
+
+            logger.info(f"📥 Rellenando GAP de {candles_needed} velas para {symbol}...")
+            
+            # Solicitamos +1 por seguridad, aunque 'current_ts' ya es cerrada.
+            # La API de IQ devuelve las últimas N velas hasta AHORA.
+            # Si pedimos N, nos dará hasta la que se está generando.
+            # Por eso pedimos candles_needed + 1 (la generándose) y filtramos.
+            
+            loop = asyncio.get_running_loop()
+            historical_candles = await loop.run_in_executor(
+                None,
+                self.iq_service.get_historical_candles,
+                symbol,
+                candles_needed + 2 # Margen de seguridad
+            )
+            
+            if not historical_candles:
+                logger.warning(f"⚠️ No se pudieron recuperar velas para el gap de {symbol}")
+                return
+
+            # Filtrar: Queremos velas > last_stored_ts y <= current_ts
+            # Y descartamos explícitamente cualquier vela > current_ts (la generándose)
+            
+            gap_candles = []
+            for candle in historical_candles:
+                if candle.timestamp > last_stored_ts and candle.timestamp <= current_ts:
+                    gap_candles.append(candle)
+            
+            if gap_candles:
+                logger.info(f"✅ Recuperadas {len(gap_candles)} velas de gap para {symbol}")
+                
+                state = self.iq_service.instrument_states.get(symbol)
+                
+                for candle in gap_candles:
+                    # 1. Actualizar Estado
+                    if state:
+                        await state.add_bid_candle(candle)
+                        async with state.lock:
+                            state.mid_candles.append(candle)
+                    
+                    # 2. Enviar a Analysis
+                    if self.analysis_service:
+                        # Procesar como histórica o realtime? 
+                        # Mejor load_historical para no disparar alertas masivas, 
+                        # o process_realtime si queremos que se analicen.
+                        # Dado que es recuperación, 'process_realtime_candle' es más seguro 
+                        # para que el bot "se ponga al día" con señales.
+                        await self.analysis_service.process_realtime_candle(candle)
+                
+                # Actualizar timestamp final
+                # (El último de gap_candles debería ser current_ts)
+                last_gap_candle = gap_candles[-1]
+                # No actualizamos 'current_candle_timestamp' aquí porque eso depende de la vela generándose,
+                # que se actualizará en el siguiente ciclo normal o en process_new_candle.
+                # Pero sí actualizamos last_candle_timestamps para evitar re-procesar.
+                self.last_candle_timestamps[symbol] = last_gap_candle.timestamp
+                
+        except Exception as e:
+            logger.error(f"❌ Error rellenando gap para {symbol}: {e}", exc_info=True)
+
     async def _process_new_candle(self, symbol: str, closed_candle_dict: Dict, new_generating_candle_dict: Dict) -> None:
         """
         Procesa una nueva vela cerrada detectada durante el polling.
         """
         try:
-            # 1. Actualizar Timestamps
-            closed_ts = int(closed_candle_dict.get("from", 0))
-            generating_ts = int(new_generating_candle_dict.get("from", 0))
-            
             # 1. Actualizar Timestamps
             closed_ts = int(closed_candle_dict.get("from", 0))
             generating_ts = int(new_generating_candle_dict.get("from", 0))
