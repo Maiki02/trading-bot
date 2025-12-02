@@ -101,7 +101,20 @@ def generate_chart_base64(
     if show_emas:
         # Sistema de Puntuación Ponderada - Todas las EMAs con colores únicos
         
-        # EMA 5 - Ultra Rápida (Peso: 2.0) - Rojo brillante
+        # EMA 3 - Ultra Rápida (Peso: 3.0) - Blanco/Gris claro
+        if 'ema_3' in df_subset.columns and not df_subset['ema_3'].isna().all():
+            ema_3_data = df_subset['ema_3'].copy()
+            ema_3_plot = mpf.make_addplot(
+                ema_3_data,
+                color='#FFFFFF',  # Blanco
+                width=3.2,
+                panel=0,
+                secondary_y=False,
+                label='EMA 3 (3.0pts)'
+            )
+            additional_plots.append(ema_3_plot)
+
+        # EMA 5 - Ultra Rápida (Peso: 2.5) - Rojo brillante
         if 'ema_5' in df_subset.columns and not df_subset['ema_5'].isna().all():
             ema_5_data = df_subset['ema_5'].copy()
             ema_5_plot = mpf.make_addplot(
@@ -110,7 +123,7 @@ def generate_chart_base64(
                 width=3.0,
                 panel=0,
                 secondary_y=False,
-                label='EMA 5 (2.0pts)'
+                label='EMA 5 (2.5pts)'
             )
             additional_plots.append(ema_5_plot)
         
@@ -140,7 +153,7 @@ def generate_chart_base64(
             )
             additional_plots.append(ema_10_plot)
         
-        # EMA 15 - Rápida-Media (Peso: 1.5) - Amarillo
+        # EMA 15 - Rápida-Media (Referencia) - Amarillo
         if 'ema_15' in df_subset.columns and not df_subset['ema_15'].isna().all():
             ema_15_data = df_subset['ema_15'].copy()
             ema_15_plot = mpf.make_addplot(
@@ -149,7 +162,7 @@ def generate_chart_base64(
                 width=2.2,
                 panel=0,
                 secondary_y=False,
-                label='EMA 15 (1.5pts)'
+                label='EMA 15 (Ref)'
             )
             additional_plots.append(ema_15_plot)
         

@@ -56,6 +56,7 @@ class PatternSignal:
     pattern: str  # "SHOOTING_STAR", "HANGING_MAN", "INVERTED_HAMMER", "HAMMER"
     timestamp: int
     candle: CandleData
+    ema_3: float
     ema_5: float
     ema_7: float
     ema_10: float
@@ -197,14 +198,12 @@ def analyze_trend(close: float, emas: Dict[str, float]) -> TrendAnalysis:
     Analiza tendencia usando sistema de PUNTUACIÓN PONDERADA.
     Cada EMA contribuye con un peso específico al score total.
     
-    SISTEMA DE PESOS (Total: 10.0):
-    - EMA 5:  2.0 puntos
+    SISTEMA DE PESOS V6 (Total: 10.0):
+    - EMA 3:  3.0 puntos
+    - EMA 5:  2.5 puntos
     - EMA 7:  2.0 puntos
     - EMA 10: 1.5 puntos
-    - EMA 15: 1.5 puntos
     - EMA 20: 1.0 punto
-    - EMA 30: 1.0 punto
-    - EMA 50: 1.0 punto
     
     CLASIFICACIÓN:
     - [6.0 a 10.0]:   STRONG_BULLISH
@@ -221,14 +220,14 @@ def analyze_trend(close: float, emas: Dict[str, float]) -> TrendAnalysis:
         TrendAnalysis con estado, score (float) e is_aligned
     """
     # Definir pesos de EMAs (Total: 10.0)
+    # Definir pesos de EMAs (Total: 10.0) - Sistema V6 High Reactive
     ema_weights = {
+        'ema_3': 3.0,
         'ema_5': 2.5,
         'ema_7': 2.0,
         'ema_10': 1.5,
-        'ema_15': 1.5,
-        'ema_20': 1.0,
-        'ema_30': 1.0,
-        'ema_50': 0.5
+        'ema_20': 1.0
+        # EMA 30 y 50 ya no suman puntos (solo referencia)
     }
     
     # Inicializar score
@@ -586,7 +585,7 @@ class AnalysisService:
         """
         self.dataframes[source_key] = pd.DataFrame(columns=[
             "timestamp", "open", "high", "low", "close", "volume", 
-            "ema_5", "ema_7", "ema_10", "ema_15", "ema_20", "ema_30", "ema_50", "ema_200",
+            "ema_3", "ema_5", "ema_7", "ema_10", "ema_15", "ema_20", "ema_30", "ema_50",
             "bb_middle", "bb_upper", "bb_lower"
         ])
         logger.debug(f"📋 DataFrame inicializado para {source_key}")
@@ -640,6 +639,7 @@ class AnalysisService:
             "low": candle.low,
             "close": candle.close,
             "volume": candle.volume,
+            "ema_3": np.nan,
             "ema_5": np.nan,
             "ema_7": np.nan,
             "ema_10": np.nan,
@@ -647,7 +647,6 @@ class AnalysisService:
             "ema_20": np.nan,
             "ema_30": np.nan,
             "ema_50": np.nan,
-            "ema_200": np.nan,
             "bb_middle": np.nan,
             "bb_upper": np.nan,
             "bb_lower": np.nan
@@ -702,7 +701,11 @@ class AnalysisService:
         df = self.dataframes[source_key]
         
         # Calcular EMAs sobre precios de cierre (sistema ponderado)
-        # EMA 5 - Ultra rápida (peso: 2.0)
+        # EMA 3 - Ultra rápida (peso: 3.0)
+        if len(df) >= 3:
+            df["ema_3"] = calculate_ema(df["close"], 3)
+
+        # EMA 5 - Ultra rápida (peso: 2.5)
         if len(df) >= 5:
             df["ema_5"] = calculate_ema(df["close"], 5)
         
@@ -730,9 +733,9 @@ class AnalysisService:
         if len(df) >= 50:
             df["ema_50"] = calculate_ema(df["close"], 50)
 
-        # EMA 200 - Tendencia de largo plazo
-        if len(df) >= 200:
-            df["ema_200"] = calculate_ema(df["close"], 200)
+        # EMA 200 ELIMINADA (Lag excesivo)
+        # if len(df) >= 200:
+        #     df["ema_200"] = calculate_ema(df["close"], 200)
         
         # Calcular Bollinger Bands (requiere al menos BB_PERIOD velas)
         bb_period = Config.CANDLE.BB_PERIOD
@@ -856,6 +859,7 @@ class AnalysisService:
                 "confidence": pending_signal.confidence
             },
             "emas": {
+                "ema_3": pending_signal.ema_3,
                 "ema_5": pending_signal.ema_5,
                 "ema_7": pending_signal.ema_7,
                 "ema_10": pending_signal.ema_10,
@@ -1520,6 +1524,8 @@ class AnalysisService:
                     source=current_candle.source,
                     symbol=current_candle.symbol
                 ),
+                candle=last_closed,
+                ema_3=last_closed.get("ema_3", np.nan),
                 ema_5=last_closed.get("ema_5", np.nan),
                 ema_7=last_closed.get("ema_7", np.nan),
                 ema_10=last_closed.get("ema_10", np.nan),

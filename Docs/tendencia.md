@@ -3,23 +3,23 @@
 ## Descripción General
 Sistema de clasificación de tendencia basado en **puntuación ponderada** donde cada EMA contribuye con un peso específico al score total. Optimizado para operaciones en velas de 1 minuto (M1) en opciones binarias.
 
-**Fecha de Implementación:** 24 de Noviembre de 2025  
-**Versión:** v5 - Sistema de Puntuación Ponderada
+**Fecha de Implementación:** 02 de Diciembre de 2025  
+**Versión:** v6 - Sistema High Reactive
 
 ---
 
 ## Indicadores Utilizados
 
-### EMAs del Sistema Ponderado
+### EMAs del Sistema Ponderado (V6)
 | EMA | Periodo | Peso | Velocidad | Uso Principal |
 |-----|---------|------|-----------|---------------|
-| **EMA 5** | 5 velas | 2.5 pts | Ultra rápida | Detección inmediata de reversiones |
-| **EMA 7** | 7 velas | 2.0 pts | Muy rápida | Señales inmediatas y sobre-extensión |
-| **EMA 10** | 10 velas | 1.5 pts | Rápida | Confirmación de momentum ultra corto |
-| **EMA 15** | 15 velas | 1.5 pts | Rápida-Media | Transición de momentum |
+| **EMA 3** | 3 velas | 3.0 pts | Ultra rápida | Detección inmediata de reversiones (Sniper) |
+| **EMA 5** | 5 velas | 2.5 pts | Muy rápida | Confirmación de momentum inmediato |
+| **EMA 7** | 7 velas | 2.0 pts | Rápida | Señales inmediatas y sobre-extensión |
+| **EMA 10** | 10 velas | 1.5 pts | Rápida-Media | Confirmación de momentum corto |
 | **EMA 20** | 20 velas | 1.0 pt | Media | Confirmación de momentum |
-| **EMA 30** | 30 velas | 1.0 pt | Media-Lenta | Contexto de tendencia |
-| **EMA 50** | 50 velas | 0.5 pt | Lenta | Validación de tendencia establecida |
+| **EMA 30** | 30 velas | 0.0 pt | Media-Lenta | Referencia visual (Contexto) |
+| **EMA 50** | 50 velas | 0.0 pt | Lenta | Referencia visual (Tendencia establecida) |
 
 **Total Máximo de Puntos:** 10.0
 
@@ -39,14 +39,14 @@ Sistema de clasificación de tendencia basado en **puntuación ponderada** donde
 ```python
 def analyze_trend(close: float, emas: Dict[str, float]) -> TrendAnalysis:
     # Definir pesos de EMAs (Total: 10.0)
+    # Definir pesos de EMAs (Total: 10.0) - Sistema V6
     ema_weights = {
+        'ema_3': 3.0,
         'ema_5': 2.5,
         'ema_7': 2.0,
         'ema_10': 1.5,
-        'ema_15': 1.5,
-        'ema_20': 1.0,
-        'ema_30': 1.0,
-        'ema_50': 0.5
+        'ema_20': 1.0
+        # EMA 30 y 50 ya no suman puntos
     }
     
     score = 0.0
@@ -73,14 +73,15 @@ def analyze_trend(close: float, emas: Dict[str, float]) -> TrendAnalysis:
 **Escenario:** Precio = 1.10500
 
 | EMA | Valor | Peso | Precio vs EMA | Contribución |
+| EMA | Valor | Peso | Precio vs EMA | Contribución |
 |-----|-------|------|--------------|--------------|
+| EMA 3 | 1.10490 | 3.0 | Precio > EMA | +3.0 |
 | EMA 5 | 1.10480 | 2.5 | Precio > EMA | +2.5 |
 | EMA 7 | 1.10460 | 2.0 | Precio > EMA | +2.0 |
 | EMA 10 | 1.10450 | 1.5 | Precio > EMA | +1.5 |
-| EMA 15 | 1.10440 | 1.5 | Precio > EMA | +1.5 |
 | EMA 20 | 1.10420 | 1.0 | Precio > EMA | +1.0 |
-| EMA 30 | 1.10400 | 1.0 | Precio > EMA | +1.0 |
-| EMA 50 | 1.10550 | 0.5 | Precio < EMA | -0.5 |
+| EMA 30 | 1.10400 | 0.0 | Precio > EMA | +0.0 |
+| EMA 50 | 1.10550 | 0.0 | Precio < EMA | -0.0 |
 
 **Score Total:** +9.0 → **STRONG_BULLISH**
 
@@ -281,14 +282,15 @@ Ver `BOLLINGER_EXHAUSTION_SYSTEM.md` para más detalles.
 Las 7 EMAs se muestran con colores distintivos:
 
 | EMA | Color | Grosor | Descripción |
+| EMA | Color | Grosor | Descripción |
 |-----|-------|--------|-------------|
-| EMA 5 | 🔴 Rojo | 3.0 | Más peso, línea más gruesa |
+| EMA 3 | ⚪ Blanco | 3.2 | Sniper / Trigger |
+| EMA 5 | 🔴 Rojo | 3.0 | Momentum Inmediato |
 | EMA 7 | 🟣 Magenta | 2.8 | Muy rápida |
 | EMA 10 | 🟠 Naranja | 2.5 | Rápida |
-| EMA 15 | 🟡 Amarillo | 2.2 | Rápida-Media |
 | EMA 20 | 🟢 Verde | 2.0 | Media |
-| EMA 30 | 🔵 Cyan | 1.8 | Media-Lenta |
-| EMA 50 | 🟦 Azul | 1.5 | Lenta |
+| EMA 30 | 🔵 Cyan | 1.8 | Referencia |
+| EMA 50 | 🟦 Azul | 1.5 | Referencia |
 
 **Ventaja Visual:** El grosor de la línea refleja su peso en el sistema.
 
