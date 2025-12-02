@@ -7082,5 +7082,201 @@
     "maximo": 1.39971,
     "minimo": 1.39954,
     "tipo_vela": "inverted_hammer"
+  },
+  {
+    "apertura": 1.32094,
+    "cierre": 1.320905,
+    "maximo": 1.32095,
+    "minimo": 1.32081,
+    "tipo_vela": "hanging_man"
+  },
+  {
+    "apertura": 1.16161,
+    "cierre": 1.161595,
+    "maximo": 1.16162,
+    "minimo": 1.16155,
+    "tipo_vela": "hanging_man"
+  },
+  {
+    "apertura": 1.320955,
+    "cierre": 1.320935,
+    "maximo": 1.321035,
+    "minimo": 1.32092,
+    "tipo_vela": "shooting_star"
+  },
+  {
+    "apertura": 1.399665,
+    "cierre": 1.399595,
+    "maximo": 1.399865,
+    "minimo": 1.399595,
+    "tipo_vela": "shooting_star"
+  },
+  {
+    "apertura": 1.16148,
+    "cierre": 1.161535,
+    "maximo": 1.161655,
+    "minimo": 1.161465,
+    "tipo_vela": "inverted_hammer"
+  },
+  {
+    "apertura": 0.879665,
+    "cierre": 0.87964,
+    "maximo": 0.87973,
+    "minimo": 0.87964,
+    "tipo_vela": "shooting_star"
+  },
+  {
+    "apertura": 0.879485,
+    "cierre": 0.8795,
+    "maximo": 0.879555,
+    "minimo": 0.879475,
+    "tipo_vela": "inverted_hammer"
+  },
+  {
+    "apertura": 1.16155,
+    "cierre": 1.161585,
+    "maximo": 1.161665,
+    "minimo": 1.161535,
+    "tipo_vela": "inverted_hammer"
+  },
+  {
+    "apertura": 1.16176,
+    "cierre": 1.16174,
+    "maximo": 1.16178,
+    "minimo": 1.16162,
+    "tipo_vela": "hanging_man"
+  },
+  {
+    "apertura": 1.32094,
+    "cierre": 1.32098,
+    "maximo": 1.32101,
+    "minimo": 1.320755,
+    "tipo_vela": "hammer"
+  },
+  {
+    "apertura": 0.879405,
+    "cierre": 0.879395,
+    "maximo": 0.87952,
+    "minimo": 0.879385,
+    "tipo_vela": "shooting_star"
+  },
+  {
+    "apertura": 1.39852,
+    "cierre": 1.398515,
+    "maximo": 1.398615,
+    "minimo": 1.398505,
+    "tipo_vela": "shooting_star"
+  },
+  {
+    "apertura": 1.321015,
+    "cierre": 1.320975,
+    "maximo": 1.32102,
+    "minimo": 1.32087,
+    "tipo_vela": "hanging_man"
+  },
+  {
+    "apertura": 1.39845,
+    "cierre": 1.39853,
+    "maximo": 1.39872,
+    "minimo": 1.39842,
+    "tipo_vela": "inverted_hammer"
+  },
+  {
+    "apertura": 1.16074,
+    "cierre": 1.16077,
+    "maximo": 1.160895,
+    "minimo": 1.160725,
+    "tipo_vela": "inverted_hammer"
+  },
+  {
+    "apertura": 1.32051,
+    "cierre": 1.320455,
+    "maximo": 1.32072,
+    "minimo": 1.32045,
+    "tipo_vela": "shooting_star"
+  },
+  {
+    "apertura": 1.39823,
+    "cierre": 1.39824,
+    "maximo": 1.398275,
+    "minimo": 1.398035,
+    "tipo_vela": "hammer"
+  },
+  {
+    "apertura": 181.2335,
+    "cierre": 181.23,
+    "maximo": 181.2355,
+    "minimo": 181.189,
+    "tipo_vela": "hanging_man"
+  },
+  {
+    "apertura": 1.320225,
+    "cierre": 1.320185,
+    "maximo": 1.320225,
+    "minimo": 1.31998,
+    "tipo_vela": "hanging_man"
+  },
+  {
+    "apertura": 1.160235,
+    "cierre": 1.16025,
+    "maximo": 1.16032,
+    "minimo": 1.160225,
+    "tipo_vela": "inverted_hammer"
+  },
+  {
+    "apertura": 1.3199,
+    "cierre": 1.31993,
+    "maximo": 1.320025,
+    "minimo": 1.31988,
+    "tipo_vela": "inverted_hammer"
+  },
+  {
+    "apertura": 156.116,
+    "cierre": 156.1225,
+    "maximo": 156.142,
+    "minimo": 156.116,
+    "tipo_vela": "inverted_hammer"
+  },
+  {
+    "apertura": 0.87937,
+    "cierre": 0.879395,
+    "maximo": 0.87941,
+    "minimo": 0.8793,
+    "tipo_vela": "hammer"
+  },
+  {
+    "apertura": 1.161405,
+    "cierre": 1.16138,
+    "maximo": 1.161405,
+    "minimo": 1.16131,
+    "tipo_vela": "hanging_man"
+  },
+  {
+    "apertura": 1.32085,
+    "cierre": 1.320865,
+    "maximo": 1.32103,
+    "minimo": 1.32083,
+    "tipo_vela": "inverted_hammer"
+  },
+  {
+    "apertura": 155.936,
+    "cierre": 155.944,
+    "maximo": 155.947,
+    "minimo": 155.9185,
+    "tipo_vela": "hammer"
+  },
+  {
+    "apertura": 1.161005,
+    "cierre": 1.160975,
+    "maximo": 1.16109,
+    "minimo": 1.160975,
+    "tipo_vela": "shooting_star"
+  },
+  {
+    "apertura": 1.39786,
+    "cierre": 1.397885,
+    "maximo": 1.397895,
+    "minimo": 1.39777,
+    "tipo_vela": "hammer"
   }
 ]

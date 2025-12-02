@@ -16,7 +16,7 @@
 #### ÉPICA 2: Optimización de Latencia y Despliegue 🟧 *Alta Prioridad*
 *En binarias, 200ms es la diferencia entre un buen punto de entrada y uno malo.*
 
-* **TASK-2.1: Modo "Low Latency" (Switch de Gráficos).**
+* **TASK-2.1: Modo "Low Latency" (Switch de Gráficos).** ✅ *Completado el 02/12/2025*
     * Actualmente generar el gráfico tarda ~220ms. Implementar lógica para enviar la señal de texto **inmediatamente** (`await telegram.send_text(...)`) y generar/enviar la imagen en un hilo secundario *después*.
     * El trader necesita la alerta textual YA. La foto puede llegar 2 segundos después.
 * **TASK-2.2: Despliegue en VPS/Cloud.**
