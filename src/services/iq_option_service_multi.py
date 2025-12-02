@@ -581,7 +581,7 @@ class IqOptionServiceMultiAsync:
                 # ---------------------------------------------------------
                 now = datetime.now()
                 # Objetivo: Segundo 59 del minuto actual
-                target_time = now.replace(second=59, microsecond=900000) # 59.9s
+                target_time = now.replace(second=59, microsecond=0) # 59.0s
                 
                 if now > target_time:
                     # Si ya pasamos el 59.9, apuntar al siguiente minuto

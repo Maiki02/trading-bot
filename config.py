@@ -76,6 +76,7 @@ class TelegramConfig:
     send_outcome_charts: bool  # Enviar gráficos actualizados en el mensaje de resultado
     enable_notifications: bool  # Habilitar/deshabilitar envío de notificaciones
     save_notifications_locally: bool  # Guardar notificaciones localmente en PNG y JSON
+    send_none_signal_notifications: bool = False # Enviar notificaciones con fuerza "NONE"
     
     def validate(self) -> None:
         """Valida que todos los parámetros estén configurados."""
@@ -234,7 +235,8 @@ class Config:
         send_charts=os.getenv("SEND_CHARTS", "true").lower() == "true",
         send_outcome_charts=os.getenv("SEND_OUTCOME_CHARTS", "true").lower() == "true",
         enable_notifications=os.getenv("ENABLE_NOTIFICATIONS", "true").lower() == "true",
-        save_notifications_locally=os.getenv("SAVE_NOTIFICATIONS_LOCALLY", "false").lower() == "true"
+        save_notifications_locally=os.getenv("SAVE_NOTIFICATIONS_LOCALLY", "false").lower() == "true",
+        send_none_signal_notifications=os.getenv("SEND_NONE_SIGNAL_NOTIFICATIONS", "false").lower() == "true"
     )
     
     # Trading Parameters - Mean Reversion Strategy

@@ -46,6 +46,9 @@
     * Generar reporte: "Si hubieras operado todas las señales HIGH SCORE con RSI > 70, tu PnL sería $X".
 * **TASK-4.2: Análisis de "Retroceso al 50%".**
     * Analizar en el dataset (si tienes datos OHLC tick a tick o de segundos, si no, no se puede hacer preciso con velas de 1m cerradas) si el precio tocó el 50% de la mecha antes de revertir. *Nota: Esto es difícil si solo guardas OHLC de 1 min. Necesitarías guardar datos de velas de 5 segundos o Ticks para validar esto.*
+* **TASK-4.X: Validación de PnL por Punto de Entrada.**
+    * Futura implementación: Registrar éxito/fracaso no por el cierre de la vela (color), sino validando si el precio tocó el punto de entrada (50% del rango de la vela trigger) y cerró a favor.
+    * Diferenciar PnL de "Entrada al Cierre" vs "Entrada al 50%".
 
 ---
 

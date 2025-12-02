@@ -77,6 +77,7 @@ class PatternSignal:
     is_counter_trend: bool = False  # True si patrón va contra la tendencia principal
     bb_upper: Optional[float] = None  # Banda superior de Bollinger
     bb_lower: Optional[float] = None  # Banda inferior de Bollinger
+    entry_point: Optional[float] = None  # Punto de entrada (50% del rango de la vela)
 
 
 # =============================================================================
@@ -1382,6 +1383,10 @@ class AnalysisService:
         elif pattern_is_bullish:
             is_trend_aligned = is_bearish_trend  # Alcista espera tendencia bajista
         
+        # Calcular punto de entrada (50% del rango total de la vela cerrada)
+        candle_range = last_closed.high - last_closed.low
+        entry_point = last_closed.low + (candle_range / 2)
+
         logger.info(
             f"\n{'═'*60}\n"
             f"🎯 PATRÓN DETECTADO: {pattern_detected}\n"
@@ -1393,11 +1398,17 @@ class AnalysisService:
             f"📍 Bollinger Exhaustion: {'✅ ' + exhaustion_type if bollinger_exhaustion else '❌ NONE'}\n"
             f"🎚️  Fuerza de Señal: {signal_strength}\n"
             f"⚠️  Contra-Tendencia: {'SÍ' if is_counter_trend else 'NO'}\n"
+            f"🎯 Entry Point (50%): {entry_point:.5f}\n"
         )
         
         # Notificar al TelegramService con la información completa
         # force_notification omite validación de confianza mínima (útil para testing/debug)
         should_notify = pattern_confidence >= 0.70 or force_notification
+        
+        # FILTRO DE SEÑALES "NONE"
+        if not force_notification and signal_strength == "NONE" and not Config.TELEGRAM.send_none_signal_notifications:
+            should_notify = False
+            logger.info(f"🔇 Señal silenciada (Strength=NONE, SEND_NONE_SIGNAL_NOTIFICATIONS=False)")
         
         if should_notify:
             # Generar gráfico en Base64 (operación bloqueante en hilo separado)
@@ -1529,7 +1540,8 @@ class AnalysisService:
                 candle_exhaustion=candle_exhaustion,
                 is_counter_trend=is_counter_trend,
                 bb_upper=float(bb_upper) if not pd.isna(bb_upper) else None,
-                bb_lower=float(bb_lower) if not pd.isna(bb_lower) else None
+                bb_lower=float(bb_lower) if not pd.isna(bb_lower) else None,
+                entry_point=entry_point
             )
             
             logger.info(
