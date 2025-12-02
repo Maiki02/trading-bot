@@ -1402,45 +1402,53 @@ class AnalysisService:
         if should_notify:
             # Generar gráfico en Base64 (operación bloqueante en hilo separado)
             chart_base64 = None
-            try:
-                # Validar que hay suficientes datos para el gráfico
-                is_valid, error_msg = validate_dataframe_for_chart(df, self.chart_lookback)
-                logger.debug(
-                    f"Validación de DataFrame para gráfico: is_valid={is_valid}, error_msg='{error_msg}'"
-                )
-                if is_valid:
-                    chart_title = f"{current_candle.source}:{current_candle.symbol} - {pattern_detected}"
-                    
-                    logger.info(
-                        f"📋 GENERANDO GRÁFICO | {source_key} | "
-                        f"Últimas {self.chart_lookback} velas | Patrón: {pattern_detected}"
-                    )
-                    
-                    # CRITICAL: Ejecutar en hilo separado para no bloquear el Event Loop
-                    import time
-                    start_time = time.perf_counter()
-                    
-                    chart_base64 = await asyncio.to_thread(
-                        generate_chart_base64,
-                        df,
-                        self.chart_lookback,
-                        chart_title
-                    )
-                    
-                    elapsed_ms = (time.perf_counter() - start_time) * 1000
-                    
-                    logger.info(
-                        f"✅ GRÁFICO GENERADO | {source_key} | "
-                        f"Tamaño: {len(chart_base64)} bytes Base64 | "
-                        f"Tiempo: {elapsed_ms:.1f}ms | Patrón: {pattern_detected}"
-                    )
-                else:
-                    logger.warning(f"⚠️  No se pudo generar gráfico: {error_msg}")
             
-            except Exception as e:
-                log_exception(logger, "Failed to generate chart", e)
-                # Continuar sin gráfico si hay error
-                chart_base64 = None
+            # OPTIMIZACIÓN: Solo generar gráfico si se va a enviar
+            # El guardado local (SAVE_NOTIFICATIONS_LOCALLY) guardará lo que se haya generado (con o sin imagen)
+            should_generate_chart = Config.TELEGRAM.send_charts
+            
+            if should_generate_chart:
+                try:
+                    # Validar que hay suficientes datos para el gráfico
+                    is_valid, error_msg = validate_dataframe_for_chart(df, self.chart_lookback)
+                    logger.debug(
+                        f"Validación de DataFrame para gráfico: is_valid={is_valid}, error_msg='{error_msg}'"
+                    )
+                    if is_valid:
+                        chart_title = f"{current_candle.source}:{current_candle.symbol} - {pattern_detected}"
+                        
+                        logger.info(
+                            f"📋 GENERANDO GRÁFICO | {source_key} | "
+                            f"Últimas {self.chart_lookback} velas | Patrón: {pattern_detected}"
+                        )
+                        
+                        # CRITICAL: Ejecutar en hilo separado para no bloquear el Event Loop
+                        import time
+                        start_time = time.perf_counter()
+                        
+                        chart_base64 = await asyncio.to_thread(
+                            generate_chart_base64,
+                            df,
+                            self.chart_lookback,
+                            chart_title
+                        )
+                        
+                        elapsed_ms = (time.perf_counter() - start_time) * 1000
+                        
+                        logger.info(
+                            f"✅ GRÁFICO GENERADO | {source_key} | "
+                            f"Tamaño: {len(chart_base64)} bytes Base64 | "
+                            f"Tiempo: {elapsed_ms:.1f}ms | Patrón: {pattern_detected}"
+                        )
+                    else:
+                        logger.warning(f"⚠️  No se pudo generar gráfico: {error_msg}")
+                
+                except Exception as e:
+                    log_exception(logger, "Failed to generate chart", e)
+                    # Continuar sin gráfico si hay error
+                    chart_base64 = None
+            else:
+                logger.debug(f"⏭️  Saltando generación de gráfico para {source_key} (SEND_CHARTS=False)")
             
             # En este punto siempre hay un patrón detectado
             
