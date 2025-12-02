@@ -7502,5 +7502,12 @@
     "maximo": 1.3185,
     "minimo": 1.31829,
     "tipo_vela": "shooting_star"
+  },
+  {
+    "apertura": 1.318315,
+    "cierre": 1.31839,
+    "maximo": 1.318425,
+    "minimo": 1.318145,
+    "tipo_vela": "hammer"
   }
 ]
