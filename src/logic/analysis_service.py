@@ -761,10 +761,9 @@ class AnalysisService:
         2. Determinar dirección esperada según patrón
         3. Calcular dirección actual de la vela de resultado
         4. Determinar éxito/fracaso
-        5. Calcular PnL en pips
-        6. Construir registro completo
-        7. Guardar en StorageService
-        8. Limpiar señal pendiente
+        5. Construir registro completo
+        6. Guardar en StorageService
+        7. Limpiar señal pendiente
         
         Args:
             source_key: Clave de la fuente (ej: "FX_EURUSD")
@@ -800,11 +799,11 @@ class AnalysisService:
         )
         
         # Determinar dirección esperada según tipo de patrón
-        # BAJISTA (reversión bajista): Shooting Star, Hanging Man
-        # ALCISTA (reversión alcista): Hammer, Inverted Hammer
-        if pending_signal.pattern in ["SHOOTING_STAR", "HANGING_MAN"]:
-            expected_direction = "ROJO"  # Bajista
-        elif pending_signal.pattern in ["HAMMER", "INVERTED_HAMMER"]:
+        # BAJISTA (reversión bajista): Shooting Star, Inverted Hammer
+        # ALCISTA (reversión alcista): Hammer, Hanging Man
+        if pending_signal.pattern in ["SHOOTING_STAR", "INVERTED_HAMMER"]:
+            expected_direction = "ROJA"  # Bajista
+        elif pending_signal.pattern in ["HAMMER", "HANGING_MAN"]:
             expected_direction = "VERDE"  # Alcista
         else:
             logger.warning(f"⚠️  Patrón desconocido: {pending_signal.pattern}")
@@ -815,19 +814,7 @@ class AnalysisService:
         
         # Determinar éxito
         success = (expected_direction == actual_direction)
-        
-        # Calcular PnL en pips (asumiendo 4 decimales para EUR/USD)
-        # PnL = (Precio_Final - Precio_Inicial) * 10000
-        # Si esperábamos bajista (SHORT): PnL = (Precio_Inicial - Precio_Final) * 10000
-        # Si esperábamos alcista (LONG): PnL = (Precio_Final - Precio_Inicial) * 10000
-        
-        if expected_direction == "ROJO":  # SHORT position
-            pnl_pips = (pending_signal.candle.close - outcome_candle.close) * 10000
-        elif expected_direction == "VERDE":  # LONG position
-            pnl_pips = (outcome_candle.close - pending_signal.candle.close) * 10000
-        else:
-            pnl_pips = 0.0
-        
+
         # Calcular alineación de EMAs en formato string
         emas_dict = {
             'ema_5': pending_signal.ema_5,
