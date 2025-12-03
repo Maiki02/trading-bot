@@ -7,14 +7,15 @@ Integrar un monitor automatizado 24/7 que capture datos de mercado en tiempo rea
 **Nueva Funcionalidad:** Refactorización completa del motor de tendencias para eliminar el lag en mercados laterales.
 
 **Cambios principales:**
-- ✅ **Slope (Velocidad):** Cálculo de pendiente de EMAs para detectar "aplanamiento".
-- ✅ **Structure (Alineación):** Bonus por alineación perfecta (Fanning) en lugar de requisito bloqueante.
-- ✅ **Thresholds Dinámicos:** Filtro de ruido (0.5 pips) para ignorar movimientos irrelevantes.
+- ✅ **Slope Porcentual:** Cálculo de pendiente como % de cambio `(curr - prev) / prev` para normalizar entre activos.
+- ✅ **RSI 7:** Integración de RSI de 7 periodos como "Banda Elástica" para confirmar reversiones.
+- ✅ **Structure (Alineación):** Bonus por alineación perfecta (Fanning).
+- ✅ **Penalización por Aplanamiento:** El Score BAJA si la EMA 3 pierde inclinación (pausas de 2-3 velas).
 - ✅ **Nuevos Estados:** Clasificación más granular (Strong/Weak Bullish/Bearish + Neutral).
 
-**Filosofía:** El precio siempre lidera, las EMAs siguen. Al medir la *velocidad* de cambio (Slope) en lugar de solo la posición, anticipamos el fin de la tendencia antes de que ocurra el cruce.
+**Filosofía:** El precio siempre lidera. Usamos RSI 7 para sobre-extensión y Slope de EMA 3 para detectar la pérdida de momentum inmediata.
 
-Ver documentación completa en: `Docs/tendencia.md`
+Ver documentación completa en: `Docs/tendencia.md` y `Docs/rsi.md`
 
 ### 1.1. Objetivo Versión 0.0.4 (Sistema de Probabilidad Histórica en Tiempo Real)
 **Nueva Funcionalidad:** Sistema de **Probabilidades Históricas** que consulta el dataset JSONL para mostrar win rate, PnL promedio y racha reciente en las alertas de Telegram.

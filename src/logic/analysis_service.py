@@ -218,9 +218,6 @@ def analyze_trend(close: float, emas: Dict[str, float], prev_emas: Optional[Dict
     Returns:
         TrendAnalysis con estado, score (float) e is_aligned
     """
-    # Umbral de pendiente (aprox 0.5 pips)
-    SLOPE_THRESHOLD = 0.00005
-    
     # Inicializar componentes
     score_structure = 0.0
     score_velocity = 0.0
@@ -228,7 +225,7 @@ def analyze_trend(close: float, emas: Dict[str, float], prev_emas: Optional[Dict
     
     # Obtener EMAs actuales
     ema_3 = emas.get('ema_3', np.nan)
-    ema_7 = emas.get('ema_7', np.nan)
+    ema_5 = emas.get('ema_5', np.nan)
     ema_20 = emas.get('ema_20', np.nan)
     
     # 1. ESTRUCTURA (ALINEACIÓN) - Max 3.0 pts
@@ -236,37 +233,40 @@ def analyze_trend(close: float, emas: Dict[str, float], prev_emas: Optional[Dict
     is_bullish_structure = False
     is_bearish_structure = False
     
-    if not pd.isna(ema_3) and not pd.isna(ema_7) and not pd.isna(ema_20):
-        if ema_3 > ema_7 > ema_20:
+    # Usamos EMA 5 en lugar de EMA 7 para mayor reactividad en M1
+    ema_5 = emas.get('ema_5', np.nan)
+    
+    if not pd.isna(ema_3) and not pd.isna(ema_5) and not pd.isna(ema_20):
+        if ema_3 > ema_5 > ema_20:
             is_bullish_structure = True
             score_structure = 3.0
-        elif ema_3 < ema_7 < ema_20:
+        elif ema_3 < ema_5 < ema_20:
             is_bearish_structure = True
             score_structure = -3.0
             
-    # 2. CÁLCULO DE SLOPE (VELOCIDAD)
+    # 2. CÁLCULO DE SLOPE (VELOCIDAD PORCENTUAL)
     slope_3 = 0.0
-    slope_7 = 0.0
+    slope_5 = 0.0
     slope_20 = 0.0
     
     if prev_emas:
         prev_ema_3 = prev_emas.get('ema_3', np.nan)
-        prev_ema_7 = prev_emas.get('ema_7', np.nan)
+        prev_ema_5 = prev_emas.get('ema_5', np.nan)
         prev_ema_20 = prev_emas.get('ema_20', np.nan)
         
-        # Calcular pendientes
-        if not pd.isna(ema_3) and not pd.isna(prev_ema_3):
-            slope_3 = ema_3 - prev_ema_3
-        if not pd.isna(ema_7) and not pd.isna(prev_ema_7):
-            slope_7 = ema_7 - prev_ema_7
-        if not pd.isna(ema_20) and not pd.isna(prev_ema_20):
-            slope_20 = ema_20 - prev_ema_20
+        # Calcular pendientes como % de cambio: (curr - prev) / prev
+        if not pd.isna(ema_3) and not pd.isna(prev_ema_3) and prev_ema_3 != 0:
+            slope_3 = (ema_3 - prev_ema_3) / prev_ema_3
+        if not pd.isna(ema_5) and not pd.isna(prev_ema_5) and prev_ema_5 != 0:
+            slope_5 = (ema_5 - prev_ema_5) / prev_ema_5
+        if not pd.isna(ema_20) and not pd.isna(prev_ema_20) and prev_ema_20 != 0:
+            slope_20 = (ema_20 - prev_ema_20) / prev_ema_20
             
     # 3. VELOCIDAD BASE (EMA 20) - Max 2.0 pts
     # Define la dirección de fondo de la micro-tendencia
-    if slope_20 > SLOPE_THRESHOLD:
+    if slope_20 > Config.SLOPE_THRESHOLD_PCT:
         score_velocity = 2.0
-    elif slope_20 < -SLOPE_THRESHOLD:
+    elif slope_20 < -Config.SLOPE_THRESHOLD_PCT:
         score_velocity = -2.0
         
     # 4. MOMENTUM Y DETECCIÓN DE AGOTAMIENTO - Max 5.0 pts
@@ -274,36 +274,36 @@ def analyze_trend(close: float, emas: Dict[str, float], prev_emas: Optional[Dict
     
     # Análisis para Estructura ALCISTA
     if is_bullish_structure:
-        # Si EMA 3 y 7 tienen fuerza, sumamos momentum
-        if slope_3 > SLOPE_THRESHOLD:
+        # Si EMA 3 y 5 tienen fuerza, sumamos momentum
+        if slope_3 > Config.SLOPE_THRESHOLD_PCT:
             score_momentum += 3.0
-        elif slope_3 < SLOPE_THRESHOLD: # Aplanamiento o reversión de EMA 3
+        elif slope_3 < Config.SLOPE_THRESHOLD_PCT: # Aplanamiento o reversión de EMA 3
             # PENALIZACIÓN POR AGOTAMIENTO: Estructura alcista pero EMA 3 perdiendo fuerza
             score_momentum -= 2.0 
             
-        if slope_7 > SLOPE_THRESHOLD:
+        if slope_5 > Config.SLOPE_THRESHOLD_PCT:
             score_momentum += 2.0
             
     # Análisis para Estructura BAJISTA
     elif is_bearish_structure:
-        # Si EMA 3 y 7 tienen fuerza bajista, restamos momentum (sumamos negativo)
-        if slope_3 < -SLOPE_THRESHOLD:
+        # Si EMA 3 y 5 tienen fuerza bajista, restamos momentum (sumamos negativo)
+        if slope_3 < -Config.SLOPE_THRESHOLD_PCT:
             score_momentum -= 3.0
-        elif slope_3 > -SLOPE_THRESHOLD: # Aplanamiento o reversión de EMA 3
+        elif slope_3 > -Config.SLOPE_THRESHOLD_PCT: # Aplanamiento o reversión de EMA 3
             # PENALIZACIÓN POR AGOTAMIENTO: Estructura bajista pero EMA 3 perdiendo fuerza
             score_momentum += 2.0 # Sumar puntos para acercar el score a 0
             
-        if slope_7 < -SLOPE_THRESHOLD:
+        if slope_5 < -Config.SLOPE_THRESHOLD_PCT:
             score_momentum -= 2.0
             
     # Análisis sin Estructura definida (Rango/Cruce)
     else:
         # Solo sumamos puntos por slope puro, pero con menos peso
-        if slope_3 > SLOPE_THRESHOLD: score_momentum += 1.5
-        elif slope_3 < -SLOPE_THRESHOLD: score_momentum -= 1.5
+        if slope_3 > Config.SLOPE_THRESHOLD_PCT: score_momentum += 1.5
+        elif slope_3 < -Config.SLOPE_THRESHOLD_PCT: score_momentum -= 1.5
         
-        if slope_7 > SLOPE_THRESHOLD: score_momentum += 1.0
-        elif slope_7 < -SLOPE_THRESHOLD: score_momentum -= 1.0
+        if slope_5 > Config.SLOPE_THRESHOLD_PCT: score_momentum += 1.0
+        elif slope_5 < -Config.SLOPE_THRESHOLD_PCT: score_momentum -= 1.0
 
     # SUMA TOTAL
     total_score = score_structure + score_velocity + score_momentum

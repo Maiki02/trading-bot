@@ -247,6 +247,9 @@ class Config:
     USE_TREND_FILTER: bool = os.getenv("USE_TREND_FILTER", "false").lower() == "true"
     SHOW_CANDLE_RESULT: bool = os.getenv("SHOW_CANDLE_RESULT", "true").lower() == "true"  # Mostrar debug de condiciones en Telegram
     
+    # Slope Threshold for Trend Analysis (Percentage)
+    SLOPE_THRESHOLD_PCT: float = float(os.getenv("SLOPE_THRESHOLD_PCT", "0.0001"))  # 0.01%
+    
     # Reconnection Strategy
     RECONNECT_INITIAL_TIMEOUT: int = int(os.getenv("RECONNECT_INITIAL_TIMEOUT", "5"))
     RECONNECT_MAX_TIMEOUT: int = int(os.getenv("RECONNECT_MAX_TIMEOUT", "300"))
