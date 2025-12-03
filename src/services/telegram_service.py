@@ -155,8 +155,44 @@ class TelegramService:
         # ═════════════════════════════════════════════════════════════════════
         # TÍTULO BASADO EN SIGNAL_STRENGTH (Nuevo Sistema)
         # ═════════════════════════════════════════════════════════════════════
+        title = self._get_title_text(signal)
+        
+        # Agregar información de debug si está habilitado
+        debug_info = self._get_debug_info_text(signal)
+        
+        # Cuerpo del mensaje estructurado
+        body = (
+            f"━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"🔹 Señal: {signal.signal_strength}\n"
+            f"🔹 Patrón: {signal.pattern}\n"
+            f"🔹 Fecha: {timestamp_str}\n"
+            # f"{exhaustion_emoji} {exhaustion_text}\n"
+            # f"{candle_exh_emoji} {candle_exh_text}\n"
+            f"🔹 Tendencia: {signal.trend} ({signal.trend_score:+.1f}/10.0)\n"
+            f"🔹 Precio Objetivo: {signal.entry_point:.6f}\n"
+            f"{debug_info}"
+            # f"━━━━━━━━━━━━━━━━━━━━━━\n"
+        )
+        
+        return AlertMessage(
+            title=title,
+            body=body,
+            alert_type="STANDARD",
+            timestamp=datetime.now()
+        )
 
-  # Definir título según fuerza y dirección esperada
+    def _get_title_text(self, signal: PatternSignal) -> str:
+        """
+        Obtiene el título del mensaje basado en la fuerza de la señal.
+        
+        Args:
+            signal: Señal de patrón detectada
+        
+        Returns:
+            str: Título del mensaje
+        """
+        title = ""
+        # Definir título según fuerza y dirección esperada
         if signal.signal_strength == "VERY_HIGH":
             # 🔥 ALERTA MUY FUERTE (Patrón Principal + Ambos Exhaustion)
             if signal.pattern in ["SHOOTING_STAR"]:
@@ -221,66 +257,20 @@ class TelegramService:
             title = f"⚪ *{display_symbol}* ⚪\n{text}.\nSin agotamiento detectado - Analizar\nPobabilidad bajísima."
         
         else:  # NONE
-            title = f"*{display_symbol}*\nMensaje informativo. No hay nada importante detectado.\n"
+            title = f"*{display_symbol}*\nNada importante detectado.\n"
 
-        # Formatear EMAs (mostrar N/A si no están disponibles)
-        import math
-        # ema_20_str = f"{signal.ema_20:.5f}" if not math.isnan(signal.ema_20) else "N/A"
-        # ema_30_str = f"{signal.ema_30:.5f}" if not math.isnan(signal.ema_30) else "N/A"
-        # ema_50_str = f"{signal.ema_50:.5f}" if not math.isnan(signal.ema_50) else "N/A"
+        return title
+    
+    def _get_debug_info_text(self, signal: PatternSignal) -> str:
+        """
+        Obtiene la información de debug para mostrar en el mensaje.
         
-        # # Formatear Bollinger Bands
-        # bb_upper_str = f"{signal.bb_upper:.5f}" if signal.bb_upper is not None else "N/A"
-        # bb_lower_str = f"{signal.bb_lower:.5f}" if signal.bb_lower is not None else "N/A"
+        Args:
+            signal: Señal de patrón detectada
         
-        # Determinar estructura de EMAs para mensaje
-        # if not math.isnan(signal.ema_20) and not math.isnan(signal.ema_200):
-        #     if signal.candle.close > signal.ema_20 > signal.ema_200:
-        #         estructura = f"Precio > EMA20 > EMA200 (Alineación alcista)"
-        #     elif signal.candle.close < signal.ema_20 < signal.ema_200:
-        #         estructura = f"Precio < EMA20 < EMA200 (Alineación bajista)"
-        #     else:
-        #         estructura = f"EMAs mixtas (Sin alineación clara)"
-        # else:
-        #     estructura = "Datos insuficientes"
-        
-        # # Determinar interpretación de tendencia
-        # if signal.trend_score >= 6:
-        #     trend_interpretation = "Tendencia alcista muy fuerte"
-        # elif signal.trend_score >= 1:
-        #     trend_interpretation = "Tendencia alcista débil"
-        # elif signal.trend_score >= -1:
-        #     trend_interpretation = "Sin tendencia clara (Mercado lateral)"
-        # elif signal.trend_score >= -5:
-        #     trend_interpretation = "Tendencia bajista débil"
-        # else:
-        #     trend_interpretation = "Tendencia bajista muy fuerte"
-        
-        # Emoji de zona de agotamiento
-        # exhaustion_emoji = ""
-        # exhaustion_text = ""
-        # if signal.exhaustion_type == "PEAK":
-        #     exhaustion_emoji = "🔺"
-        #     exhaustion_text = "Señal de techo"
-        # elif signal.exhaustion_type == "BOTTOM":
-        #     exhaustion_emoji = "🔻"
-        #     exhaustion_text = "Señal de piso"
-        # else:
-        #     exhaustion_emoji = "➖"
-        #     exhaustion_text = "Sin agotamiento"
-        
-        # Emoji de Candle Exhaustion
-        # candle_exh_emoji = "💥" if signal.candle_exhaustion else "⚪"
-        # candle_exh_text = "Rompió nivel anterior" if signal.candle_exhaustion else "Sin ruptura de nivel"
-        
-        # Construir bloque de estadísticas si hay datos suficientes
-        # statistics_block = ""
-        # if signal.statistics:
-        #     statistics_block = self._format_statistics_block(signal)
-        # else:
-        #     logger.warning("⚠️  signal.statistics es None o no existe")
-        
-        # Agregar información de debug si está habilitado
+        Returns:
+            str: Información de debug
+        """
         debug_info = ""
         if Config.SHOW_CANDLE_RESULT:
             from src.logic.analysis_service import get_candle_result_debug
@@ -290,32 +280,8 @@ class TelegramService:
                 exhaustion_type=signal.exhaustion_type,
                 candle_exhaustion=signal.candle_exhaustion
             )
-        
-        # Cuerpo del mensaje estructurado
-        target_price_line = ""
-        if signal.signal_strength != "NONE" and signal.entry_point is not None:
-             target_price_line = f"🔹 Precio Objetivo: {signal.entry_point:.6f}\n"
+        return debug_info   
 
-        body = (
-            f"━━━━━━━━━━━━━━━━━━━━━━\n"
-            f"🔹 Señal: {signal.signal_strength}\n"
-            f"🔹 Patrón: {signal.pattern}\n"
-            f"🔹 Fecha: {timestamp_str}\n"
-            # f"{exhaustion_emoji} {exhaustion_text}\n"
-            # f"{candle_exh_emoji} {candle_exh_text}\n"
-            f"🔹 Tendencia: {signal.trend} ({signal.trend_score:+.1f}/10.0)\n"
-            f"{target_price_line}"
-            f"{debug_info}"
-            # f"━━━━━━━━━━━━━━━━━━━━━━\n"
-        )
-        
-        return AlertMessage(
-            title=title,
-            body=body,
-            alert_type="STANDARD",
-            timestamp=datetime.now()
-        )
-    
     def _format_statistics_block(self, signal: PatternSignal) -> str:
         """
         Formatea el bloque de estadísticas con diseño jerárquico y limpio.

@@ -342,11 +342,11 @@ El sistema utiliza un **algoritmo de scoring ponderado con 7 EMAs** optimizado p
 
 | Score Range | Estado | Descripción |
 |-------------|--------|-------------|
-| **[6.0 a 10.0]** | `STRONG_BULLISH` | Alcista fuerte |
-| **[2.0 a 6.0)** | `WEAK_BULLISH` | Alcista débil |
-| **(-2.0 a 2.0)** | `NEUTRAL` | Sin tendencia clara |
-| **(-6.0 a -2.0]** | `WEAK_BEARISH` | Bajista débil |
-| **[-10.0 a -6.0]** | `STRONG_BEARISH` | Bajista fuerte |
+| **(7.0 a 10.0]** | `STRONG_BULLISH` | Alcista fuerte |
+| **(2.0 a 7.0]** | `WEAK_BULLISH` | Alcista débil |
+| **[-2.0 a 2.0]** | `NEUTRAL` | Sin tendencia clara |
+| **[-7.0 a -2.0)** | `WEAK_BEARISH` | Bajista débil |
+| **[-10.0 a -7.0)** | `STRONG_BEARISH` | Bajista fuerte |
 
 **Detección de Alineación (Fanning):**
 - `is_aligned = True` solo si las EMAs están ordenadas perfectamente (ej: P > 5 > 7 > 10 > 20 > 50).

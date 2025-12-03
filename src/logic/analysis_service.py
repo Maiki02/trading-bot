@@ -206,11 +206,11 @@ def analyze_trend(close: float, emas: Dict[str, float]) -> TrendAnalysis:
     - EMA 20: 1.0 punto
     
     CLASIFICACIÓN:
-    - [6.0 a 10.0]:   STRONG_BULLISH
-    - [2.0 a 6.0):    WEAK_BULLISH
-    - (-2.0 a 2.0):   NEUTRAL
-    - (-6.0 a -2.0]:  WEAK_BEARISH
-    - [-10.0 a -6.0]: STRONG_BEARISH
+    - (7.0 a 10.0]:   STRONG_BULLISH
+    - (2.0 a 7.0]:    WEAK_BULLISH
+    - [-2.0 a 2.0]:   NEUTRAL
+    - [-7.0 a -2.0):  WEAK_BEARISH
+    - [-10.0 a -7.0): STRONG_BEARISH
     
     Args:
         close: Precio de cierre actual
@@ -252,15 +252,16 @@ def analyze_trend(close: float, emas: Dict[str, float]) -> TrendAnalysis:
     score = round(score, 1)
     
     # Clasificar tendencia según umbrales
-    if score >= 6.0:
+    # Clasificar tendencia según umbrales (Ajuste V6.2)
+    if score > 7.0:
         status = "STRONG_BULLISH"
-    elif score >= 2.0:
+    elif score > 2.0:
         status = "WEAK_BULLISH"
-    elif score > -2.0:
+    elif score >= -2.0:
         status = "NEUTRAL"
-    elif score > -6.0:
+    elif score >= -7.0:
         status = "WEAK_BEARISH"
-    else:  # score <= -6.0
+    else:  # score < -7.0
         status = "STRONG_BEARISH"
     
     # Verificar alineación perfecta (Fanning)
