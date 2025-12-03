@@ -292,6 +292,10 @@ class TelegramService:
             )
         
         # Cuerpo del mensaje estructurado
+        target_price_line = ""
+        if signal.signal_strength != "NONE" and signal.entry_point is not None:
+             target_price_line = f"🔹 Precio Objetivo: {signal.entry_point:.6f}\n"
+
         body = (
             f"━━━━━━━━━━━━━━━━━━━━━━\n"
             f"🔹 Señal: {signal.signal_strength}\n"
@@ -300,7 +304,7 @@ class TelegramService:
             # f"{exhaustion_emoji} {exhaustion_text}\n"
             # f"{candle_exh_emoji} {candle_exh_text}\n"
             f"🔹 Tendencia: {signal.trend} ({signal.trend_score:+.1f}/10.0)\n"
-            f"🔹 Precio Objetivo: {signal.entry_point:.6f}\n"
+            f"{target_price_line}"
             f"{debug_info}"
             # f"━━━━━━━━━━━━━━━━━━━━━━\n"
         )
