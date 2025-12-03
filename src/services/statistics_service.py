@@ -135,11 +135,12 @@ class StatisticsService:
                 # Extraer close de pattern_candle
                 close = pattern_candle.get('close')
                 
-                # Extraer EMAs
+                # Extraer EMAs (Sistema V6)
                 emas = {
-                    'ema_200': emas_data.get('ema_200'),
-                    'ema_50': emas_data.get('ema_50'),
-                    'ema_30': emas_data.get('ema_30'),
+                    'ema_3': emas_data.get('ema_3'),
+                    'ema_5': emas_data.get('ema_5'),
+                    'ema_7': emas_data.get('ema_7'),
+                    'ema_10': emas_data.get('ema_10'),
                     'ema_20': emas_data.get('ema_20')
                 }
                 

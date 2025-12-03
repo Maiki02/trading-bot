@@ -1473,10 +1473,13 @@ class AnalysisService:
                 try:
                     # Calcular alignment y ema_order para búsqueda precisa
                     emas_dict = {
-                        'ema_200': last_closed["ema_200"],
-                        'ema_50': last_closed.get("ema_50", np.nan),
+                        'ema_3': last_closed.get("ema_3", np.nan),
+                        'ema_5': last_closed.get("ema_5", np.nan),
+                        'ema_7': last_closed.get("ema_7", np.nan),
+                        'ema_10': last_closed.get("ema_10", np.nan),
+                        'ema_20': last_closed.get("ema_20", np.nan),
                         'ema_30': last_closed.get("ema_30", np.nan),
-                        'ema_20': last_closed.get("ema_20", np.nan)
+                        'ema_50': last_closed.get("ema_50", np.nan)
                     }
                     current_alignment = get_ema_alignment_string(emas_dict)
                     current_ema_order = get_ema_order_string(last_closed["close"], emas_dict)
@@ -1524,7 +1527,7 @@ class AnalysisService:
                     source=current_candle.source,
                     symbol=current_candle.symbol
                 ),
-                candle=last_closed,
+
                 ema_3=last_closed.get("ema_3", np.nan),
                 ema_5=last_closed.get("ema_5", np.nan),
                 ema_7=last_closed.get("ema_7", np.nan),

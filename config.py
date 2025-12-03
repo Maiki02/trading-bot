@@ -170,7 +170,7 @@ class Config:
     """Clase Singleton para acceso global a la configuración."""
     
     # Versión del algoritmo de análisis (para tracking en raw_data)
-    ALGO_VERSION: str = "v5"
+    ALGO_VERSION: str = "v5.5"
 
     # -------------------------------------------------------------------------
     # CUSTOM ACTIVES INJECTION
