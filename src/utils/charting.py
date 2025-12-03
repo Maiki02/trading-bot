@@ -106,7 +106,7 @@ def generate_chart_base64(
             ema_3_data = df_subset['ema_3'].copy()
             ema_3_plot = mpf.make_addplot(
                 ema_3_data,
-                color='#FFFFFF',  # Blanco
+                color='#00FFFF',  # Cyan
                 width=3.2,
                 panel=0,
                 secondary_y=False,

@@ -130,7 +130,11 @@ class TelegramService:
         Si estamos en IQOPTION, quita el sufijo -BIN.
         """
         if Config.DATA_PROVIDER == "IQOPTION":
-            return symbol.replace("-BIN", "")
+            clean_symbol = symbol.replace("-BIN", "")
+            # Insertar "/" después del tercer caracter si tiene 6 caracteres (ej: EURUSD -> EUR/USD)
+            if len(clean_symbol) == 6:
+                return f"{clean_symbol[:3]}/{clean_symbol[3:]}"
+            return clean_symbol
         return symbol
 
     def _format_standard_message(self, signal: PatternSignal) -> AlertMessage:
@@ -143,7 +147,7 @@ class TelegramService:
         Returns:
             AlertMessage: Mensaje formateado
         """
-        timestamp_str = datetime.fromtimestamp(signal.timestamp).strftime("%Y-%m-%d %H:%M:%S")
+        timestamp_str = datetime.fromtimestamp(signal.timestamp).strftime("%H:%M")
         
         # Obtener símbolo formateado
         display_symbol = self._format_symbol_for_display(signal.symbol)
@@ -203,7 +207,7 @@ class TelegramService:
             else:
                 text = "⚪ Vela no reconocida"
 
-            title = f"ℹ️ *{display_symbol}* ℹ️\n{text}.\nFalta confirmación de agotamiento.\nProbabilidad baja."
+            title = f"ℹ️ *{display_symbol}* ℹ️\n{text}.\nSin agotamiento detectado.\nProbabilidad baja."
         
         elif signal.signal_strength == "VERY_LOW":
             # ⚪ SEÑAL MUY BAJA
@@ -214,7 +218,7 @@ class TelegramService:
             else:
                 text = "⚪ Vela no reconocida"
 
-            title = f"⚪ *{display_symbol}* ⚪\n{text}.\nSin agotamiento detectado - Analizar con precaución\nPobabilidad bajísima."
+            title = f"⚪ *{display_symbol}* ⚪\n{text}.\nSin agotamiento detectado - Analizar\nPobabilidad bajísima."
         
         else:  # NONE
             title = f"*{display_symbol}*\nMensaje informativo. No hay nada importante detectado.\n"
@@ -253,28 +257,28 @@ class TelegramService:
         #     trend_interpretation = "Tendencia bajista muy fuerte"
         
         # Emoji de zona de agotamiento
-        exhaustion_emoji = ""
-        exhaustion_text = ""
-        if signal.exhaustion_type == "PEAK":
-            exhaustion_emoji = "🔺"
-            exhaustion_text = "Señal de techo"
-        elif signal.exhaustion_type == "BOTTOM":
-            exhaustion_emoji = "🔻"
-            exhaustion_text = "Señal de piso"
-        else:
-            exhaustion_emoji = "➖"
-            exhaustion_text = "Sin agotamiento"
+        # exhaustion_emoji = ""
+        # exhaustion_text = ""
+        # if signal.exhaustion_type == "PEAK":
+        #     exhaustion_emoji = "🔺"
+        #     exhaustion_text = "Señal de techo"
+        # elif signal.exhaustion_type == "BOTTOM":
+        #     exhaustion_emoji = "🔻"
+        #     exhaustion_text = "Señal de piso"
+        # else:
+        #     exhaustion_emoji = "➖"
+        #     exhaustion_text = "Sin agotamiento"
         
         # Emoji de Candle Exhaustion
-        candle_exh_emoji = "💥" if signal.candle_exhaustion else "⚪"
-        candle_exh_text = "Rompió nivel anterior" if signal.candle_exhaustion else "Sin ruptura de nivel"
+        # candle_exh_emoji = "💥" if signal.candle_exhaustion else "⚪"
+        # candle_exh_text = "Rompió nivel anterior" if signal.candle_exhaustion else "Sin ruptura de nivel"
         
         # Construir bloque de estadísticas si hay datos suficientes
-        statistics_block = ""
-        if signal.statistics:
-            statistics_block = self._format_statistics_block(signal)
-        else:
-            logger.warning("⚠️  signal.statistics es None o no existe")
+        # statistics_block = ""
+        # if signal.statistics:
+        #     statistics_block = self._format_statistics_block(signal)
+        # else:
+        #     logger.warning("⚠️  signal.statistics es None o no existe")
         
         # Agregar información de debug si está habilitado
         debug_info = ""
@@ -291,13 +295,12 @@ class TelegramService:
         body = (
             f"━━━━━━━━━━━━━━━━━━━━━━\n"
             f"🔹 Señal: {signal.signal_strength}\n"
-            # f"🔹 Fuente: {signal.source}\n"
             f"🔹 Patrón: {signal.pattern}\n"
             f"🔹 Fecha: {timestamp_str}\n"
             # f"{exhaustion_emoji} {exhaustion_text}\n"
             # f"{candle_exh_emoji} {candle_exh_text}\n"
-            f"🔹 Tendencia: {signal.trend}\n"
-            f"🔹 Score: {signal.trend_score:+.1f}/10.0\n"
+            f"🔹 Tendencia: {signal.trend} ({signal.trend_score:+.1f}/10.0)\n"
+            f"🔹 Precio Objetivo: {signal.entry_point:.6f}\n"
             f"{debug_info}"
             # f"━━━━━━━━━━━━━━━━━━━━━━\n"
         )
