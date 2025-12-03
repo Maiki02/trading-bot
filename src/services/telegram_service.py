@@ -279,7 +279,8 @@ class TelegramService:
                 pattern=signal.pattern,
                 trend_status=signal.trend,
                 exhaustion_type=signal.exhaustion_type,
-                candle_exhaustion=signal.candle_exhaustion
+                candle_exhaustion=signal.candle_exhaustion,
+                rsi_val=signal.rsi_val
             )
         return debug_info   
 

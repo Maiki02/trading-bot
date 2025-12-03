@@ -170,7 +170,7 @@ class Config:
     """Clase Singleton para acceso global a la configuración."""
     
     # Versión del algoritmo de análisis (para tracking en raw_data)
-    ALGO_VERSION: str = "v7.1"
+    ALGO_VERSION: str = "v8.0"
 
     # -------------------------------------------------------------------------
     # CUSTOM ACTIVES INJECTION
@@ -249,6 +249,11 @@ class Config:
     
     # Slope Threshold for Trend Analysis (Percentage)
     SLOPE_THRESHOLD_PCT: float = float(os.getenv("SLOPE_THRESHOLD_PCT", "0.0001"))  # 0.01%
+    
+    # RSI Configuration (v8.0)
+    RSI_PERIOD: int = int(os.getenv("RSI_PERIOD", "7"))
+    RSI_OVERBOUGHT: int = int(os.getenv("RSI_OVERBOUGHT", "75"))
+    RSI_OVERSOLD: int = int(os.getenv("RSI_OVERSOLD", "25"))
     
     # Reconnection Strategy
     RECONNECT_INITIAL_TIMEOUT: int = int(os.getenv("RECONNECT_INITIAL_TIMEOUT", "5"))

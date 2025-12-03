@@ -79,13 +79,14 @@ class PatternSignal:
     bb_upper: Optional[float] = None  # Banda superior de Bollinger
     bb_lower: Optional[float] = None  # Banda inferior de Bollinger
     entry_point: Optional[float] = None  # Punto de entrada (50% del rango de la vela)
+    rsi_val: Optional[float] = None  # Valor del RSI (v8.0)
 
 
 # =============================================================================
 # TECHNICAL ANALYSIS HELPERS
 # =============================================================================
 
-from src.utils.indicators import calculate_ema, calculate_bollinger_bands
+from src.utils.indicators import calculate_ema, calculate_bollinger_bands, calculate_rsi
 
 
 def detect_exhaustion(candle_high: float, candle_low: float, candle_close: float, 
@@ -128,7 +129,8 @@ def get_candle_result_debug(
     pattern: str,
     trend_status: str,
     exhaustion_type: str,
-    candle_exhaustion: bool
+    candle_exhaustion: bool,
+    rsi_val: Optional[float] = None
 ) -> str:
     """
     Genera un mensaje de debug mostrando qué condiciones se cumplieron para el scoring.
@@ -138,6 +140,7 @@ def get_candle_result_debug(
         trend_status: Estado de tendencia (STRONG_BULLISH, WEAK_BULLISH, etc.)
         exhaustion_type: Tipo de agotamiento Bollinger ("PEAK", "BOTTOM" o "NONE")
         candle_exhaustion: Si hay agotamiento de vela (rompió high/low anterior)
+        rsi_val: Valor del RSI (opcional)
         
     Returns:
         String con información de debug formateada
@@ -187,6 +190,20 @@ def get_candle_result_debug(
         lines.append("✅ Agotamiento de Vela (rompió nivel anterior)")
     else:
         lines.append("❌ Agotamiento de Vela (NO)")
+
+    # 4. Verificar RSI (v8.0)
+    if rsi_val is not None:
+        rsi_overbought = Config.RSI_OVERBOUGHT
+        rsi_oversold = Config.RSI_OVERSOLD
+        
+        if pattern_is_bearish and rsi_val >= rsi_overbought:
+            lines.append(f"✅ RSI Sobrecompra ({rsi_val:.1f} >= {rsi_overbought})")
+        elif pattern_is_bullish and rsi_val <= rsi_oversold:
+            lines.append(f"✅ RSI Sobreventa ({rsi_val:.1f} <= {rsi_oversold})")
+        else:
+            lines.append(f"❌ RSI Neutro/Contra (Valor: {rsi_val:.1f})")
+    else:
+        lines.append("⚠️ RSI: No disponible")
 
     lines.append("\n")
     
@@ -630,7 +647,7 @@ class AnalysisService:
         self.dataframes[source_key] = pd.DataFrame(columns=[
             "timestamp", "open", "high", "low", "close", "volume", 
             "ema_3", "ema_5", "ema_7", "ema_10", "ema_15", "ema_20", "ema_30", "ema_50",
-            "bb_middle", "bb_upper", "bb_lower"
+            "bb_middle", "bb_upper", "bb_lower", "rsi"
         ])
         logger.debug(f"📋 DataFrame inicializado para {source_key}")
     
@@ -693,7 +710,8 @@ class AnalysisService:
             "ema_50": np.nan,
             "bb_middle": np.nan,
             "bb_upper": np.nan,
-            "bb_lower": np.nan
+            "bb_lower": np.nan,
+            "rsi": np.nan
         }])
         
         self.dataframes[source_key] = pd.concat(
@@ -794,6 +812,11 @@ class AnalysisService:
             df["bb_middle"] = bb_middle
             df["bb_upper"] = bb_upper
             df["bb_lower"] = bb_lower
+            
+        # Calcular RSI (v8.0)
+        rsi_period = Config.RSI_PERIOD
+        if len(df) >= rsi_period + 1:
+            df["rsi"] = calculate_rsi(df["close"], period=rsi_period)
     
     async def _close_signal_cycle(self, source_key: str, outcome_candle: CandleData) -> None:
         """
@@ -901,6 +924,9 @@ class AnalysisService:
                 "alignment": ema_alignment,
                 "ema_order": ema_order,
                 "trend_score": pending_signal.trend_score
+            },
+            "indicators": {
+                "rsi": pending_signal.rsi_val
             },
             "bollinger": {
                 "upper": pending_signal.bb_upper,
@@ -1145,6 +1171,10 @@ class AnalysisService:
         bb_upper_str = f"{bb_upper:.5f}" if not pd.isna(bb_upper) else "N/A"
         bb_middle_str = f"{bb_middle:.5f}" if not pd.isna(bb_middle) else "N/A"
         bb_lower_str = f"{bb_lower:.5f}" if not pd.isna(bb_lower) else "N/A"
+        
+        # Obtener RSI (v8.0)
+        rsi_val = last_closed.get('rsi', np.nan)
+        rsi_str = f"{rsi_val:.1f}" if not pd.isna(rsi_val) else "N/A"
         
         # logger.info(
         #     f"📈 Análisis de Tendencia: {trend_analysis}\n"
@@ -1448,6 +1478,7 @@ class AnalysisService:
             f"🔄 Alineación: {'✓ Alineado' if is_trend_aligned else '✗ No alineado'}\n"
             f"💥 Candle Exhaustion: {'✅ SÍ' if candle_exhaustion else '❌ NO'}\n"
             f"📍 Bollinger Exhaustion: {'✅ ' + exhaustion_type if bollinger_exhaustion else '❌ NONE'}\n"
+            f"📊 RSI (7): {rsi_str}\n"
             f"🎚️  Fuerza de Señal: {signal_strength}\n"
             f"⚠️  Contra-Tendencia: {'SÍ' if is_counter_trend else 'NO'}\n"
             f"🎯 Entry Point (50%): {entry_point:.5f}\n"
@@ -1576,6 +1607,8 @@ class AnalysisService:
                     symbol=current_candle.symbol
                 ),
 
+                confidence=pattern_confidence,
+                trend_filtered=Config.USE_TREND_FILTER,
                 ema_3=last_closed.get("ema_3", np.nan),
                 ema_5=last_closed.get("ema_5", np.nan),
                 ema_7=last_closed.get("ema_7", np.nan),
@@ -1587,18 +1620,16 @@ class AnalysisService:
                 trend=trend_analysis.status,
                 trend_score=trend_analysis.score,
                 is_trend_aligned=trend_analysis.is_aligned,
-                confidence=pattern_confidence,
-                trend_filtered=Config.USE_TREND_FILTER,
-                chart_base64=chart_base64,
-                statistics=statistics,
-                # Campos del nuevo sistema de scoring
-                signal_strength=signal_strength,
-                exhaustion_type=exhaustion_type,
-                candle_exhaustion=candle_exhaustion,
-                is_counter_trend=is_counter_trend,
                 bb_upper=float(bb_upper) if not pd.isna(bb_upper) else None,
                 bb_lower=float(bb_lower) if not pd.isna(bb_lower) else None,
-                entry_point=entry_point
+                exhaustion_type=exhaustion_type,
+                candle_exhaustion=candle_exhaustion,
+                signal_strength=signal_strength,
+                is_counter_trend=is_counter_trend,
+                statistics=statistics,
+                chart_base64=chart_base64,
+                entry_point=entry_point,
+                rsi_val=rsi_val if not pd.isna(rsi_val) else None
             )
             
             logger.info(
