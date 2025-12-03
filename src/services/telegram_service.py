@@ -155,7 +155,7 @@ class TelegramService:
         # ═════════════════════════════════════════════════════════════════════
         # TÍTULO BASADO EN SIGNAL_STRENGTH (Nuevo Sistema)
         # ═════════════════════════════════════════════════════════════════════
-        title = self._get_title_text(signal)
+        title = self._get_title_text(signal, display_symbol)
         
         # Agregar información de debug si está habilitado
         debug_info = self._get_debug_info_text(signal)
@@ -181,12 +181,13 @@ class TelegramService:
             timestamp=datetime.now()
         )
 
-    def _get_title_text(self, signal: PatternSignal) -> str:
+    def _get_title_text(self, signal: PatternSignal, display_symbol: str) -> str:
         """
         Obtiene el título del mensaje basado en la fuerza de la señal.
         
         Args:
             signal: Señal de patrón detectada
+            display_symbol: Símbolo formateado para mostrar
         
         Returns:
             str: Título del mensaje

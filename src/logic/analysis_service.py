@@ -193,100 +193,143 @@ def get_candle_result_debug(
     return "\n".join(lines)
 
 
-def analyze_trend(close: float, emas: Dict[str, float]) -> TrendAnalysis:
+def analyze_trend(close: float, emas: Dict[str, float], prev_emas: Optional[Dict[str, float]] = None) -> TrendAnalysis:
     """
-    Analiza tendencia usando sistema de PUNTUACIÓN PONDERADA.
-    Cada EMA contribuye con un peso específico al score total.
+    Analiza la tendencia usando VECTOR (Slope) y ESTRUCTURA (Alignment).
+    OPTIMIZADO PARA ESTRATEGIA DE REVERSIÓN (V7.1).
     
-    SISTEMA DE PESOS V6 (Total: 10.0):
-    - EMA 3:  3.0 puntos
-    - EMA 5:  2.5 puntos
-    - EMA 7:  2.0 puntos
-    - EMA 10: 1.5 puntos
-    - EMA 20: 1.0 punto
+    El Score refleja la FASE de la tendencia:
+    - 8.0 a 10.0: Momentum Fuerte (Peligroso operar contra-tendencia)
+    - 5.0 a 7.9:  Tendencia Saludable pero posible Agotamiento (Ideal si coincide con Bollinger)
+    - < 5.0:      Rango o Debilidad
     
-    CLASIFICACIÓN:
-    - (7.0 a 10.0]:   STRONG_BULLISH
-    - (2.0 a 7.0]:    WEAK_BULLISH
-    - [-2.0 a 2.0]:   NEUTRAL
-    - [-7.0 a -2.0):  WEAK_BEARISH
-    - [-10.0 a -7.0): STRONG_BEARISH
+    ALGORITMO V7.1:
+    1. ESTRUCTURA (+/- 3.0 pts): Alineación de EMAs 3, 7, 20.
+    2. VELOCIDAD BASE (+/- 2.0 pts): Slope de EMA 20 (Dirección Macro).
+    3. MOMENTUM/AGOTAMIENTO (+/- 5.0 pts):
+       - Suma si EMA 3 y 7 tienen pendiente fuerte.
+       - RESTA si EMA 3 se aplana (Agotamiento) aunque haya estructura.
     
     Args:
         close: Precio de cierre actual
-        emas: Diccionario con valores de EMAs (ema_5, ema_7, ema_10, ema_15, ema_20, ema_30, ema_50)
+        emas: Diccionario con valores de EMAs actuales
+        prev_emas: Diccionario con valores de EMAs de la vela anterior
         
     Returns:
         TrendAnalysis con estado, score (float) e is_aligned
     """
-    # Definir pesos de EMAs (Total: 10.0)
-    # Definir pesos de EMAs (Total: 10.0) - Sistema V6 High Reactive
-    ema_weights = {
-        'ema_3': 3.0,
-        'ema_5': 2.5,
-        'ema_7': 2.0,
-        'ema_10': 1.5,
-        'ema_20': 1.0
-        # EMA 30 y 50 ya no suman puntos (solo referencia)
-    }
+    # Umbral de pendiente (aprox 0.5 pips)
+    SLOPE_THRESHOLD = 0.00005
     
-    # Inicializar score
-    score = 0.0
+    # Inicializar componentes
+    score_structure = 0.0
+    score_velocity = 0.0
+    score_momentum = 0.0
     
-    # Calcular score ponderado iterando sobre cada EMA
-    for ema_key, weight in ema_weights.items():
-        ema_value = emas.get(ema_key, np.nan)
+    # Obtener EMAs actuales
+    ema_3 = emas.get('ema_3', np.nan)
+    ema_7 = emas.get('ema_7', np.nan)
+    ema_20 = emas.get('ema_20', np.nan)
+    
+    # 1. ESTRUCTURA (ALINEACIÓN) - Max 3.0 pts
+    # Verifica la "salud" geométrica de la tendencia
+    is_bullish_structure = False
+    is_bearish_structure = False
+    
+    if not pd.isna(ema_3) and not pd.isna(ema_7) and not pd.isna(ema_20):
+        if ema_3 > ema_7 > ema_20:
+            is_bullish_structure = True
+            score_structure = 3.0
+        elif ema_3 < ema_7 < ema_20:
+            is_bearish_structure = True
+            score_structure = -3.0
+            
+    # 2. CÁLCULO DE SLOPE (VELOCIDAD)
+    slope_3 = 0.0
+    slope_7 = 0.0
+    slope_20 = 0.0
+    
+    if prev_emas:
+        prev_ema_3 = prev_emas.get('ema_3', np.nan)
+        prev_ema_7 = prev_emas.get('ema_7', np.nan)
+        prev_ema_20 = prev_emas.get('ema_20', np.nan)
         
-        # Si la EMA no existe o es NaN, omitir (no afecta el score)
-        if pd.isna(ema_value):
-            continue
+        # Calcular pendientes
+        if not pd.isna(ema_3) and not pd.isna(prev_ema_3):
+            slope_3 = ema_3 - prev_ema_3
+        if not pd.isna(ema_7) and not pd.isna(prev_ema_7):
+            slope_7 = ema_7 - prev_ema_7
+        if not pd.isna(ema_20) and not pd.isna(prev_ema_20):
+            slope_20 = ema_20 - prev_ema_20
+            
+    # 3. VELOCIDAD BASE (EMA 20) - Max 2.0 pts
+    # Define la dirección de fondo de la micro-tendencia
+    if slope_20 > SLOPE_THRESHOLD:
+        score_velocity = 2.0
+    elif slope_20 < -SLOPE_THRESHOLD:
+        score_velocity = -2.0
         
-        # Comparar precio con EMA y sumar/restar peso
-        if close > ema_value:
-            score += weight  # Alcista
-        elif close < ema_value:
-            score -= weight  # Bajista
-        # Si close == ema_value, no suma ni resta (neutral)
+    # 4. MOMENTUM Y DETECCIÓN DE AGOTAMIENTO - Max 5.0 pts
+    # Aquí es donde detectamos si la tendencia se está cansando
     
-    # Redondear score a 1 decimal
-    score = round(score, 1)
+    # Análisis para Estructura ALCISTA
+    if is_bullish_structure:
+        # Si EMA 3 y 7 tienen fuerza, sumamos momentum
+        if slope_3 > SLOPE_THRESHOLD:
+            score_momentum += 3.0
+        elif slope_3 < SLOPE_THRESHOLD: # Aplanamiento o reversión de EMA 3
+            # PENALIZACIÓN POR AGOTAMIENTO: Estructura alcista pero EMA 3 perdiendo fuerza
+            score_momentum -= 2.0 
+            
+        if slope_7 > SLOPE_THRESHOLD:
+            score_momentum += 2.0
+            
+    # Análisis para Estructura BAJISTA
+    elif is_bearish_structure:
+        # Si EMA 3 y 7 tienen fuerza bajista, restamos momentum (sumamos negativo)
+        if slope_3 < -SLOPE_THRESHOLD:
+            score_momentum -= 3.0
+        elif slope_3 > -SLOPE_THRESHOLD: # Aplanamiento o reversión de EMA 3
+            # PENALIZACIÓN POR AGOTAMIENTO: Estructura bajista pero EMA 3 perdiendo fuerza
+            score_momentum += 2.0 # Sumar puntos para acercar el score a 0
+            
+        if slope_7 < -SLOPE_THRESHOLD:
+            score_momentum -= 2.0
+            
+    # Análisis sin Estructura definida (Rango/Cruce)
+    else:
+        # Solo sumamos puntos por slope puro, pero con menos peso
+        if slope_3 > SLOPE_THRESHOLD: score_momentum += 1.5
+        elif slope_3 < -SLOPE_THRESHOLD: score_momentum -= 1.5
+        
+        if slope_7 > SLOPE_THRESHOLD: score_momentum += 1.0
+        elif slope_7 < -SLOPE_THRESHOLD: score_momentum -= 1.0
+
+    # SUMA TOTAL
+    total_score = score_structure + score_velocity + score_momentum
     
-    # Clasificar tendencia según umbrales
-    # Clasificar tendencia según umbrales (Ajuste V6.2)
-    if score > 7.0:
+    # Limitar score a rango [-10, 10]
+    total_score = max(min(total_score, 10.0), -10.0)
+    total_score = round(total_score, 1)
+    
+    # Clasificar tendencia según umbrales (V7.1)
+    if total_score >= 8.0:
         status = "STRONG_BULLISH"
-    elif score > 2.0:
+    elif total_score >= 5.0:
         status = "WEAK_BULLISH"
-    elif score >= -2.0:
+    elif total_score > -5.0:
         status = "NEUTRAL"
-    elif score >= -7.0:
+    elif total_score > -8.0:
         status = "WEAK_BEARISH"
-    else:  # score < -7.0
+    else:
         status = "STRONG_BEARISH"
     
-    # Verificar alineación perfecta (Fanning)
-    # Para considerar alineado, las EMAs deben estar en orden estricto
-    is_aligned = False
-    
-    # Obtener EMAs principales para verificar alineación
-    ema_5 = emas.get('ema_5', np.nan)
-    ema_7 = emas.get('ema_7', np.nan)
-    ema_10 = emas.get('ema_10', np.nan)
-    ema_20 = emas.get('ema_20', np.nan)
-    ema_50 = emas.get('ema_50', np.nan)
-    
-    # Verificar si todas las EMAs críticas están disponibles
-    if not any(np.isnan([ema_5, ema_7, ema_10, ema_20, ema_50])):
-        # Alineación alcista perfecta: Precio > EMA5 > EMA7 > EMA10 > EMA20 > EMA50
-        if close > ema_5 > ema_7 > ema_10 > ema_20 > ema_50:
-            is_aligned = True
-        # Alineación bajista perfecta: Precio < EMA5 < EMA7 < EMA10 < EMA20 < EMA50
-        elif close < ema_5 < ema_7 < ema_10 < ema_20 < ema_50:
-            is_aligned = True
+    # Verificar alineación perfecta para el return
+    is_aligned = is_bullish_structure or is_bearish_structure
     
     return TrendAnalysis(
         status=status,
-        score=score,
+        score=total_score,
         is_aligned=is_aligned
     )
 
@@ -1057,6 +1100,7 @@ class AnalysisService:
         
         # Analizar tendencia con sistema de scoring ponderado
         emas_dict = {
+            'ema_3': last_closed.get('ema_3', np.nan),
             'ema_5': last_closed.get('ema_5', np.nan),
             'ema_7': last_closed.get('ema_7', np.nan),
             'ema_10': last_closed.get('ema_10', np.nan),
@@ -1065,7 +1109,23 @@ class AnalysisService:
             'ema_30': last_closed.get('ema_30', np.nan),
             'ema_50': last_closed.get('ema_50', np.nan)
         }
-        trend_analysis = analyze_trend(last_closed["close"], emas_dict)
+        
+        # Obtener EMAs previas para cálculo de Slope (V7)
+        prev_emas_dict = None
+        if len(df) >= 2:
+            prev_closed = df.iloc[-2]
+            prev_emas_dict = {
+                'ema_3': prev_closed.get('ema_3', np.nan),
+                'ema_5': prev_closed.get('ema_5', np.nan),
+                'ema_7': prev_closed.get('ema_7', np.nan),
+                'ema_10': prev_closed.get('ema_10', np.nan),
+                'ema_15': prev_closed.get('ema_15', np.nan),
+                'ema_20': prev_closed.get('ema_20', np.nan),
+                'ema_30': prev_closed.get('ema_30', np.nan),
+                'ema_50': prev_closed.get('ema_50', np.nan)
+            }
+            
+        trend_analysis = analyze_trend(last_closed["close"], emas_dict, prev_emas_dict)
         
         # Obtener Bollinger Bands para detección de agotamiento
         bb_upper = last_closed.get('bb_upper', np.nan)

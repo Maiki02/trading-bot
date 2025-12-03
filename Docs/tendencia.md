@@ -1,121 +1,78 @@
-# Sistema de Análisis de Tendencia - Puntuación Ponderada
+# Sistema de Análisis de Tendencia - Slope & Structure (V7.1)
 
 ## Descripción General
-Sistema de clasificación de tendencia basado en **puntuación ponderada** donde cada EMA contribuye con un peso específico al score total. Optimizado para operaciones en velas de 1 minuto (M1) en opciones binarias.
+Sistema de clasificación de tendencia optimizado para **ESTRATEGIAS DE REVERSIÓN**. A diferencia de sistemas tradicionales que buscan "fuerza máxima", este algoritmo (V7.1) está diseñado para detectar la **FASE DE LA TENDENCIA**, identificando momentos de "Agotamiento de Momentum" ideales para operar en contra.
 
-**Fecha de Implementación:** 02 de Diciembre de 2025  
-**Versión:** v6 - Sistema High Reactive
+**Fecha de Implementación:** 03 de Diciembre de 2025  
+**Versión:** v7.1 - Reversion Logic
 
 ---
 
 ## Indicadores Utilizados
 
-### EMAs del Sistema Ponderado (V6)
-| EMA | Periodo | Peso | Velocidad | Uso Principal |
-|-----|---------|------|-----------|---------------|
-| **EMA 3** | 3 velas | 3.0 pts | Ultra rápida | Detección inmediata de reversiones (Sniper) |
-| **EMA 5** | 5 velas | 2.5 pts | Muy rápida | Confirmación de momentum inmediato |
-| **EMA 7** | 7 velas | 2.0 pts | Rápida | Señales inmediatas y sobre-extensión |
-| **EMA 10** | 10 velas | 1.5 pts | Rápida-Media | Confirmación de momentum corto |
-| **EMA 20** | 20 velas | 1.0 pt | Media | Confirmación de momentum |
-| **EMA 30** | 30 velas | 0.0 pt | Media-Lenta | Referencia visual (Contexto) |
-| **EMA 50** | 50 velas | 0.0 pt | Lenta | Referencia visual (Tendencia establecida) |
+### EMAs Clave (V7.1)
+| EMA | Periodo | Función | Rol en Score |
+|-----|---------|---------|--------------|
+| **EMA 3** | 3 velas | **Gatillo de Velocidad** | Detecta Agotamiento (Flattening) |
+| **EMA 7** | 7 velas | **Tendencia Corta** | Confirma Momentum |
+| **EMA 20** | 20 velas | **Estructura Base** | Define Dirección Macro |
 
 **Total Máximo de Puntos:** 10.0
 
-### ❌ Indicadores Eliminados
-- **EMA 100**: Removida (lag excesivo para M1)
-- **EMA 200**: Removida (lag excesivo para M1)
+---
 
-### Bollinger Bands
-- **Periodo**: 20 (usa **SMA**, NO EMA)
-- **Desviaciones Estándar**: 2.0
-- **Uso**: Detección de zonas de agotamiento (Cúspide/Piso)
+## Algoritmo V7.1 (Fases de Tendencia)
+
+El score se compone de 3 vectores:
+
+### 1. ESTRUCTURA (Max 3.0 pts)
+Verifica la "salud geométrica" de la tendencia.
+- **Alcista (+3.0):** EMA 3 > EMA 7 > EMA 20
+- **Bajista (-3.0):** EMA 3 < EMA 7 < EMA 20
+- **Rango (0.0):** Desorden
+
+### 2. VELOCIDAD BASE (Max 2.0 pts)
+Mide la inclinación de la EMA 20 para definir la dirección de fondo.
+- **Slope EMA 20 > Threshold:** +2.0
+- **Slope EMA 20 < -Threshold:** -2.0
+
+### 3. MOMENTUM & AGOTAMIENTO (Max 5.0 pts)
+Aquí reside la inteligencia del sistema. Premia la velocidad pero **PENALIZA el aplanamiento**.
+
+**Escenario Alcista (Ejemplo):**
+- Si EMA 3 y 7 suben fuerte: **+5.0 pts** (Total: 10.0 -> Momentum Fuerte)
+- **CRÍTICO:** Si EMA 3 se aplana (pierde velocidad) pero la estructura sigue alcista:
+    - Se aplica **PENALIZACIÓN (-2.0 pts)**.
+    - El Score baja de 10.0 a ~6.0.
+    - **Interpretación:** "Tendencia cansada, posible reversión".
 
 ---
 
-## Algoritmo de Puntuación Ponderada
+## Interpretación del Score para Reversión
 
-```python
-def analyze_trend(close: float, emas: Dict[str, float]) -> TrendAnalysis:
-    # Definir pesos de EMAs (Total: 10.0)
-    # Definir pesos de EMAs (Total: 10.0) - Sistema V6
-    ema_weights = {
-        'ema_3': 3.0,
-        'ema_5': 2.5,
-        'ema_7': 2.0,
-        'ema_10': 1.5,
-        'ema_20': 1.0
-        # EMA 30 y 50 ya no suman puntos
-    }
-    
-    score = 0.0
-    
-    # Iterar sobre cada EMA
-    for ema_key, weight in ema_weights.items():
-        ema_value = emas.get(ema_key, np.nan)
-        
-        if pd.isna(ema_value):
-            continue
-        
-        # Comparar precio con EMA
-        if close > ema_value:
-            score += weight  # Alcista
-        elif close < ema_value:
-            score -= weight  # Bajista
-    
-    score = round(score, 1)
-    return score
-```
-
-### Ejemplo de Cálculo
-
-**Escenario:** Precio = 1.10500
-
-| EMA | Valor | Peso | Precio vs EMA | Contribución |
-| EMA | Valor | Peso | Precio vs EMA | Contribución |
-|-----|-------|------|--------------|--------------|
-| EMA 3 | 1.10490 | 3.0 | Precio > EMA | +3.0 |
-| EMA 5 | 1.10480 | 2.5 | Precio > EMA | +2.5 |
-| EMA 7 | 1.10460 | 2.0 | Precio > EMA | +2.0 |
-| EMA 10 | 1.10450 | 1.5 | Precio > EMA | +1.5 |
-| EMA 20 | 1.10420 | 1.0 | Precio > EMA | +1.0 |
-| EMA 30 | 1.10400 | 0.0 | Precio > EMA | +0.0 |
-| EMA 50 | 1.10550 | 0.0 | Precio < EMA | -0.0 |
-
-**Score Total:** +9.0 → **STRONG_BULLISH**
+| Score Range | Estado | Interpretación | Acción Sugerida |
+|-------------|--------|----------------|-----------------|
+| **[+8.0 a +10.0]** | **STRONG_BULLISH** | Momentum Fuerte | ⛔ **NO OPERAR CONTRA.** Esperar. |
+| **[+5.0 a +7.9]** | **WEAK_BULLISH** | **Agotamiento** | ✅ **ZONA IDEAL.** Buscar Patrón de Reversión (Shooting Star). |
+| **[-4.9 a +4.9]** | **NEUTRAL** | Rango / Ruido | ⚠️ Precaución. Falta dirección clara. |
+| **[-7.9 a -5.0]** | **WEAK_BEARISH** | **Agotamiento** | ✅ **ZONA IDEAL.** Buscar Patrón de Reversión (Hammer). |
+| **[-10.0 a -8.0]** | **STRONG_BEARISH** | Momentum Fuerte | ⛔ **NO OPERAR CONTRA.** Esperar. |
 
 ---
 
-## Los 5 Estados de Tendencia
-
-### Clasificación por Score
-
-| Score Range | Estado | Descripción | is_aligned |
-|-------------|--------|-------------|------------|
-| **[6.0 a 10.0]** | **STRONG_BULLISH** | Alcista fuerte | ✅ Si hay Fanning |
-| **[2.0 a 6.0)** | **WEAK_BULLISH** | Alcista débil | ❌ |
-| **(-2.0 a 2.0)** | **NEUTRAL** | Sin tendencia clara | ❌ |
-| **(-6.0 a -2.0]** | **WEAK_BEARISH** | Bajista débil | ❌ |
-| **[-10.0 a -6.0]** | **STRONG_BEARISH** | Bajista fuerte | ✅ Si hay Fanning |
+### Ejemplo de Detección de Agotamiento
+1. **Fase de Impulso:** Precio sube rápido. Estructura OK, EMA 3 con pendiente fuerte. Score: **+10.0**.
+2. **Fase de Techo:** Precio se frena. Estructura sigue OK (3>7>20), pero EMA 3 se aplana.
+3. **Ajuste de Score:** El sistema detecta el aplanamiento y penaliza. Score baja a **+6.0**.
+4. **Señal:** El bot identifica "WEAK_BULLISH" (Agotamiento) + Patrón Shooting Star -> **ALERTA DE ALTA PROBABILIDAD**.
 
 ---
 
 ### Detección de Alineación (Fanning)
+Se mantiene la verificación de alineación para confirmar la "salud" de la tendencia, pero ahora es un componente aditivo del score (+2.0) en lugar de solo un flag booleano.
 
-**Alineación Alcista Perfecta (is_aligned = True):**
-```
-Precio > EMA5 > EMA7 > EMA10 > EMA20 > EMA50
-```
-Todas las EMAs ordenadas de menor a mayor período.
-
-**Alineación Bajista Perfecta (is_aligned = True):**
-```
-Precio < EMA5 < EMA7 < EMA10 < EMA20 < EMA50
-```
-Todas las EMAs ordenadas de mayor a menor período.
-
-**`is_aligned = True`** solo cuando se cumple una de estas dos condiciones exactas.
+**Alineación Alcista Perfecta:** `EMA 3 > EMA 7 > EMA 20`
+**Alineación Bajista Perfecta:** `EMA 3 < EMA 7 < EMA 20`
 
 ---
 
