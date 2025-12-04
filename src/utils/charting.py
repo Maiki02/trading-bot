@@ -261,6 +261,34 @@ def generate_chart_base64(
         if additional_plots:
             plot_kwargs['addplot'] = additional_plots
         
+        # -------------------------------------------------------------------------
+        # 3. RSI (Panel 2) - Solo si existe la columna 'rsi'
+        # -------------------------------------------------------------------------
+        if 'rsi' in df_subset.columns and not df_subset['rsi'].isna().all():
+            rsi_data = df_subset['rsi'].copy()
+            
+            # Plot principal del RSI
+            rsi_plot = mpf.make_addplot(
+                rsi_data,
+                panel=1,  # Panel inferior
+                color='#9370DB',  # Medium Purple
+                width=1.5,
+                ylabel='RSI (7)',
+                secondary_y=False
+            )
+            additional_plots.append(rsi_plot)
+            
+            # Líneas de referencia (70 y 30)
+            # Usamos make_addplot con arrays constantes para las líneas
+            h70 = np.full(len(df_subset), 70)
+            h30 = np.full(len(df_subset), 30)
+            
+            rsi_h70 = mpf.make_addplot(h70, panel=1, color='#808080', linestyle='--', width=0.8)
+            rsi_h30 = mpf.make_addplot(h30, panel=1, color='#808080', linestyle='--', width=0.8)
+            
+            additional_plots.append(rsi_h70)
+            additional_plots.append(rsi_h30)
+
         fig, axes = mpf.plot(df_plot, **plot_kwargs)
         
         # Agregar leyenda para las EMAs en el panel principal (axes[0])
@@ -463,6 +491,11 @@ def generate_outcome_chart_base64(
     df_temp["ema_20"] = calculate_ema(df_temp["close"], 20)
     # df_temp["ema_50"] = calculate_ema(df_temp["close"], 50) # Opcional
     
+    # Recalcular RSI (v8.0)
+    from src.utils.indicators import calculate_rsi
+    if len(df_temp) >= Config.RSI_PERIOD + 1:
+        df_temp["rsi"] = calculate_rsi(df_temp["close"], period=Config.RSI_PERIOD)
+
     bb_period = Config.CANDLE.BB_PERIOD
     bb_std_dev = Config.CANDLE.BB_STD_DEV
     bb_middle, bb_upper, bb_lower = calculate_bollinger_bands(

@@ -8,7 +8,7 @@ Integrar un monitor automatizado 24/7 que capture datos de mercado en tiempo rea
 
 **Cambios principales:**
 - ✅ **Slope Porcentual:** Cálculo de pendiente como % de cambio `(curr - prev) / prev` para normalizar entre activos.
-- ✅ **RSI 7:** Integración de RSI de 7 periodos como "Banda Elástica" para confirmar reversiones.
+- ✅ **RSI 7:** Integración de RSI de 7 periodos como "Banda Elástica" para confirmar reversiones (Visualizado en panel inferior).
 - ✅ **Structure (Alineación):** Bonus por alineación perfecta (Fanning).
 - ✅ **Penalización por Aplanamiento:** El Score BAJA si la EMA 3 pierde inclinación (pausas de 2-3 velas).
 - ✅ **Nuevos Estados:** Clasificación más granular (Strong/Weak Bullish/Bearish + Neutral).

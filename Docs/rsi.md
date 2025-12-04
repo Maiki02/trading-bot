@@ -13,6 +13,14 @@ Para scalping en 1 minuto, el RSI estándar de 14 periodos es demasiado lento (l
 *   **Periodo:** 7 (Siete)
 *   **Justificación:** El RSI 7 es más sensible a las micro-tendencias de 5-10 velas, típicas en M1. Detecta los extremos de volatilidad local mucho antes que el RSI 14.
 
+## Cálculo Técnico
+El RSI se calcula utilizando el método de **Wilder's Smoothing** (Media Móvil Exponencial), que es el estándar en la industria (TradingView, MT4).
+
+*   **Fórmula:** `RSI = 100 - (100 / (1 + RS))`
+*   **RS:** `AvgGain / AvgLoss`
+*   **Suavizado:** `alpha = 1/period` (equivalente a `span=2*period-1` en EMA tradicional, pero específico para RSI).
+*   **Librería:** Implementado en `src/utils/indicators.py` usando `pandas.ewm(alpha=1/7, adjust=False)`.
+
 ## Niveles Clave
 
 ### Reversión Estándar (Probabilidad Media)
@@ -30,3 +38,10 @@ Para scalping en 1 minuto, el RSI estándar de 14 periodos es demasiado lento (l
 1.  **NO operar en zona neutra (40-60).** Es ruido.
 2.  **Divergencia:** Si el precio hace un nuevo High pero el RSI 7 hace un High más bajo -> **Señal de Venta Fuerte**.
 3.  **Confirmación:** El RSI debe estar en zona extrema EN EL MOMENTO del cierre de la vela gatillo.
+
+## Visualización en Gráficos
+El sistema genera automáticamente un gráfico adjunto a cada alerta de Telegram.
+*   **Panel Principal:** Velas Japonesas + EMAs.
+*   **Panel Inferior:** Oscilador RSI (Línea Morada).
+    *   **Líneas de Referencia:** 70 (Sobrecompra) y 30 (Sobreventa) en gris discontinuo.
+    *   **Propósito:** Confirmación visual rápida de la tensión del precio ("Banda Elástica").
