@@ -3,17 +3,17 @@
 ## 1. Objetivo del Proyecto
 Integrar un monitor automatizado 24/7 que capture datos de mercado en tiempo real de IQ OPTION o TradingView mediante ingeniería inversa de WebSocket. El sistema identificará patrones de velas japonesas en temporalidad de 1 minuto y, al detectar una configuración válida alineada con la tendencia, enviará alertas inmediatas vía Telegram con gráfico visual adjunto. **Adicionalmente, envía notificaciones de resultado** cuando cierra la vela siguiente, informando si el patrón tuvo éxito (VERDE/ROJA/DOJI).
 
-### 1.0. Objetivo Versión 0.0.5 (Trend Engine V7: Slope & Structure) 🆕
-**Nueva Funcionalidad:** Refactorización completa del motor de tendencias para eliminar el lag en mercados laterales.
+### 1.0. Objetivo Versión 0.0.5 (Trend Engine V7 & RSI Visualization) 🆕
+**Nueva Funcionalidad:** Refactorización completa del motor de tendencias e integración visual de RSI.
 
 **Cambios principales:**
 - ✅ **Slope Porcentual:** Cálculo de pendiente como % de cambio `(curr - prev) / prev` para normalizar entre activos.
-- ✅ **RSI 7:** Integración de RSI de 7 periodos como "Banda Elástica" para confirmar reversiones (Visualizado en panel inferior).
+- ✅ **RSI 7 (Visualización):** Integración de RSI de 7 periodos con **gráfico dedicado** en el panel inferior y líneas de referencia (70/30).
 - ✅ **Structure (Alineación):** Bonus por alineación perfecta (Fanning).
 - ✅ **Penalización por Aplanamiento:** El Score BAJA si la EMA 3 pierde inclinación (pausas de 2-3 velas).
 - ✅ **Nuevos Estados:** Clasificación más granular (Strong/Weak Bullish/Bearish + Neutral).
 
-**Filosofía:** El precio siempre lidera. Usamos RSI 7 para sobre-extensión y Slope de EMA 3 para detectar la pérdida de momentum inmediata.
+**Filosofía:** El precio siempre lidera. Usamos RSI 7 para detectar sobre-extensión visualmente y Slope de EMA 3 para el momentum inmediato.
 
 Ver documentación completa en: `Docs/tendencia.md` y `Docs/rsi.md`
 
@@ -896,9 +896,9 @@ Basadas en la experiencia del MVP:
 
 ---
 
-**Versión del Documento:** v0.0.4  
-**Última Actualización:** 24 de noviembre de 2025  
-**Estado del Proyecto:** ✅ **PRODUCCIÓN** - Sistema completamente operativo en v0.0.4
+**Versión del Documento:** v0.0.5  
+**Última Actualización:** 04 de diciembre de 2025  
+**Estado del Proyecto:** ✅ **PRODUCCIÓN** - Sistema completamente operativo en v0.0.5
 
 **Logros de v0.0.4:**
 - ✅ StatisticsService con consulta de probabilidades históricas en tiempo real

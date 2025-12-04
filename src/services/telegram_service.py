@@ -9,7 +9,7 @@ Author: TradingView Pattern Monitor Team
 """
 
 import asyncio
-from typing import Dict, Optional, List
+from typing import Dict, Optional, List, TYPE_CHECKING
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 
@@ -18,7 +18,8 @@ import math
 import numpy as np
 
 from config import Config
-from src.logic.analysis_service import PatternSignal
+if TYPE_CHECKING:
+    from src.logic.analysis_service import PatternSignal
 from src.utils.logger import get_logger, log_exception
 from src.services.local_notification_storage import LocalNotificationStorage
 
@@ -94,7 +95,7 @@ class TelegramService:
         
         logger.info("✅ Telegram Service detenido")
     
-    async def handle_pattern_signal(self, signal: PatternSignal) -> None:
+    async def handle_pattern_signal(self, signal: "PatternSignal") -> None:
         """
         Procesa una señal de patrón del Analysis Service.
         
@@ -111,7 +112,7 @@ class TelegramService:
         # Enviar notificación inmediatamente
         await self._send_standard_alert(signal)
     
-    async def _send_standard_alert(self, signal: PatternSignal) -> None:
+    async def _send_standard_alert(self, signal: "PatternSignal") -> None:
         """
         Envía una alerta estándar (una sola fuente).
         
@@ -137,7 +138,7 @@ class TelegramService:
             return clean_symbol
         return symbol
 
-    def _format_standard_message(self, signal: PatternSignal) -> AlertMessage:
+    def _format_standard_message(self, signal: "PatternSignal") -> AlertMessage:
         """
         Formatea un mensaje de alerta estándar con sistema de clasificación de fuerza.
         
@@ -181,7 +182,7 @@ class TelegramService:
             timestamp=datetime.now()
         )
 
-    def _get_title_text(self, signal: PatternSignal, display_symbol: str) -> str:
+    def _get_title_text(self, signal: "PatternSignal", display_symbol: str) -> str:
         """
         Obtiene el título del mensaje basado en la fuerza de la señal.
         
@@ -262,7 +263,7 @@ class TelegramService:
 
         return title
     
-    def _get_debug_info_text(self, signal: PatternSignal) -> str:
+    def _get_debug_info_text(self, signal: "PatternSignal") -> str:
         """
         Obtiene la información de debug para mostrar en el mensaje.
         
@@ -284,7 +285,7 @@ class TelegramService:
             )
         return debug_info   
 
-    def _format_statistics_block(self, signal: PatternSignal) -> str:
+    def _format_statistics_block(self, signal: "PatternSignal") -> str:
         """
         Formatea el bloque de estadísticas con diseño jerárquico y limpio.
         

@@ -9,9 +9,6 @@
 * **TASK-1.2: Implementación de RSI (Relative Strength Index).** ✅ *Completado el 03/12/2025*
     * Calcular RSI de 14 periodos (estándar) o 7 periodos (más reactivo para M1).
     * Agregar condición de filtrado: Solo operar reversión bajista si $RSI > 70$ (o 75). Solo reversión alcista si $RSI < 30$ (o 25).
-* **TASK-1.3: Protección contra "Band Walking".**
-    * Lógica: Si la vela anterior cerró POR FUERA o TOCANDO la banda de Bollinger, aumentar la exigencia del patrón de vela actual.
-    * Evitar operar si hay una apertura de bandas explosiva (diferencia entre Upper y Lower crece violentamente).
 
 #### ÉPICA 2: Optimización de Latencia y Despliegue 🟧 *Alta Prioridad*
 *En binarias, 200ms es la diferencia entre un buen punto de entrada y uno malo.*
@@ -46,25 +43,18 @@
     * Generar reporte: "Si hubieras operado todas las señales HIGH SCORE con RSI > 70, tu PnL sería $X".
 * **TASK-4.2: Análisis de "Retroceso al 50%".**
     * Analizar en el dataset (si tienes datos OHLC tick a tick o de segundos, si no, no se puede hacer preciso con velas de 1m cerradas) si el precio tocó el 50% de la mecha antes de revertir. *Nota: Esto es difícil si solo guardas OHLC de 1 min. Necesitarías guardar datos de velas de 5 segundos o Ticks para validar esto.*
-* **TASK-4.X: Validación de PnL por Punto de Entrada.**
-    * Futura implementación: Registrar éxito/fracaso no por el cierre de la vela (color), sino validando si el precio tocó el punto de entrada (50% del rango de la vela trigger) y cerró a favor.
-    * Diferenciar PnL de "Entrada al Cierre" vs "Entrada al 50%".
+* **TASK-4.X: Validación de Entry Point en Backtesting.** 🟥 *Alta Prioridad*
+    * **Descripción:** Modificar `backfill_historical_data.py` para validar trades basados en la regla de entrada de la estrategia (retroceso del 50%) usando High/Low de la vela outcome.
+    * **Criterios de Aceptación:** El dataset debe distinguir entre "WIN", "LOSS" y "NO_ENTRY" (el precio no llegó a la orden límite).
+    * **Nota:** Diferenciar PnL de "Entrada al Cierre" vs "Entrada al 50%".
 
 ---
 
 ### Resumen de Cambios en la Lógica de Negocio
 
-Actualmente tu bot piensa así:
-1.  Calcula tendencia macro (EMA 200).
-2.  Busca patrón.
-3.  Mira Bollinger.
-
-El nuevo bot pensará así (Lógica Sniper):
-1.  **¿Hay Agotamiento?** (Precio fuera de Bollinger + RSI extremo).
-2.  **¿Hay Micro-Momentum?** (Distancia respecto a EMA 5/7).
-3.  **¿Hay Gatillo?** (Patrón de Vela + Score de Velas).
+Actualmente tu bot (v0.0.5) piensa así:
+1.  **Trend & Slope (V7):** Calcula la pendiente de la EMA 3 y la estructura de EMAs (3, 5, 7, 10, 20) para determinar el momentum inmediato.
+2.  **RSI (v8.0):** Observa el RSI (7 periodos) para detectar sobre-extensión, aunque aún no filtra estrictamente por este valor (fase de recolección de datos).
+3.  **Patrón de Vela:** Busca gatillos (Shooting Star, Hammer, etc.).
 4.  **Dispara alerta de texto inmediato.**
 5.  Procesa imagen y estadísticas después.
-
-### Siguiente paso que puedo hacer por ti:
-¿Quieres que procedamos con la **TASK-1.1 (Purga de EMAs y Reajuste de Score)** y la **TASK-1.2 (Integración de RSI)** para actualizar el código de análisis técnico primero?

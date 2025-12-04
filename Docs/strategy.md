@@ -8,14 +8,18 @@ Opero en velas de un minuto. Opero en binarias en IQ OPTION. Tengo 30 segundos e
 
 Opero a contra tendencia. Son tendencias cortas (10 velas aproximadamente). Cuando noto un agotamiento, puede ser que el precio corrija o sea el inicio de un cambio de tendencia, por tal motivo, opero a contra tendencia.
 
-## Mis puntos de entrada:
+## Mis puntos de entrada (Bot vs Humano):
 
-Tenemos las velas "gatillo" en tendencias alcistas: SHOOTING_STAR o INVERTED_HAMMER.
+El sistema funciona con una **colaboración Bot-Humano**:
 
-Tenemos las velas "gatillo" en tendencias bajistas: HAMMER o HANGING_MAN.
+1.  **Notificación del Bot (Trigger):**
+    *   El bot analiza el mercado y detecta el patrón (Shooting Star, Hammer, etc.) **al cierre de la vela**.
+    *   Envía la alerta inmediatamente a Telegram.
+    *   *En este punto NO se entra al mercado todavía.*
 
-Cuando se presenta un patrón de esos, opero en los 30 segundos de la siguiente vela.
-
-Si es en una tendencia alcista, espero que la vela en formación llegue al 50% del cuerpo de la vela anterior para operar a la baja.
-
-Si es en una tendencia bajista, espero que la vela en formación llegue al 50% del cuerpo de la vela siguiente para operar a la baja.
+2.  **Ejecución Humana (Entry):**
+    *   El trader recibe la alerta y observa el inicio de la siguiente vela (Vela de Confirmación).
+    *   **Regla de Oro:** Esperar un **retroceso del 50%** del cuerpo de la vela trigger.
+        *   *Ejemplo Bajista:* Si la vela trigger fue verde y cerró arriba, esperamos que la siguiente vela suba un poco más (retest) hasta el 50% del cuerpo anterior antes de entrar a la BAJA.
+        *   *Ejemplo Alcista:* Si la vela trigger fue roja y cerró abajo, esperamos que la siguiente vela baje un poco más (retest) hasta el 50% del cuerpo anterior antes de entrar al ALZA.
+    *   Esta "finessing" o ajuste fino es manual. El bot provee la señal, el humano ejecuta la entrada precisa.

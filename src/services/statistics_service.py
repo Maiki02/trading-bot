@@ -21,7 +21,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from src.utils.logger import get_logger
-from src.logic.analysis_service import analyze_trend
+
 
 
 logger = get_logger(__name__)
@@ -150,6 +150,7 @@ class StatisticsService:
                     continue
                 
                 # Recalcular score usando lógica actual
+                from src.logic.analysis_service import analyze_trend
                 trend_analysis = analyze_trend(close, emas)
                 calculated_scores.append(trend_analysis.score)
                 
@@ -425,9 +426,9 @@ class StatisticsService:
         # Determinar dirección esperada del patrón
         # SHOOTING_STAR y HANGING_MAN son bajistas → esperan ROJA
         # HAMMER e INVERTED_HAMMER son alcistas → esperan VERDE
-        if pattern in ["SHOOTING_STAR", "HANGING_MAN"]:
+        if pattern in ["SHOOTING_STAR", "INVERTED_HAMMER"]:
             expected_direction = "ROJA"
-        elif pattern in ["HAMMER", "INVERTED_HAMMER"]:
+        elif pattern in ["HAMMER", "HANGING_MAN"]:
             expected_direction = "VERDE"
         else:
             expected_direction = "UNKNOWN"
