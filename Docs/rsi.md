@@ -43,5 +43,5 @@ El RSI se calcula utilizando el método de **Wilder's Smoothing** (Media Móvil 
 El sistema genera automáticamente un gráfico adjunto a cada alerta de Telegram.
 *   **Panel Principal:** Velas Japonesas + EMAs.
 *   **Panel Inferior:** Oscilador RSI (Línea Morada).
-    *   **Líneas de Referencia:** 70 (Sobrecompra) y 30 (Sobreventa) en gris discontinuo.
+    *   **Líneas de Referencia:** Definidas en `config.py` (Default: 75 y 25) en gris discontinuo.
     *   **Propósito:** Confirmación visual rápida de la tensión del precio ("Banda Elástica").

@@ -2,11 +2,11 @@
 #### ÉPICA 1: Refinamiento de Micro-Estructura (CORE) 🟥 *Alta Prioridad*
 *El objetivo es limpiar el ruido y adaptar el bot a la velocidad de 1 minuto.*
 
-* **TASK-1.1: Purga de EMAs Lentas.**
+* **TASK-1.1: Purga de EMAs Lentas.** ✅ *Completado el 03/12/2025*
     * Eliminar cálculo y graficación de EMA 50, 100 y 200.
     * Implementar cálculo de EMA 3.
     * Reajustar el *Weighted Score* para usar solo: EMA 3, 5, 7, 10, 20.
-* **TASK-1.2: Implementación de RSI (Relative Strength Index).**
+* **TASK-1.2: Implementación de RSI (Relative Strength Index).** ✅ *Completado el 03/12/2025*
     * Calcular RSI de 14 periodos (estándar) o 7 periodos (más reactivo para M1).
     * Agregar condición de filtrado: Solo operar reversión bajista si $RSI > 70$ (o 75). Solo reversión alcista si $RSI < 30$ (o 25).
 * **TASK-1.3: Protección contra "Band Walking".**

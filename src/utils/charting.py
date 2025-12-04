@@ -278,16 +278,21 @@ def generate_chart_base64(
             )
             additional_plots.append(rsi_plot)
             
-            # Líneas de referencia (70 y 30)
+            # Líneas de referencia (Configurables)
             # Usamos make_addplot con arrays constantes para las líneas
-            h70 = np.full(len(df_subset), 70)
-            h30 = np.full(len(df_subset), 30)
+            from config import Config
             
-            rsi_h70 = mpf.make_addplot(h70, panel=1, color='#808080', linestyle='--', width=0.8)
-            rsi_h30 = mpf.make_addplot(h30, panel=1, color='#808080', linestyle='--', width=0.8)
+            rsi_overbought = Config.RSI_OVERBOUGHT
+            rsi_oversold = Config.RSI_OVERSOLD
             
-            additional_plots.append(rsi_h70)
-            additional_plots.append(rsi_h30)
+            h_over = np.full(len(df_subset), rsi_overbought)
+            h_under = np.full(len(df_subset), rsi_oversold)
+            
+            rsi_h_over = mpf.make_addplot(h_over, panel=1, color='#808080', linestyle='--', width=0.8)
+            rsi_h_under = mpf.make_addplot(h_under, panel=1, color='#808080', linestyle='--', width=0.8)
+            
+            additional_plots.append(rsi_h_over)
+            additional_plots.append(rsi_h_under)
 
         fig, axes = mpf.plot(df_plot, **plot_kwargs)
         
@@ -343,13 +348,7 @@ def generate_chart_base64(
         has_spaces = ' ' in base64_string
         
         # Log de depuración
-        print(f"🖼️ CHART BASE64 INFO:")
-        print(f"  • Image size: {len(image_bytes)} bytes")
-        print(f"  • Base64 length: {base64_length} chars")
-        print(f"  • Has newlines: {has_newlines}")
-        print(f"  • Has spaces: {has_spaces}")
-        print(f"  • First 50 chars: {base64_string[:50]}")
-        print(f"  • Last 50 chars: {base64_string[-50:]}")
+        print(f"🖼️ CHART BASE64 GENERADO")
         
         return base64_string
     
