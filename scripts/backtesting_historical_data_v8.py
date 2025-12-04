@@ -293,7 +293,44 @@ def analyze_candle_row(row: pd.Series, prev_row: pd.Series, prev_emas: Dict[str,
         
         if not rsi_ok:
             # logger.debug(f"❌ Filtered by RSI: {pattern_name} ({direction}) RSI={rsi_val:.2f}")
-            continue
+            # continue # MODIFIED: We want to capture ALL signals now for analysis
+            pass
+
+        # =============================================================================
+        # SIGNAL STRENGTH CALCULATION (Ported from AnalysisService)
+        # =============================================================================
+        signal_strength = "NONE"
+        
+        # Context
+        is_bullish_trend = "BULLISH" in trend_analysis.status
+        is_bearish_trend = "BEARISH" in trend_analysis.status
+        bollinger_exhaustion = exhaustion in ["PEAK", "BOTTOM"]
+        
+        # CASE A: BULLISH TREND (Looking for PUT/SELL)
+        if is_bullish_trend:
+            if pattern_name == "SHOOTING_STAR":
+                if bollinger_exhaustion and candle_exhaustion: signal_strength = "VERY_HIGH"
+                elif bollinger_exhaustion: signal_strength = "HIGH"
+                elif candle_exhaustion: signal_strength = "LOW"
+                else: signal_strength = "VERY_LOW"
+            elif pattern_name == "INVERTED_HAMMER":
+                if bollinger_exhaustion and candle_exhaustion: signal_strength = "MEDIUM"
+                elif bollinger_exhaustion: signal_strength = "LOW"
+                elif candle_exhaustion: signal_strength = "VERY_LOW"
+                else: signal_strength = "NONE"
+                
+        # CASE B: BEARISH TREND (Looking for CALL/BUY)
+        elif is_bearish_trend:
+            if pattern_name == "HAMMER":
+                if bollinger_exhaustion and candle_exhaustion: signal_strength = "VERY_HIGH"
+                elif bollinger_exhaustion: signal_strength = "HIGH"
+                elif candle_exhaustion: signal_strength = "LOW"
+                else: signal_strength = "VERY_LOW"
+            elif pattern_name == "HANGING_MAN":
+                if bollinger_exhaustion and candle_exhaustion: signal_strength = "MEDIUM"
+                elif bollinger_exhaustion: signal_strength = "LOW"
+                elif candle_exhaustion: signal_strength = "VERY_LOW"
+                else: signal_strength = "NONE"
 
         # Construct Signal Object
         signal = {
@@ -307,7 +344,19 @@ def analyze_candle_row(row: pd.Series, prev_row: pd.Series, prev_emas: Dict[str,
                 'pattern_name': pattern_name,
                 'direction': direction,
                 'confidence': confidence,
-                'is_counter_trend': False # Logic simplified for now
+                'signal_strength': signal_strength,
+                'is_counter_trend': False,
+                'rsi_filter_passed': rsi_ok
+            },
+            'pattern_candle': { # Added to match StorageService
+                'timestamp': int(timestamp),
+                'open': float(row['open']),
+                'high': float(high),
+                'low': float(low),
+                'close': float(row['close']),
+                'volume': float(row['volume']),
+                'pattern': pattern_name,
+                'confidence': float(confidence)
             },
             'technical': {
                 'ema_values': emas,
@@ -318,7 +367,9 @@ def analyze_candle_row(row: pd.Series, prev_row: pd.Series, prev_emas: Dict[str,
                 'exhaustion_candle': candle_exhaustion
             },
             'strategy_data': {
-                'limit_entry_price': calculate_limit_entry(high, low, direction),
+                # 'limit_entry_price': calculate_limit_entry(high, low, direction), # REMOVED: Calculated dynamically
+                'candle_high': high, # Added for dynamic analysis
+                'candle_low': low,   # Added for dynamic analysis
                 'stop_loss_price': high if direction == 'PUT' else low
             }
         }
@@ -434,12 +485,29 @@ def main():
                 if signal:
                     # Capture Outcome (Next Candle)
                     outcome_row = df.iloc[i+1]
+                    
+                    # Determine Outcome Direction
+                    outcome_dir = "DOJI"
+                    if outcome_row['close'] > outcome_row['open']: outcome_dir = "VERDE"
+                    elif outcome_row['close'] < outcome_row['open']: outcome_dir = "ROJA"
+                    
                     signal['outcome_candle'] = {
                         'timestamp': int(outcome_row['from']),
                         'open': outcome_row['open'],
                         'high': outcome_row['max'],
                         'low': outcome_row['min'],
-                        'close': outcome_row['close']
+                        'close': outcome_row['close'],
+                        'direction': outcome_dir # Added to match StorageService
+                    }
+                    
+                    # Determine Success (Simple Directional Check for now, Analysis Script does detailed PnL)
+                    expected_dir = "VERDE" if signal['signal']['direction'] == "CALL" else "ROJA"
+                    success = (expected_dir == outcome_dir)
+                    
+                    signal['outcome'] = {
+                        "expected_direction": expected_dir,
+                        "actual_direction": outcome_dir,
+                        "success": success
                     }
                     
                     # Construct unique key for deduplication
@@ -447,7 +515,7 @@ def main():
                         Config.ALGO_VERSION,
                         "IQOPTION", # Source
                         row['symbol'],
-                        timestamp
+                        int(row['from'])
                     )
                     
                     if current_key in existing_keys:

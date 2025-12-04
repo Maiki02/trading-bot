@@ -236,8 +236,12 @@ class Config:
         send_outcome_charts=os.getenv("SEND_OUTCOME_CHARTS", "true").lower() == "true",
         enable_notifications=os.getenv("ENABLE_NOTIFICATIONS", "true").lower() == "true",
         save_notifications_locally=os.getenv("SAVE_NOTIFICATIONS_LOCALLY", "false").lower() == "true",
+
         send_none_signal_notifications=os.getenv("SEND_NONE_SIGNAL_NOTIFICATIONS", "false").lower() == "true"
     )
+    
+    # Test Data Collection
+    UPDATE_TEST_DATA: bool = os.getenv("UPDATE_TEST_DATA", "false").lower() == "true"
     
     # Trading Parameters - Mean Reversion Strategy
     EMA_FAST_PERIOD: int = int(os.getenv("EMA_FAST_PERIOD", "7"))  # EMA rápida para detección de agotamiento

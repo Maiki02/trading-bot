@@ -1676,6 +1676,9 @@ class AnalysisService:
             source_key: Clave de la fuente (ej: "IQ_EURUSD_BIN")
             candle: Vela que acaba de cerrar
         """
+        if not Config.UPDATE_TEST_DATA:
+            return
+
         try:
             from pathlib import Path
             from datetime import datetime
@@ -1723,6 +1726,9 @@ class AnalysisService:
             last_candle: Última vela cerrada (para referencia en título)
         """
         if not Config.GENERATE_HISTORICAL_CHARTS:
+            return
+
+        if not Config.UPDATE_TEST_DATA:
             return
 
         try:
@@ -1777,6 +1783,9 @@ class AnalysisService:
             cierre: Precio de cierre
             pattern: Tipo de patrón detectado (SHOOTING_STAR, HANGING_MAN, etc.)
         """
+        if not Config.UPDATE_TEST_DATA:
+            return
+
         try:
             from pathlib import Path
             import json
