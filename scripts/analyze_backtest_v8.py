@@ -67,13 +67,82 @@ def classify_rsi(rsi_value):
     """Classifies RSI into zones."""
     if pd.isna(rsi_value):
         return "UNKNOWN"
+import argparse
+import json
+import pandas as pd
+import sys
+import os
+
+# Add project root to path
+sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+
+from config import Config
+
+def load_data(file_path):
+    """Loads JSONL data into a Pandas DataFrame."""
+    data = []
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            for line in f:
+                try:
+                    data.append(json.loads(line))
+                except json.JSONDecodeError:
+                    continue
+    except FileNotFoundError:
+        print(f"Error: File {file_path} not found.")
+        sys.exit(1)
+    
+    if not data:
+        print("Error: No data found in file.")
+        sys.exit(1)
+        
+    # Flatten the nested structure
+    flattened_data = []
+    for entry in data:
+        # Extract Pattern Candle Data
+        pc = entry.get('pattern_candle', {})
+        oc = entry.get('outcome_candle', {})
+        sig = entry.get('signal', {})
+        tech = entry.get('technical', {})
+        meta = entry.get('metadata', {})
+        
+        flat_entry = {
+            'timestamp': meta.get('timestamp'),
+            'symbol': meta.get('symbol'),
+            'pattern': pc.get('pattern', sig.get('pattern_name')),
+            'direction': sig.get('direction'),
+            'confidence': pc.get('confidence', sig.get('confidence')),
+            'signal_strength': sig.get('signal_strength', 'NONE'), # Default to NONE if missing
+            'rsi': tech.get('rsi_value'),
+            'trend_score': tech.get('trend_score'),
+            
+            # Pattern Candle OHLC
+            'pattern_open': pc.get('open'),
+            'pattern_high': pc.get('high'),
+            'pattern_low': pc.get('low'),
+            'pattern_close': pc.get('close'),
+            
+            # Outcome Candle OHLC
+            'outcome_open': oc.get('open'),
+            'outcome_high': oc.get('high'),
+            'outcome_low': oc.get('low'),
+            'outcome_close': oc.get('close'),
+        }
+        flattened_data.append(flat_entry)
+        
+    return pd.DataFrame(flattened_data)
+
+def classify_rsi(rsi_value):
+    """Classifies RSI into zones."""
+    if pd.isna(rsi_value):
+        return "UNKNOWN"
     if rsi_value >= Config.RSI_OVERBOUGHT:
         return "OVERBOUGHT"
     if rsi_value <= Config.RSI_OVERSOLD:
         return "OVERSOLD"
     return "NEUTRAL"
 
-def calculate_entry_and_result(row, entry_pct=0.5):
+def calculate_entry_and_result(row, entry_pct=0.5, safety_margin=0.1):
     """
     Calculates Entry Point, checks for Fill, and determines Result.
     Returns a Series with new metrics.
@@ -89,17 +158,23 @@ def calculate_entry_and_result(row, entry_pct=0.5):
     # 1. Calculate Entry Price (Limit Entry - 50% Retracement)
     rng = p_high - p_low
     # Entry is always the midpoint of the signal candle
-    entry_price = p_low + (rng * 0.5)
+    entry_price = p_low + (rng * entry_pct)
 
-    # 2. Check Fill
+    # 2. Check Fill (ROBUST MODE)
+    # We require the price to go DEEPER than the entry price by a safety margin
+    # to simulate slippage, latency, and spread.
+    margin_abs = rng * safety_margin
+    
     filled = False
     if direction == 'PUT':
         # Selling: We need price to go UP to our Limit Sell order
-        if o_high >= entry_price:
+        # Robust: High must be >= Entry + Margin
+        if o_high >= (entry_price + margin_abs):
             filled = True
     elif direction == 'CALL':
         # Buying: We need price to go DOWN to our Limit Buy order
-        if o_low <= entry_price:
+        # Robust: Low must be <= Entry - Margin
+        if o_low <= (entry_price - margin_abs):
             filled = True
             
     if not filled:
@@ -147,6 +222,8 @@ def main():
     parser = argparse.ArgumentParser(description="Analyze Backtesting Results V8 (Limit Entry)")
     parser.add_argument("--file", type=str, default="data/trading_signals_dataset_v8.jsonl", help="Path to input JSONL file")
     parser.add_argument("--symbol", type=str, help="Filter by Symbol")
+    parser.add_argument("--entry_pct", type=float, default=0.5, help="Entry Percentage (0.5 = 50% Retracement)")
+    parser.add_argument("--safety_margin", type=float, default=0.1, help="Safety Margin for Fill (0.1 = 10% of candle range)")
     
     args = parser.parse_args()
     
@@ -168,10 +245,11 @@ def main():
         print("No valid signals found (all were NONE).")
         return
 
-    print(f"Analyzing {len(df)} QUALIFIED signals with Limit Entry Strategy (50% Retracement)...")
+    print(f"Analyzing {len(df)} QUALIFIED signals with Limit Entry Strategy...")
+    print(f"🛡️  MODO BACKTEST ROBUSTO: Entry @ {args.entry_pct*100:.1f}% | Margin Requerido: +{args.safety_margin*100:.1f}%")
     
     # Apply Strategy Logic
-    results = df.apply(calculate_entry_and_result, axis=1)
+    results = df.apply(lambda row: calculate_entry_and_result(row, entry_pct=args.entry_pct, safety_margin=args.safety_margin), axis=1)
     df = pd.concat([df, results], axis=1)
     
     # Classify RSI

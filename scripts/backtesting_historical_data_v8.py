@@ -52,6 +52,7 @@ from src.logic.candle import (
     get_candle_direction, detect_candle_exhaustion
 )
 from src.logic.analysis_service import analyze_trend, detect_exhaustion
+from src.logic.signal_classifier import classify_signal
 
 # =============================================================================
 # CONFIGURATION
@@ -244,32 +245,14 @@ def analyze_candle_row(row: pd.Series, prev_row: pd.Series, prev_emas: Dict[str,
         candle_exhaustion = detect_candle_exhaustion(pattern_name, high, low, prev_row['max'], prev_row['min'])
         rsi_val = row['rsi']
         
-        # Signal Strength
-        signal_strength = "NONE"
-        bollinger_exhaustion = exhaustion in ["PEAK", "BOTTOM"]
-        
-        if is_bullish_trend:
-            if pattern_name == "SHOOTING_STAR":
-                if bollinger_exhaustion and candle_exhaustion: signal_strength = "VERY_HIGH"
-                elif bollinger_exhaustion: signal_strength = "HIGH"
-                elif candle_exhaustion: signal_strength = "LOW"
-                else: signal_strength = "VERY_LOW"
-            elif pattern_name == "INVERTED_HAMMER":
-                if bollinger_exhaustion and candle_exhaustion: signal_strength = "MEDIUM"
-                elif bollinger_exhaustion: signal_strength = "LOW"
-                elif candle_exhaustion: signal_strength = "VERY_LOW"
-                else: signal_strength = "NONE"
-        elif is_bearish_trend:
-            if pattern_name == "HAMMER":
-                if bollinger_exhaustion and candle_exhaustion: signal_strength = "VERY_HIGH"
-                elif bollinger_exhaustion: signal_strength = "HIGH"
-                elif candle_exhaustion: signal_strength = "LOW"
-                else: signal_strength = "VERY_LOW"
-            elif pattern_name == "HANGING_MAN":
-                if bollinger_exhaustion and candle_exhaustion: signal_strength = "MEDIUM"
-                elif bollinger_exhaustion: signal_strength = "LOW"
-                elif candle_exhaustion: signal_strength = "VERY_LOW"
-                else: signal_strength = "NONE"
+        # Signal Strength (Centralized Logic)
+        signal_strength = classify_signal(
+            pattern=pattern_name,
+            trend_status=trend_analysis.status,
+            exhaustion_bb=exhaustion,
+            candle_exhaustion=candle_exhaustion,
+            rsi_val=rsi_val
+        )
 
         # Construct Clean Signal Object
         signal = {
@@ -299,7 +282,7 @@ def analyze_candle_row(row: pd.Series, prev_row: pd.Series, prev_emas: Dict[str,
             'technical': {
                 'ema_values': emas,
                 'rsi_value': rsi_val,
-                'trend_score': trend_analysis.score,
+                # 'trend_score': trend_analysis.score, (Removed Task 3)
                 'trend_status': trend_analysis.status,
                 'exhaustion_bb': exhaustion,
                 'exhaustion_candle': candle_exhaustion
@@ -411,7 +394,7 @@ def main():
             
             logger.info(f"✅ Generated {signals_count} signals for {asset}")
             
-    logger.info(f"🎉 Done! Dataset saved to {OUTPUT_FILE}")
+    logger.info(f"🎉 Done! Dataset saved to {os.path.abspath(OUTPUT_FILE)}")
 
 if __name__ == "__main__":
     main()

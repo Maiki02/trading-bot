@@ -26,6 +26,7 @@ from src.services.connection_service import CandleData
 from src.logic.candle import is_shooting_star, is_hanging_man, is_inverted_hammer, is_hammer, get_candle_direction
 from src.utils.logger import get_logger, log_exception
 from src.utils.charting import generate_chart_base64, validate_dataframe_for_chart
+from src.logic.signal_classifier import classify_signal
 
 
 logger = get_logger(__name__)
@@ -65,7 +66,8 @@ class PatternSignal:
     ema_30: float
     ema_50: float
     trend: str  # "STRONG_BULLISH", "WEAK_BULLISH", "NEUTRAL", "WEAK_BEARISH", "STRONG_BEARISH"
-    trend_score: float  # Score numérico de -10.0 a +10.0 (weighted)
+    trend: str  # "STRONG_BULLISH", "WEAK_BULLISH", "NEUTRAL", "WEAK_BEARISH", "STRONG_BEARISH"
+    # trend_score removed (Task 3)
     is_trend_aligned: bool  # Si las EMAs están alineadas correctamente
     confidence: float  # 0.0 - 1.0 (del patrón de vela)
     trend_filtered: bool  # True si se aplicó filtro de tendencia
@@ -922,8 +924,8 @@ class AnalysisService:
                 "ema_30": pending_signal.ema_30,
                 "ema_50": pending_signal.ema_50,
                 "alignment": ema_alignment,
-                "ema_order": ema_order,
-                "trend_score": pending_signal.trend_score
+                "ema_order": ema_order
+                # "trend_score": pending_signal.trend_score (Removed Task 3)
             },
             "indicators": {
                 "rsi": pending_signal.rsi_val
@@ -1319,137 +1321,18 @@ class AnalysisService:
         # ═════════════════════════════════════════════════════════════════════
         # CASO A: TENDENCIA ALCISTA (Buscamos VENTAS - Patrones Bajistas)
         # ═════════════════════════════════════════════════════════════════════
-        if is_bullish_trend:
-            if pattern_detected == "SHOOTING_STAR":
-                # Patrón PRINCIPAL bajista
-                if bollinger_exhaustion and candle_exhaustion:
-                    signal_strength = "VERY_HIGH"
-                    logger.info(f"🔥 VERY HIGH | Shooting Star + Bollinger + Candle Exhaustion en tendencia alcista")
-                elif bollinger_exhaustion:
-                    signal_strength = "HIGH"
-                    logger.info(f"🚨 HIGH | Shooting Star + Bollinger Exhaustion en tendencia alcista")
-                elif candle_exhaustion:
-                    signal_strength = "LOW"
-                    logger.info(f"ℹ️  LOW | Shooting Star + Candle Exhaustion (sin Bollinger)")
-                else:
-                    signal_strength = "VERY_LOW"
-                    logger.info(f"⚪ VERY LOW | Shooting Star sin exhaustion")
-            
-            elif pattern_detected == "INVERTED_HAMMER":
-                # Patrón SECUNDARIO bajista
-                if bollinger_exhaustion and candle_exhaustion:
-                    signal_strength = "MEDIUM"
-                    logger.info(f"⚠️  MEDIUM | Inverted Hammer + ambos exhaustion en tendencia alcista")
-                elif bollinger_exhaustion:
-                    signal_strength = "LOW"
-                    logger.info(f"ℹ️  LOW | Inverted Hammer + Bollinger Exhaustion")
-                elif candle_exhaustion:
-                    signal_strength = "VERY_LOW"
-                    logger.info(f"⚪ VERY LOW | Inverted Hammer + Candle Exhaustion solamente")
-                else:
-                    signal_strength = "NONE"
-                    logger.info(f"⛔ NONE | Inverted Hammer sin exhaustion - Descartado")
-            
-            # HANGING_MAN y HAMMER no son válidos en tendencia alcista para Mean Reversion
-            elif pattern_detected == "HANGING_MAN":
-                signal_strength = "NONE"
-                logger.info(f"⛔ NONE | Hanging Man en tendencia alcista - Patrón no aplicable")
-            
-            elif pattern_detected == "HAMMER":
-                signal_strength = "NONE"
-                logger.info(f"⛔ NONE | Hammer en tendencia alcista - Contra-estrategia Mean Reversion")
+        # ═════════════════════════════════════════════════════════════════════
+        # CLASIFICACIÓN CENTRALIZADA (Task 1)
+        # ═════════════════════════════════════════════════════════════════════
+        signal_strength = classify_signal(
+            pattern=pattern_detected,
+            trend_status=trend_analysis.status,
+            exhaustion_bb=exhaustion_type,
+            candle_exhaustion=candle_exhaustion,
+            rsi_val=rsi_val
+        )
         
-        # ═════════════════════════════════════════════════════════════════════
-        # CASO B: TENDENCIA BAJISTA (Buscamos COMPRAS - Patrones Alcistas)
-        # ═════════════════════════════════════════════════════════════════════
-        elif is_bearish_trend:
-            if pattern_detected == "HAMMER":
-                # Patrón PRINCIPAL alcista
-                if bollinger_exhaustion and candle_exhaustion:
-                    signal_strength = "VERY_HIGH"
-                    logger.info(f"🔥 VERY HIGH | Hammer + Bollinger + Candle Exhaustion en tendencia bajista")
-                elif bollinger_exhaustion:
-                    signal_strength = "HIGH"
-                    logger.info(f"🚨 HIGH | Hammer + Bollinger Exhaustion en tendencia bajista")
-                elif candle_exhaustion:
-                    signal_strength = "LOW"
-                    logger.info(f"ℹ️  LOW | Hammer + Candle Exhaustion (sin Bollinger)")
-                else:
-                    signal_strength = "VERY_LOW"
-                    logger.info(f"⚪ VERY LOW | Hammer sin exhaustion")
-            
-            elif pattern_detected == "HANGING_MAN":
-                # Patrón SECUNDARIO alcista
-                if bollinger_exhaustion and candle_exhaustion:
-                    signal_strength = "MEDIUM"
-                    logger.info(f"⚠️  MEDIUM | Hanging Man + ambos exhaustion en tendencia bajista")
-                elif bollinger_exhaustion:
-                    signal_strength = "LOW"
-                    logger.info(f"ℹ️  LOW | Hanging Man + Bollinger Exhaustion")
-                elif candle_exhaustion:
-                    signal_strength = "VERY_LOW"
-                    logger.info(f"⚪ VERY LOW | Hanging Man + Candle Exhaustion solamente")
-                else:
-                    signal_strength = "NONE"
-                    logger.info(f"⛔ NONE | Hanging Man sin exhaustion - Descartado")
-            
-            # SHOOTING_STAR e INVERTED_HAMMER no son válidos en tendencia bajista para Mean Reversion
-            elif pattern_detected == "SHOOTING_STAR":
-                signal_strength = "NONE"
-                logger.info(f"⛔ NONE | Shooting Star en tendencia bajista - Contra-estrategia Mean Reversion")
-            
-            elif pattern_detected == "INVERTED_HAMMER":
-                signal_strength = "NONE"
-                logger.info(f"⛔ NONE | Inverted Hammer en tendencia bajista - Patrón no aplicable")
-        
-        # ═════════════════════════════════════════════════════════════════════
-        # CASO C: NEUTRAL (Reducir un nivel de fuerza)
-        # ═════════════════════════════════════════════════════════════════════
-        elif is_neutral:
-            logger.info(f"⚖️  Tendencia NEUTRAL detectada - Reduciendo scoring un nivel")
-            
-            # Evaluar igual que si hubiera tendencia, pero degradar resultado
-            temp_strength = "NONE"
-            
-            if pattern_detected == "SHOOTING_STAR":
-                if bollinger_exhaustion and candle_exhaustion:
-                    temp_strength = "HIGH"  # Se degradará a MEDIUM
-                elif bollinger_exhaustion:
-                    temp_strength = "MEDIUM"  # Se degradará a LOW
-                elif candle_exhaustion:
-                    temp_strength = "VERY_LOW"  # Se degradará a NONE
-                else:
-                    temp_strength = "NONE"
-            
-            elif pattern_detected == "HAMMER":
-                if bollinger_exhaustion and candle_exhaustion:
-                    temp_strength = "HIGH"  # Se degradará a MEDIUM
-                elif bollinger_exhaustion:
-                    temp_strength = "MEDIUM"  # Se degradará a LOW
-                elif candle_exhaustion:
-                    temp_strength = "VERY_LOW"  # Se degradará a NONE
-                else:
-                    temp_strength = "NONE"
-            
-            elif pattern_detected in ["INVERTED_HAMMER", "HANGING_MAN"]:
-                if bollinger_exhaustion and candle_exhaustion:
-                    temp_strength = "LOW"  # Se degradará a VERY_LOW
-                elif bollinger_exhaustion:
-                    temp_strength = "VERY_LOW"  # Se degradará a NONE
-                else:
-                    temp_strength = "NONE"
-            
-            # Degradar un nivel
-            downgrade_map = {
-                "VERY_HIGH": "HIGH",
-                "HIGH": "MEDIUM",
-                "MEDIUM": "LOW",
-                "LOW": "VERY_LOW",
-                "VERY_LOW": "NONE",
-                "NONE": "NONE"
-            }
-            signal_strength = downgrade_map.get(temp_strength, "NONE")
-            logger.info(f"➡️  Score degradado de {temp_strength} a {signal_strength} por tendencia NEUTRAL")
+        logger.info(f"🎚️  Signal Strength Classified: {signal_strength}")
         
         # Determinar si el patrón es "contra-tendencia" (para compatibilidad con storage)
         is_counter_trend = False
