@@ -185,8 +185,8 @@ class Config:
         { "key": "USDJPY-BIN", "id": 1865}, # USDJPY
         # { "key": "USDCHF-BIN", "id": "NO HAY"}, # USDCHF
         { "key": "USDCAD-BIN", "id": 1878}, # USDCAD
-        # { "key": "AUDUSD-BIN", "id": 1870}, # AUDUSD
-        # { "key": "NZDUSD-BIN", "id": 1896}, # NZDUSD
+        { "key": "AUDUSD-BIN", "id": 1870}, # AUDUSD
+        { "key": "NZDUSD-BIN", "id": 1896}, # NZDUSD
         { "key": "EURJPY-BIN", "id": 1864}, # EURJPY
         { "key": "EURGBP-BIN", "id": 1862}, # EURGBP
     ]
