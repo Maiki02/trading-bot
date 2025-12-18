@@ -66,8 +66,8 @@ class PatternSignal:
     ema_30: float
     ema_50: float
     trend: str  # "STRONG_BULLISH", "WEAK_BULLISH", "NEUTRAL", "WEAK_BEARISH", "STRONG_BEARISH"
-    trend: str  # "STRONG_BULLISH", "WEAK_BULLISH", "NEUTRAL", "WEAK_BEARISH", "STRONG_BEARISH"
-    # trend_score removed (Task 3)
+
+    trend_score: float # Score numérico (Waithed) - Display Only
     is_trend_aligned: bool  # Si las EMAs están alineadas correctamente
     confidence: float  # 0.0 - 1.0 (del patrón de vela)
     trend_filtered: bool  # True si se aplicó filtro de tendencia
@@ -1500,6 +1500,7 @@ class AnalysisService:
                 ema_20=last_closed.get("ema_20", np.nan),
                 ema_30=last_closed.get("ema_30", np.nan),
                 ema_50=last_closed.get("ema_50", np.nan),
+
                 trend=trend_analysis.status,
                 trend_score=trend_analysis.score,
                 is_trend_aligned=trend_analysis.is_aligned,
