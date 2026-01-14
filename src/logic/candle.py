@@ -467,3 +467,27 @@ def is_hammer(
     confidence = min(confidence, 1.0)
     
     return True, confidence, "Patrón válido"
+
+
+def get_pattern_action(pattern: str) -> str:
+    """
+    Determina la acción (CALL/PUT) asociada a un patrón.
+    
+    Mapeo Estricto:
+    - SHOOTING_STAR   -> PUT (Baja)
+    - INVERTED_HAMMER -> PUT (Baja)
+    - HANGING_MAN     -> CALL (Alza)
+    - HAMMER          -> CALL (Alza)
+    
+    Args:
+        pattern: Nombre del patrón detectado
+        
+    Returns:
+        str: "CALL", "PUT" o "UNKNOWN"
+    """
+    if pattern in ["SHOOTING_STAR", "INVERTED_HAMMER"]:
+        return "PUT"
+    elif pattern in ["HAMMER", "HANGING_MAN"]:
+        return "CALL"
+    else:
+        return "UNKNOWN"

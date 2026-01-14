@@ -417,21 +417,64 @@ class TelegramService:
         self,
         source: str,
         symbol: str,
-        direction: str,
+        action: str,        # CALL/PUT
+        result: str,        # WIN/LOSS/ATM
+        entry_price: float,
+        close_price: float,
         chart_base64: Optional[str] = None
     ) -> None:
         """
-        Envía una notificación del resultado de una vela (VERDE o ROJA).
+        Envía una notificación del resultado de la operación.
         
         Args:
-            source: Fuente del dato (ej: "BINANCE", "OANDA")
-            symbol: Símbolo del activo (ej: "BTCUSDT", "EURUSD")
-            direction: Dirección de la vela ("VERDE" o "ROJA")
-            chart_base64: Imagen del gráfico codificada en Base64 (opcional)
+            source: Fuente del dato
+            symbol: Símbolo del activo
+            action: Acción tomada ("CALL" o "PUT")
+            result: Resultado ("WIN", "LOSS", "ATM")
+            entry_price: Precio de entrada (objetivo)
+            close_price: Precio de cierre real
+            chart_base64: Imagen del gráfico (opcional)
         """
         display_symbol = self._format_symbol_for_display(symbol)
-        title = f"📊 Resultado Vela - {source}:{display_symbol}"
-        message = f"La vela resultante fue: {direction}"
+        
+        # Iconos y formato según resultado
+        if result == "WIN":
+            icon = "🏆"
+            status_text = "GANADA"
+        elif result == "LOSS":
+            icon = "❌"
+            status_text = "PERDIDA"
+        elif result == "NO_ENTRY":
+            icon = "🚫"
+            status_text = "NO ACTIVADA"
+        else:
+            icon = "⚪"
+            status_text = "EMPATE (ATM)"
+            
+        # Iconos según acción
+        action_icon = "🟢" if action == "CALL" else "🔴"
+        
+        title = f"{icon} RESULTADO: {status_text} | {display_symbol}"
+        
+        if result == "NO_ENTRY":
+            message = (
+                f"━━━━━━━━━━━━━━━━━━━━━━\n"
+                f"🔹 Operación: {action_icon} {action}\n"
+                f"🔹 Resultado: {status_text}\n"
+                f"━━━━━━━━━━━━━━━━━━━━━━\n"
+                f"ℹ️ El precio NO tocó la entrada.\n"
+                f"🎯 Entrada: {entry_price:.5f}\n"
+            )
+        else:
+            message = (
+                f"━━━━━━━━━━━━━━━━━━━━━━\n"
+                f"🔹 Operación: {action_icon} {action}\n"
+                f"🔹 Resultado: {result}\n"
+                f"━━━━━━━━━━━━━━━━━━━━━━\n"
+                f"🎯 Entrada: {entry_price:.5f}\n"
+                f"🏁 Cierre:   {close_price:.5f}\n"
+                # f"━━━━━━━━━━━━━━━━━━━━━━\n"
+            )
         
         await self._send_telegram_notification(
             title=title,

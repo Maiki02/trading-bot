@@ -843,22 +843,63 @@ class AnalysisService:
             f"⏱️  Diferencia: {timestamp_diff}s\n"
         )
         
-        # Determinar dirección esperada según tipo de patrón
-        # BAJISTA (reversión bajista): Shooting Star, Inverted Hammer
-        # ALCISTA (reversión alcista): Hammer, Hanging Man
-        if pending_signal.pattern in ["SHOOTING_STAR", "INVERTED_HAMMER"]:
-            expected_direction = "ROJA"  # Bajista
-        elif pending_signal.pattern in ["HAMMER", "HANGING_MAN"]:
-            expected_direction = "VERDE"  # Alcista
-        else:
-            logger.warning(f"⚠️  Patrón desconocido: {pending_signal.pattern}")
-            expected_direction = "UNKNOWN"
+        # Determinar dirección esperada (Action) según tipo de patrón
+        from src.logic.candle import get_pattern_action
+        action = get_pattern_action(pending_signal.pattern)
         
-        # Determinar dirección actual de la vela de resultado usando la función de candle.py
+        # Mapping para compatibilidad con código existente que usa "VERDE"/"ROJA" como expected
+        expected_direction = "UNKNOWN"
+        if action == "PUT":
+            expected_direction = "ROJA"
+        elif action == "CALL":
+            expected_direction = "VERDE"
+        
+        # Determinar dirección actual de la vela de resultado
         actual_direction = get_candle_direction(outcome_candle.open, outcome_candle.close)
         
-        # Determinar éxito
-        success = (expected_direction == actual_direction)
+        # 1. Recuperar precios
+        entry_price = pending_signal.entry_point
+        close_price = outcome_candle.close
+        
+        # Si por alguna razón no hay entry_point (versiones viejas), fallback a close de vela señal
+        if entry_price is None:
+            entry_price = pending_signal.candle.close
+            
+        # 2. Calcular Resultado (WIN/LOSS/ATM/NO_ENTRY)
+        result = "ATM"
+        pnl = 0.0
+        
+        # Verificar si el precio tocó la entrada (Fill Check)
+        # Se asume que si el precio está dentro del rango Low-High de la vela, se ejecutó.
+        # En opciones binarias, la entrada suele ser inmediata al inicio, pero si usamos "entry_point"
+        # como un Limit Order teórico (ej: 50% de la vela anterior), debemos verificar si llegó.
+        
+        entry_filled = False
+        if entry_price is not None:
+             if outcome_candle.low <= entry_price <= outcome_candle.high:
+                 entry_filled = True
+        
+        if not entry_filled:
+            result = "NO_ENTRY"
+        else:
+            if action == "PUT":
+                if close_price < entry_price:
+                    result = "WIN"
+                elif close_price > entry_price:
+                    result = "LOSS"
+                else:
+                    result = "ATM"
+                    
+            elif action == "CALL":
+                if close_price > entry_price:
+                    result = "WIN"
+                elif close_price < entry_price:
+                    result = "LOSS"
+                else:
+                    result = "ATM"
+        
+        # Determinar éxito booleano (para storage legacy o logs simples)
+        success = (result == "WIN")
 
         # Calcular alineación de EMAs en formato string
         emas_dict = {
@@ -926,8 +967,12 @@ class AnalysisService:
                 "direction": actual_direction
             },
             "outcome": {
-                "expected_direction": expected_direction,
-                "actual_direction": actual_direction,
+                "action": action,         # CALL/PUT
+                "result": result,         # WIN/LOSS/ATM
+                "entry_price": entry_price,
+                "close_price": close_price,
+                "expected_direction": expected_direction, # Legacy
+                "actual_direction": actual_direction,     # Legacy
                 "success": success
             },
             "metadata": {
@@ -961,7 +1006,7 @@ class AnalysisService:
                         if df_current is not None and not df_current.empty:
                             
                             # Generar gráfico
-                            chart_title = f"RESULTADO: {actual_direction} | {source_key}"
+                            chart_title = f"RESULTADO: {result} | {source_key}"
                             
                             # Ejecutar en hilo separado usando la nueva función helper
                             import asyncio
@@ -984,17 +1029,19 @@ class AnalysisService:
                 else:
                     # Comportamiento anterior: Enviar el gráfico original (del patrón) o nada
                     # El usuario pidió: "en false no envíe".
-                    # Antes enviaba: pending_signal.chart_base64
-                    # Si queremos mantener compatibilidad estricta con "false = no envíe", ponemos None.
                     chart_base64 = None
                 
+                # ENVIAR NOTIFICACIÓN ENRIQUECIDA (Action, Result, Prices)
                 await self.telegram_service.send_outcome_notification(
                     source=pending_signal.source,
                     symbol=pending_signal.symbol,
-                    direction=actual_direction,
+                    action=action,        # CALL/PUT
+                    result=result,        # WIN/LOSS/ATM
+                    entry_price=entry_price,
+                    close_price=close_price,
                     chart_base64=chart_base64
                 )
-                logger.info(f"📨 Notificación de resultado enviada | Dirección: {actual_direction} | Chart: {'Sí' if chart_base64 else 'No'}")
+                logger.info(f"📨 Notificación de resultado enviada | {result} ({action}) | Chart: {'Sí' if chart_base64 else 'No'}")
             except Exception as e:
                 log_exception(logger, "Error enviando notificación de resultado", e)
         else:
@@ -1005,8 +1052,8 @@ class AnalysisService:
         
         logger.info(
             f"✅ CICLO CERRADO | "
-            f"Éxito: {'✓' if success else '✗'} | "
-            f"Esperado: {expected_direction} | Actual: {actual_direction}\n"
+            f"Result: {result} | Action: {action} | "
+            f"Entry: {entry_price:.5f} | Close: {close_price:.5f}\n"
             f"{'═'*60}\n"
         )
     
