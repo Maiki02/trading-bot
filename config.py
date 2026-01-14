@@ -244,15 +244,12 @@ class Config:
     UPDATE_TEST_DATA: bool = os.getenv("UPDATE_TEST_DATA", "false").lower() == "true"
     
     # Trading Parameters - Mean Reversion Strategy
-    EMA_FAST_PERIOD: int = int(os.getenv("EMA_FAST_PERIOD", "7"))  # EMA rápida para detección de agotamiento
     EMA_PERIOD: int = int(os.getenv("EMA_PERIOD", "50"))  # EMA base (cambiar a 7 o 50 según estrategia)
     DUAL_SOURCE_WINDOW: float = float(os.getenv("DUAL_SOURCE_WINDOW", "2.0"))
     CHART_LOOKBACK: int = int(os.getenv("CHART_LOOKBACK", "30"))
     USE_TREND_FILTER: bool = os.getenv("USE_TREND_FILTER", "false").lower() == "true"
     SHOW_CANDLE_RESULT: bool = os.getenv("SHOW_CANDLE_RESULT", "true").lower() == "true"  # Mostrar debug de condiciones en Telegram
-    
-    # Slope Threshold for Trend Analysis (Percentage)
-    SLOPE_THRESHOLD_PCT: float = float(os.getenv("SLOPE_THRESHOLD_PCT", "0.0001"))  # 0.01%
+
     
     # RSI Configuration (v8.0)
     RSI_PERIOD: int = int(os.getenv("RSI_PERIOD", "7"))

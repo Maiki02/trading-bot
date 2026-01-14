@@ -214,137 +214,114 @@ def get_candle_result_debug(
 
 def analyze_trend(close: float, emas: Dict[str, float], prev_emas: Optional[Dict[str, float]] = None) -> TrendAnalysis:
     """
-    Analiza la tendencia usando VECTOR (Slope) y ESTRUCTURA (Alignment).
-    OPTIMIZADO PARA ESTRATEGIA DE REVERSIÓN (V7.1).
+    Analiza la tendencia usando el sistema de puntuación "Price Ladder" (V7.2).
     
-    El Score refleja la FASE de la tendencia:
-    - 8.0 a 10.0: Momentum Fuerte (Peligroso operar contra-tendencia)
-    - 5.0 a 7.9:  Tendencia Saludable pero posible Agotamiento (Ideal si coincide con Bollinger)
-    - < 5.0:      Rango o Debilidad
+    Diseñado para Micro-Tendencias (10 velas) en Opciones Binarias de 1 minuto.
+    Detecta agotamiento ANTES de que las EMAs crucen.
     
-    ALGORITMO V7.1:
-    1. ESTRUCTURA (+/- 3.0 pts): Alineación de EMAs 3, 7, 20.
-    2. VELOCIDAD BASE (+/- 2.0 pts): Slope de EMA 20 (Dirección Macro).
-    3. MOMENTUM/AGOTAMIENTO (+/- 5.0 pts):
-       - Suma si EMA 3 y 7 tienen pendiente fuerte.
-       - RESTA si EMA 3 se aplana (Agotamiento) aunque haya estructura.
+    V7.2 SCORING SYSTEM (-10.0 to +10.0):
     
+    A. MICRO STRUCTURE (BASE) - Max 3.0 pts
+       - Cruce EMA 5 vs EMA 10 (Define la tendencia base de corto plazo)
+       - EMA 5 > EMA 10: +3.0
+       - EMA 5 < EMA 10: -3.0
+       
+    B. PRICE LADDER (POSITION) - Max 4.0 pts
+       - Precio vs EMA 5, 10, 15, 20.
+       - Por cada nivel superado (Price > EMA): +1.0
+       - Por cada nivel perdido (Price < EMA): -1.0
+       - Captura el "pullback" perfecto cuando el precio respira pero las EMAs siguen bien.
+       
+    C. VELOCITY (RECENT BIAS) - Max 3.0 pts
+       - Pendiente raw de EMA 3 (Instantánea).
+       - Slope > 0: +3.0
+       - Slope < 0: -3.0
+       
     Args:
         close: Precio de cierre actual
         emas: Diccionario con valores de EMAs actuales
         prev_emas: Diccionario con valores de EMAs de la vela anterior
         
     Returns:
-        TrendAnalysis con estado, score (float) e is_aligned
+        TrendAnalysis con estado y score.
     """
-    # Inicializar componentes
-    score_structure = 0.0
-    score_velocity = 0.0
-    score_momentum = 0.0
-    
-    # Obtener EMAs actuales
+    # 1. Validar datos mínimos para evitar crashes
+    if pd.isna(close):
+        return TrendAnalysis("NEUTRAL", 0.0, False)
+        
     ema_3 = emas.get('ema_3', np.nan)
     ema_5 = emas.get('ema_5', np.nan)
+    ema_10 = emas.get('ema_10', np.nan)
+    ema_15 = emas.get('ema_15', np.nan)
     ema_20 = emas.get('ema_20', np.nan)
     
-    # 1. ESTRUCTURA (ALINEACIÓN) - Max 3.0 pts
-    # Verifica la "salud" geométrica de la tendencia
-    is_bullish_structure = False
-    is_bearish_structure = False
+    # 2. Inicializar puntajes
+    score_structure = 0.0
+    score_ladder = 0.0
+    score_velocity = 0.0
     
-    # Usamos EMA 5 en lugar de EMA 7 para mayor reactividad en M1
-    ema_5 = emas.get('ema_5', np.nan)
-    
-    if not pd.isna(ema_3) and not pd.isna(ema_5) and not pd.isna(ema_20):
-        if ema_3 > ema_5 > ema_20:
-            is_bullish_structure = True
+    # -------------------------------------------------------------------------
+    # A. MICRO STRUCTURE (BASE) - Max +/- 3.0
+    # -------------------------------------------------------------------------
+    # Compara la "cabeza" de la tendencia (5 vs 10).
+    if not np.isnan(ema_5) and not np.isnan(ema_10):
+        if ema_5 > ema_10:
             score_structure = 3.0
-        elif ema_3 < ema_5 < ema_20:
-            is_bearish_structure = True
+        elif ema_5 < ema_10:
             score_structure = -3.0
             
-    # 2. CÁLCULO DE SLOPE (VELOCIDAD PORCENTUAL)
-    slope_3 = 0.0
-    slope_5 = 0.0
-    slope_20 = 0.0
+    # -------------------------------------------------------------------------
+    # B. PRICE LADDER (POSITION) - Max +/- 4.0
+    # -------------------------------------------------------------------------
+    # Escanea dónde está el precio respecto a las medias rápidas/medias.
+    ladder_emas = [ema_5, ema_10, ema_15, ema_20]
     
+    for ema_val in ladder_emas:
+        if not np.isnan(ema_val):
+            if close > ema_val:
+                score_ladder += 1.0
+            elif close < ema_val:
+                score_ladder -= 1.0
+                
+    # -------------------------------------------------------------------------
+    # C. VELOCITY (RECENT BIAS) - Max +/- 3.0
+    # -------------------------------------------------------------------------
+    # Mide la intención inmediata (EMA 3 slope).
     if prev_emas:
         prev_ema_3 = prev_emas.get('ema_3', np.nan)
-        prev_ema_5 = prev_emas.get('ema_5', np.nan)
-        prev_ema_20 = prev_emas.get('ema_20', np.nan)
-        
-        # Calcular pendientes como % de cambio: (curr - prev) / prev
-        if not pd.isna(ema_3) and not pd.isna(prev_ema_3) and prev_ema_3 != 0:
-            slope_3 = (ema_3 - prev_ema_3) / prev_ema_3
-        if not pd.isna(ema_5) and not pd.isna(prev_ema_5) and prev_ema_5 != 0:
-            slope_5 = (ema_5 - prev_ema_5) / prev_ema_5
-        if not pd.isna(ema_20) and not pd.isna(prev_ema_20) and prev_ema_20 != 0:
-            slope_20 = (ema_20 - prev_ema_20) / prev_ema_20
+        if not np.isnan(ema_3) and not np.isnan(prev_ema_3):
+            diff = ema_3 - prev_ema_3
+            if diff > 0:
+                score_velocity = 3.0
+            elif diff < 0:
+                score_velocity = -3.0
+            # Si es 0, queda en 0.0
             
-    # 3. VELOCIDAD BASE (EMA 20) - Max 2.0 pts
-    # Define la dirección de fondo de la micro-tendencia
-    if slope_20 > Config.SLOPE_THRESHOLD_PCT:
-        score_velocity = 2.0
-    elif slope_20 < -Config.SLOPE_THRESHOLD_PCT:
-        score_velocity = -2.0
-        
-    # 4. MOMENTUM Y DETECCIÓN DE AGOTAMIENTO - Max 5.0 pts
-    # Aquí es donde detectamos si la tendencia se está cansando
+    # -------------------------------------------------------------------------
+    # CÁLCULO TOTAL Y CLAMPING
+    # -------------------------------------------------------------------------
+    total_score = score_structure + score_ladder + score_velocity
     
-    # Análisis para Estructura ALCISTA
-    if is_bullish_structure:
-        # Si EMA 3 y 5 tienen fuerza, sumamos momentum
-        if slope_3 > Config.SLOPE_THRESHOLD_PCT:
-            score_momentum += 3.0
-        elif slope_3 < Config.SLOPE_THRESHOLD_PCT: # Aplanamiento o reversión de EMA 3
-            # PENALIZACIÓN POR AGOTAMIENTO: Estructura alcista pero EMA 3 perdiendo fuerza
-            score_momentum -= 2.0 
-            
-        if slope_5 > Config.SLOPE_THRESHOLD_PCT:
-            score_momentum += 2.0
-            
-    # Análisis para Estructura BAJISTA
-    elif is_bearish_structure:
-        # Si EMA 3 y 5 tienen fuerza bajista, restamos momentum (sumamos negativo)
-        if slope_3 < -Config.SLOPE_THRESHOLD_PCT:
-            score_momentum -= 3.0
-        elif slope_3 > -Config.SLOPE_THRESHOLD_PCT: # Aplanamiento o reversión de EMA 3
-            # PENALIZACIÓN POR AGOTAMIENTO: Estructura bajista pero EMA 3 perdiendo fuerza
-            score_momentum += 2.0 # Sumar puntos para acercar el score a 0
-            
-        if slope_5 < -Config.SLOPE_THRESHOLD_PCT:
-            score_momentum -= 2.0
-            
-    # Análisis sin Estructura definida (Rango/Cruce)
-    else:
-        # Solo sumamos puntos por slope puro, pero con menos peso
-        if slope_3 > Config.SLOPE_THRESHOLD_PCT: score_momentum += 1.5
-        elif slope_3 < -Config.SLOPE_THRESHOLD_PCT: score_momentum -= 1.5
-        
-        if slope_5 > Config.SLOPE_THRESHOLD_PCT: score_momentum += 1.0
-        elif slope_5 < -Config.SLOPE_THRESHOLD_PCT: score_momentum -= 1.0
-
-    # SUMA TOTAL
-    total_score = score_structure + score_velocity + score_momentum
-    
-    # Limitar score a rango [-10, 10]
+    # Clamp -10.0 a +10.0
     total_score = max(min(total_score, 10.0), -10.0)
-    total_score = round(total_score, 1)
     
-    # Clasificar tendencia según umbrales (V7.1)
-    if total_score >= 8.0:
-        status = "STRONG_BULLISH"
-    elif total_score >= 5.0:
-        status = "WEAK_BULLISH"
-    elif total_score > -5.0:
-        status = "NEUTRAL"
-    elif total_score > -8.0:
-        status = "WEAK_BEARISH"
+    # -------------------------------------------------------------------------
+    # CLASIFICACIÓN DE ESTADO (Reversion Optimized)
+    # -------------------------------------------------------------------------
+    if total_score >= 7.0:
+        status = "STRONG_BULLISH" # Full Trend
+    elif total_score >= 3.0:
+        status = "WEAK_BULLISH"   # Signal Zone (Pullback detected)
+    elif total_score > -2.9:
+        status = "NEUTRAL"        # Choppy (-2.9 to 2.9)
+    elif total_score > -7.0:
+        status = "WEAK_BEARISH"   # Signal Zone (Pullback detected)
     else:
-        status = "STRONG_BEARISH"
-    
-    # Verificar alineación perfecta para el return
-    is_aligned = is_bullish_structure or is_bearish_structure
+        status = "STRONG_BEARISH" # Full Trend
+        
+    # Is aligned logic (compatible con legacy)
+    # Para V7.2, asumimos alineación si la estructura base (EMA 5 vs 10) define dirección
+    is_aligned = (score_structure != 0)
     
     return TrendAnalysis(
         status=status,
