@@ -50,6 +50,27 @@
 
 ---
 
+#### ÉPICA 5: Integración con Quotex 🟥 *Alta Prioridad*
+*Agregar soporte para el broker Quotex como fuente de datos, usando la librería `API-Quotex`.*
+
+* **TASK-5.1: Implementar `QuotexService`.**
+    * Crear `src/services/quotex_service.py` que extienda `BaseMarketDataService`.
+    * Conectar a Quotex usando la librería `API-Quotex`.
+    * Autenticación mediante `QUOTEX_EMAIL` y `QUOTEX_PASSWORD` (desde `.env`).
+    * Al iniciar: obtener historial de velas suficiente para precalcular EMAs.
+    * Escuchar velas en tiempo real. Al cerrar una vela, transformar los datos al modelo interno `Candle`.
+    * Registrar el nuevo proveedor en el factory de `connection_service.py` (`DATA_PROVIDER=QUOTEX`).
+* **TASK-5.2: Agregar configuración de Quotex.**
+    * Agregar `QUOTEX_EMAIL` y `QUOTEX_PASSWORD` a `.env` (con placeholder).
+    * Agregar soporte para `DATA_PROVIDER=QUOTEX` en `config.py`.
+    * Documentar integración en `Docs/resumen.md`.
+* **TASK-5.3: Tests de transformación Quotex → Candle.**
+    * Crear `test/test_quotex_candle.py`.
+    * Verificar que el payload de Quotex se transforma correctamente al modelo `Candle`.
+    * Edge cases: vela con volumen 0, timestamp en formato incorrecto.
+
+---
+
 ### Resumen de Cambios en la Lógica de Negocio
 
 Actualmente tu bot (v0.0.5) piensa así:
