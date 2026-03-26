@@ -9,7 +9,7 @@ Author: TradingView Pattern Monitor Team
 
 import os
 import random
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Tuple, Union
 from dataclasses import dataclass
 from dotenv import load_dotenv
 
@@ -131,6 +131,21 @@ class IqOptionConfig:
             )
 
 
+@dataclass(frozen=True)
+class QuotexConfig:
+    """Configuration for the Quotex connection."""
+    email: str
+    password: str
+
+    def validate(self) -> None:
+        """Validates that credentials are configured."""
+        if not self.email or not self.password:
+            raise ValueError(
+                "Quotex credentials incomplete. Check QUOTEX_EMAIL and "
+                "QUOTEX_PASSWORD in .env"
+            )
+
+
 # =============================================================================
 # USER-AGENT ROTATION (ANTI-WAF)
 # =============================================================================
@@ -200,6 +215,7 @@ class Config:
     CANDLE = CandleConfig()
     
     # Data Provider Selection
+    APP_ENV: str = os.getenv("APP_ENV", "development").strip().lower()
     DATA_PROVIDER: str = os.getenv("DATA_PROVIDER", "IQOPTION").upper()  # "TRADINGVIEW" o "IQOPTION"
     
     SNAPSHOT_CANDLES: int = int(os.getenv("SNAPSHOT_CANDLES", "300"))
@@ -218,6 +234,12 @@ class Config:
         password=os.getenv("IQ_OPTION_PASS", ""),
         asset=os.getenv("IQ_ASSET", "EURUSD-OTC")
     )
+
+    # Quotex Configuration
+    QUOTEX = QuotexConfig(
+        email=os.getenv("QUOTEX_EMAIL", ""),
+        password=os.getenv("QUOTEX_PASSWORD", "")
+    )
     
     # Target Assets for Multi-Instrument Support
     # Lista de activos a monitorear simultáneamente
@@ -225,20 +247,63 @@ class Config:
     
     # Historical Chart Generation (only on first load)
     GENERATE_HISTORICAL_CHARTS: bool = os.getenv("GENERATE_HISTORICAL_CHARTS", "false").lower() == "true"
-    
-    # Telegram Notifications
-    TELEGRAM = TelegramConfig(
-        api_url=os.getenv("TELEGRAM_API_URL", ""),
-        api_key=os.getenv("TELEGRAM_API_KEY", ""),
-        subscription=os.getenv("TELEGRAM_SUBSCRIPTION", "trading_signals"),
-        outcome_subscription=os.getenv("TELEGRAM_OUTCOME_SUBSCRIPTION", "trading_signals"),
-        send_charts=os.getenv("SEND_CHARTS", "true").lower() == "true",
-        send_outcome_charts=os.getenv("SEND_OUTCOME_CHARTS", "true").lower() == "true",
-        enable_notifications=os.getenv("ENABLE_NOTIFICATIONS", "true").lower() == "true",
-        save_notifications_locally=os.getenv("SAVE_NOTIFICATIONS_LOCALLY", "false").lower() == "true",
 
-        send_none_signal_notifications=os.getenv("SEND_NONE_SIGNAL_NOTIFICATIONS", "false").lower() == "true"
-    )
+    # Telegram Topics by Environment
+    TELEGRAM_SUBSCRIPTION_PROD: str = os.getenv("TELEGRAM_SUBSCRIPTION_PROD", "trade:alert")
+    TELEGRAM_OUTCOME_SUBSCRIPTION_PROD: str = os.getenv("TELEGRAM_OUTCOME_SUBSCRIPTION_PROD", "trade:send_result")
+    TELEGRAM_SUBSCRIPTION_DEV: str = os.getenv("TELEGRAM_SUBSCRIPTION_DEV", "test:trade:alert")
+    TELEGRAM_OUTCOME_SUBSCRIPTION_DEV: str = os.getenv("TELEGRAM_OUTCOME_SUBSCRIPTION_DEV", "test:trade:send_result")
+
+    # Optional manual overrides for backward compatibility
+    TELEGRAM_SUBSCRIPTION_OVERRIDE: str = os.getenv("TELEGRAM_SUBSCRIPTION", "").strip()
+    TELEGRAM_OUTCOME_SUBSCRIPTION_OVERRIDE: str = os.getenv("TELEGRAM_OUTCOME_SUBSCRIPTION", "").strip()
+
+    # Telegram Notification Settings
+    TELEGRAM_API_URL: str = os.getenv("TELEGRAM_API_URL", "")
+    TELEGRAM_API_KEY: str = os.getenv("TELEGRAM_API_KEY", "")
+    SEND_CHARTS: bool = os.getenv("SEND_CHARTS", "true").lower() == "true"
+    SEND_OUTCOME_CHARTS: bool = os.getenv("SEND_OUTCOME_CHARTS", "true").lower() == "true"
+    ENABLE_NOTIFICATIONS: bool = os.getenv("ENABLE_NOTIFICATIONS", "true").lower() == "true"
+    SAVE_NOTIFICATIONS_LOCALLY: bool = os.getenv("SAVE_NOTIFICATIONS_LOCALLY", "false").lower() == "true"
+    SEND_NONE_SIGNAL_NOTIFICATIONS: bool = os.getenv("SEND_NONE_SIGNAL_NOTIFICATIONS", "false").lower() == "true"
+
+    @classmethod
+    def resolve_telegram_topics(cls) -> Tuple[str, str]:
+        """Resolve subscription topics by environment, with optional legacy overrides."""
+        if cls.APP_ENV == "production":
+            subscription = cls.TELEGRAM_SUBSCRIPTION_PROD
+            outcome_subscription = cls.TELEGRAM_OUTCOME_SUBSCRIPTION_PROD
+        else:
+            subscription = cls.TELEGRAM_SUBSCRIPTION_DEV
+            outcome_subscription = cls.TELEGRAM_OUTCOME_SUBSCRIPTION_DEV
+
+        if cls.TELEGRAM_SUBSCRIPTION_OVERRIDE:
+            subscription = cls.TELEGRAM_SUBSCRIPTION_OVERRIDE
+
+        if cls.TELEGRAM_OUTCOME_SUBSCRIPTION_OVERRIDE:
+            outcome_subscription = cls.TELEGRAM_OUTCOME_SUBSCRIPTION_OVERRIDE
+
+        return subscription, outcome_subscription
+
+    @classmethod
+    def build_telegram_config(cls) -> TelegramConfig:
+        """Build Telegram configuration using the resolved topics."""
+        subscription, outcome_subscription = cls.resolve_telegram_topics()
+
+        return TelegramConfig(
+            api_url=cls.TELEGRAM_API_URL,
+            api_key=cls.TELEGRAM_API_KEY,
+            subscription=subscription,
+            outcome_subscription=outcome_subscription,
+            send_charts=cls.SEND_CHARTS,
+            send_outcome_charts=cls.SEND_OUTCOME_CHARTS,
+            enable_notifications=cls.ENABLE_NOTIFICATIONS,
+            save_notifications_locally=cls.SAVE_NOTIFICATIONS_LOCALLY,
+            send_none_signal_notifications=cls.SEND_NONE_SIGNAL_NOTIFICATIONS,
+        )
+    
+    # Telegram configuration is initialized after class definition.
+    TELEGRAM: TelegramConfig
     
     # Test Data Collection
     UPDATE_TEST_DATA: bool = os.getenv("UPDATE_TEST_DATA", "false").lower() == "true"
@@ -262,7 +327,7 @@ class Config:
     
     # Logging
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "DEBUG").upper()
-    LOG_FILE: Optional[str] = os.getenv("LOG_FILE") or None
+    LOG_FILE: str = os.getenv("LOG_FILE", "logs/trading_bot.log")
     
     # Instruments Configuration (MVP: EUR/USD only)
     INSTRUMENTS: Dict[str, InstrumentConfig] = {
@@ -301,10 +366,16 @@ class Config:
             ValueError: Si alguna configuración crítica falta o es inválida
         """
         # Validar proveedor de datos
-        if cls.DATA_PROVIDER not in ["TRADINGVIEW", "IQOPTION"]:
+        if cls.DATA_PROVIDER not in ["TRADINGVIEW", "IQOPTION", "QUOTEX"]:
             raise ValueError(
                 f"Invalid DATA_PROVIDER: {cls.DATA_PROVIDER}. "
-                "Must be 'TRADINGVIEW' or 'IQOPTION'"
+                "Must be 'TRADINGVIEW', 'IQOPTION' or 'QUOTEX'"
+            )
+
+        if cls.APP_ENV not in ["development", "production"]:
+            raise ValueError(
+                f"Invalid APP_ENV: {cls.APP_ENV}. "
+                "Must be 'development' or 'production'"
             )
         
         # Validar configuración según el proveedor seleccionado
@@ -312,6 +383,8 @@ class Config:
             cls.TRADINGVIEW.validate()
         elif cls.DATA_PROVIDER == "IQOPTION":
             cls.IQOPTION.validate()
+        elif cls.DATA_PROVIDER == "QUOTEX":
+            cls.QUOTEX.validate()
         
         cls.TELEGRAM.validate()
         
@@ -350,6 +423,8 @@ class Config:
 # =============================================================================
 # VALIDACIÓN AL IMPORTAR
 # =============================================================================
+
+Config.TELEGRAM = Config.build_telegram_config()
 
 # Validar configuración automáticamente cuando se importa el módulo
 try:

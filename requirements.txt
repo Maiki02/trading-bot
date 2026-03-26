@@ -36,6 +36,10 @@ mplfinance==0.12.10b0
 python-dotenv==1.0.0
 # Environment variable management from .env files
 
+# Quotex API
+quotexpy @ git+https://github.com/cleitonleonel/pyquotex.git
+# Quotex API client for real-time market data
+
 # Optional: Performance & Monitoring
 # colorama==0.4.6
 # Cross-platform colored terminal output (already handled by ANSI codes)

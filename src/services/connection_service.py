@@ -708,9 +708,20 @@ def get_market_data_service(analysis_service, on_auth_failure_callback=None):
             on_auth_failure_callback=on_auth_failure_callback
         )
     
+    elif Config.DATA_PROVIDER == "QUOTEX":
+        logger.info(
+            f"🔌 Using Quotex Multi-Instrument as data provider | "
+            f"Instruments: {', '.join(Config.TARGET_ASSETS)}"
+        )
+        from src.services.quotex_service_multi import create_quotex_service_multi_async
+        return create_quotex_service_multi_async(
+            analysis_service=analysis_service,
+            on_auth_failure_callback=on_auth_failure_callback
+        )
+    
     else:
         raise ValueError(
             f"Invalid DATA_PROVIDER: {Config.DATA_PROVIDER}. "
-            "Must be 'TRADINGVIEW' or 'IQOPTION'"
+            "Must be 'TRADINGVIEW', 'IQOPTION', or 'QUOTEX'"
         )
 

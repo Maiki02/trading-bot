@@ -1,9 +1,30 @@
 # Resumen
 
 ## 1. Objetivo del Proyecto
-Integrar un monitor automatizado 24/7 que capture datos de mercado en tiempo real de IQ OPTION o TradingView mediante ingeniería inversa de WebSocket. El sistema identificará patrones de velas japonesas en temporalidad de 1 minuto y, al detectar una configuración válida alineada con la tendencia, enviará alertas inmediatas vía Telegram con gráfico visual adjunto. **Adicionalmente, envía notificaciones de resultado** cuando cierra la vela siguiente, informando si el patrón tuvo éxito (VERDE/ROJA/DOJI).
+Integrar un monitor automatizado 24/7 que capture datos de mercado en tiempo real de IQ OPTION, TradingView o Quotex mediante ingeniería inversa de WebSocket y librerías especializadas. El sistema identificará patrones de velas japonesas en temporalidad de 1 minuto y, al detectar una configuración válida alineada con la tendencia, enviará alertas inmediatas vía Telegram con gráfico visual adjunto. **Adicionalmente, envía notificaciones de resultado** cuando cierra la vela siguiente, informando si el patrón tuvo éxito (VERDE/ROJA/DOJI).
 
-### 1.0. Objetivo Versión 0.0.5 (Trend Engine V7 & RSI Visualization) 🆕
+### 1.0. Objetivo Versión 0.0.6 (Quotex Data Provider) 🆕
+**Nueva Funcionalidad:** Integración de Quotex como tercer proveedor de datos de mercado.
+
+**Cambios principales:**
+- ✅ **QuotexServiceMulti:** Nuevo servicio `src/services/quotex_service_multi.py` que extiende `BaseMarketDataService` usando la librería `quotexpy` (API-Quotex).
+- ✅ **Config:** `QuotexConfig` dataclass en `config.py` con validación de credenciales (`QUOTEX_EMAIL`, `QUOTEX_PASSWORD`).
+- ✅ **Factory:** Caso `QUOTEX` registrado en `connection_service.py` → `get_market_data_service()`.
+- ✅ **Async-Native:** Implementación 100% asíncrona sin necesidad de thread executors.
+- ✅ **Sleep & Burst Polling:** Misma estrategia de polling que IQ Option para obtención de velas.
+- ✅ **Auto-Fallback Market/OTC:** Soporte automático de fallback entre activos de mercado y variantes OTC mediante `get_available_asset(force_open=True)`.
+
+**Proveedor Quotex — Detalles técnicos:**
+- **Librería:** `quotexpy` (instalación: `pip install git+https://github.com/cleitonleonel/pyquotex.git`). Requiere `playwright install` post-instalación.
+- **Activación:** `DATA_PROVIDER=QUOTEX` en `.env`.
+- **Autenticación:** Variables `QUOTEX_EMAIL` y `QUOTEX_PASSWORD` en `.env`.
+- **Tag de fuente:** `"QX"` en el campo `source` de `CandleData`.
+- **Naming de activos:** Quotex usa nombres como `"EURUSD"`, `"EURUSD_otc"` (variante OTC).
+- **Transformación:** Los payloads crudos de Quotex se normalizan al modelo interno `Candle` antes del análisis.
+
+**Filosofía:** Diversificar proveedores de datos reduce la dependencia de un solo broker y permite al trader elegir la fuente más conveniente según disponibilidad y latencia.
+
+### 1.0.1. Objetivo Versión 0.0.5 (Trend Engine V7 & RSI Visualization)
 **Nueva Funcionalidad:** Refactorización completa del motor de tendencias e integración visual de RSI.
 
 **Cambios principales:**
@@ -130,7 +151,17 @@ El MVP ha sido completado exitosamente con todas las funcionalidades core implem
   1. **Detección de Patrón** (inmediato): Cuando se identifica Shooting Star, Hammer, etc.
   2. **Resultado de Vela** (1 minuto después): Cuando cierra la vela siguiente, informa dirección (VERDE/ROJA/DOJI)
 - **Configuración:**
-  - Variable `.env`: `TELEGRAM_OUTCOME_SUBSCRIPTION` (puede ser diferente a la subscription principal)
+  - Selección por entorno con `APP_ENV` (`development` | `production`)
+  - `production` usa por defecto: `trade:alert` y `trade:send_result`
+  - `development` usa por defecto: `test:trade:alert` y `test:trade:send_result`
+  - Variables por entorno:
+    - `TELEGRAM_SUBSCRIPTION_PROD`
+    - `TELEGRAM_OUTCOME_SUBSCRIPTION_PROD`
+    - `TELEGRAM_SUBSCRIPTION_DEV`
+    - `TELEGRAM_OUTCOME_SUBSCRIPTION_DEV`
+  - Overrides legacy opcionales con prioridad si no están vacíos:
+    - `TELEGRAM_SUBSCRIPTION`
+    - `TELEGRAM_OUTCOME_SUBSCRIPTION`
   - Refactorización: Nueva función base `_send_telegram_notification()` reutilizable
   - Nueva función pública: `send_outcome_notification(source, symbol, direction, chart_base64)`
 - **Utilidad añadida:**
@@ -142,6 +173,17 @@ El MVP ha sido completado exitosamente con todas las funcionalidades core implem
   Espera 60s → Vela siguiente cierra → Notificación 2 (resultado)
   ```
 - **Beneficio:** El trader recibe confirmación inmediata del resultado sin tener que monitorear manualmente.
+
+**Ejemplo `.env` (dev/prod):**
+```env
+APP_ENV=development
+TELEGRAM_SUBSCRIPTION_DEV=test:trade:alert
+TELEGRAM_OUTCOME_SUBSCRIPTION_DEV=test:trade:send_result
+
+APP_ENV=production
+TELEGRAM_SUBSCRIPTION_PROD=trade:alert
+TELEGRAM_OUTCOME_SUBSCRIPTION_PROD=trade:send_result
+```
 
 #### 📁 **Dataset de Señales para Machine Learning**
 - **Propósito:** Almacenar historial de señales detectadas y sus resultados para análisis futuro.
@@ -730,7 +772,13 @@ El sistema clasifica alertas según la **relación entre patrón detectado y ten
 - `TV_SESSION_ID`: Opcional (valor: `not_required_for_public_data`)
 - `TELEGRAM_API_URL`: URL completa del endpoint broadcast
 - `TELEGRAM_API_KEY`: API Key para header `x-api-key`
-- `TELEGRAM_SUBSCRIPTION`: Topic de suscripción (ej: `trade:alert`)
+- `APP_ENV`: Entorno de ejecución (`development` | `production`)
+- `TELEGRAM_SUBSCRIPTION_PROD`: Topic de alerta para producción (ej: `trade:alert`)
+- `TELEGRAM_OUTCOME_SUBSCRIPTION_PROD`: Topic de resultado para producción (ej: `trade:send_result`)
+- `TELEGRAM_SUBSCRIPTION_DEV`: Topic de alerta para desarrollo (ej: `test:trade:alert`)
+- `TELEGRAM_OUTCOME_SUBSCRIPTION_DEV`: Topic de resultado para desarrollo (ej: `test:trade:send_result`)
+- `TELEGRAM_SUBSCRIPTION`: Override legacy opcional con prioridad si no está vacío
+- `TELEGRAM_OUTCOME_SUBSCRIPTION`: Override legacy opcional con prioridad si no está vacío
 - `SEND_CHARTS`: `true` o `false` para controlar envío de imágenes
 - `USE_TREND_FILTER`: `true` o `false` - Habilita/deshabilita filtro de tendencia
   - `true` (default): Solo notifica patrones alineados con tendencia EMA 200

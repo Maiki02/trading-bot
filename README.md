@@ -146,6 +146,11 @@ pip install -r requirements.txt
 
 **Autenticación NO requerida** para datos de Forex público. Puedes usar el valor por defecto.
 
+**Enrutamiento de tópicos Telegram por entorno:**
+- `APP_ENV=production` usa por defecto: `trade:alert` y `trade:send_result`
+- `APP_ENV=development` usa por defecto: `test:trade:alert` y `test:trade:send_result`
+- Overrides legacy (si no están vacíos) tienen prioridad: `TELEGRAM_SUBSCRIPTION` y `TELEGRAM_OUTCOME_SUBSCRIPTION`
+
 ```env
 # ============= TradingView (Opcional para Forex) =============
 TV_SESSION_ID=not_required_for_public_data
@@ -153,7 +158,17 @@ TV_SESSION_ID=not_required_for_public_data
 # ============= Telegram (OBLIGATORIO) =============
 TELEGRAM_API_URL=https://api.tu-dominio.com/telegram
 TELEGRAM_API_KEY=tu_api_key_secreta
-TELEGRAM_SUBSCRIPTION=trade:alert
+APP_ENV=development
+
+# Tópicos por entorno
+TELEGRAM_SUBSCRIPTION_PROD=trade:alert
+TELEGRAM_OUTCOME_SUBSCRIPTION_PROD=trade:send_result
+TELEGRAM_SUBSCRIPTION_DEV=test:trade:alert
+TELEGRAM_OUTCOME_SUBSCRIPTION_DEV=test:trade:send_result
+
+# Overrides legacy opcionales (si se definen, tienen prioridad)
+TELEGRAM_SUBSCRIPTION=
+TELEGRAM_OUTCOME_SUBSCRIPTION=
 
 # ============= Configuración de Bot =============
 USE_TREND_FILTER=false         # false = notifica todos los patrones (MVP actual)
@@ -167,6 +182,19 @@ DUAL_SOURCE_WINDOW=2.0         # Ventana de confirmación dual-source (segundos)
 
 # ============= Logging =============
 LOG_LEVEL=INFO                 # DEBUG para desarrollo, INFO para producción
+```
+
+**Ejemplo rápido por entorno:**
+```env
+# Desarrollo
+APP_ENV=development
+TELEGRAM_SUBSCRIPTION_DEV=test:trade:alert
+TELEGRAM_OUTCOME_SUBSCRIPTION_DEV=test:trade:send_result
+
+# Producción
+APP_ENV=production
+TELEGRAM_SUBSCRIPTION_PROD=trade:alert
+TELEGRAM_OUTCOME_SUBSCRIPTION_PROD=trade:send_result
 ```
 
 **⚠️ IMPORTANTE:** Si usas Docker, NO necesitas configurar `TV_SESSION_ID` manualmente. El bot funciona sin autenticación para Forex.
@@ -426,7 +454,8 @@ docker-compose up -d --build
 **Solución:**
 1. Verifica que `TELEGRAM_API_URL` y `TELEGRAM_API_KEY` estén bien configurados
 2. Prueba la API manualmente con `curl` o Postman
-3. Revisa que `TELEGRAM_SUBSCRIPTION` sea correcto (ej: `trade:alert`)
+3. Revisa `APP_ENV` y los tópicos `TELEGRAM_SUBSCRIPTION_*` / `TELEGRAM_OUTCOME_SUBSCRIPTION_*`
+4. Si usas overrides legacy, confirma que `TELEGRAM_SUBSCRIPTION` y `TELEGRAM_OUTCOME_SUBSCRIPTION` no apunten a tópicos incorrectos
 
 ### El bot no detecta patrones
 

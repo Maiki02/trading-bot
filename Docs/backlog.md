@@ -53,14 +53,14 @@
 #### ÉPICA 5: Integración con Quotex 🟥 *Alta Prioridad*
 *Agregar soporte para el broker Quotex como fuente de datos, usando la librería `API-Quotex`.*
 
-* **TASK-5.1: Implementar `QuotexService`.**
-    * Crear `src/services/quotex_service.py` que extienda `BaseMarketDataService`.
-    * Conectar a Quotex usando la librería `API-Quotex`.
+* **TASK-5.1: Implementar `QuotexService`.** ✅ *Completado el 26/03/2026*
+    * Crear `src/services/quotex_service_multi.py` que extiende `BaseMarketDataService`.
+    * Conectar a Quotex usando la librería `quotexpy` (API-Quotex).
     * Autenticación mediante `QUOTEX_EMAIL` y `QUOTEX_PASSWORD` (desde `.env`).
     * Al iniciar: obtener historial de velas suficiente para precalcular EMAs.
     * Escuchar velas en tiempo real. Al cerrar una vela, transformar los datos al modelo interno `Candle`.
     * Registrar el nuevo proveedor en el factory de `connection_service.py` (`DATA_PROVIDER=QUOTEX`).
-* **TASK-5.2: Agregar configuración de Quotex.**
+* **TASK-5.2: Agregar configuración de Quotex.** ✅ *Completado el 26/03/2026*
     * Agregar `QUOTEX_EMAIL` y `QUOTEX_PASSWORD` a `.env` (con placeholder).
     * Agregar soporte para `DATA_PROVIDER=QUOTEX` en `config.py`.
     * Documentar integración en `Docs/resumen.md`.
