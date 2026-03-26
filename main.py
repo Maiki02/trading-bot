@@ -25,7 +25,15 @@ from src.services.storage_service import StorageService
 from src.logic import AnalysisService
 from src.utils.logger import get_logger, log_startup_banner, log_shutdown, log_critical_auth_failure
 
-import iqoptionapi.constants
+# iqoptionapi is only needed for the IQOPTION provider — import conditionally
+# to avoid conflicts with pyquotex (websocket-client version clash)
+if Config.DATA_PROVIDER == "IQOPTION":
+    try:
+        import iqoptionapi.constants as _iqoption_constants
+    except ImportError:
+        _iqoption_constants = None  # type: ignore[assignment]
+else:
+    _iqoption_constants = None  # type: ignore[assignment]
 
 logger = get_logger(__name__)
 
@@ -200,7 +208,14 @@ def inject_custom_actives():
     """
     Inyecta los activos personalizados definidos en Config dentro 
     de las constantes de la librería iqoptionapi.
+    Solo se ejecuta cuando DATA_PROVIDER=IQOPTION.
     """
+    if Config.DATA_PROVIDER != "IQOPTION":
+        return
+
+    if _iqoption_constants is None:
+        return
+
     if not Config.CUSTOM_ACTIVES:
         return
 
@@ -214,7 +229,7 @@ def inject_custom_actives():
 
         if key and active_id:
             # ACÁ OCURRE LA MAGIA: Modificamos la librería en memoria
-            iqoptionapi.constants.ACTIVES[key] = active_id
+            _iqoption_constants.ACTIVES[key] = active_id
             logger.debug(f"   + Activo inyectado: {key} -> {active_id}")
             count += 1
         else:

@@ -136,13 +136,47 @@ class QuotexConfig:
     """Configuration for the Quotex connection."""
     email: str
     password: str
+    auth_method: str
+    ssid: str
+    assets: List[str]
+    connect_timeout_seconds: int
+    request_timeout_seconds: int
+    ws_debug: bool
 
     def validate(self) -> None:
-        """Validates that credentials are configured."""
-        if not self.email or not self.password:
+        """Validates Quotex auth settings according to the selected method."""
+        allowed_methods = {"CREDENTIALS", "SESSION"}
+        if self.auth_method not in allowed_methods:
             raise ValueError(
-                "Quotex credentials incomplete. Check QUOTEX_EMAIL and "
-                "QUOTEX_PASSWORD in .env"
+                f"Invalid QUOTEX_AUTH_METHOD: {self.auth_method}. "
+                "Must be 'CREDENTIALS' or 'SESSION'"
+            )
+
+        if not self.assets:
+            raise ValueError(
+                "Quotex assets not configured. Check QUOTEX_ASSETS in .env"
+            )
+
+        if self.connect_timeout_seconds <= 0:
+            raise ValueError(
+                "QUOTEX_CONNECT_TIMEOUT must be > 0"
+            )
+
+        if self.request_timeout_seconds <= 0:
+            raise ValueError(
+                "QUOTEX_REQUEST_TIMEOUT must be > 0"
+            )
+
+        if self.auth_method == "CREDENTIALS":
+            if not self.email or not self.password:
+                raise ValueError(
+                    "Quotex credentials incomplete. Check QUOTEX_EMAIL and "
+                    "QUOTEX_PASSWORD in .env"
+                )
+
+        if self.auth_method == "SESSION" and not self.ssid:
+            raise ValueError(
+                "Quotex session token missing. Check QUOTEX_SSID in .env"
             )
 
 
@@ -236,9 +270,16 @@ class Config:
     )
 
     # Quotex Configuration
+    _QUOTEX_ASSETS_RAW = os.getenv("QUOTEX_ASSETS", "EURUSD,GBPUSD,USDJPY")
     QUOTEX = QuotexConfig(
         email=os.getenv("QUOTEX_EMAIL", ""),
-        password=os.getenv("QUOTEX_PASSWORD", "")
+        password=os.getenv("QUOTEX_PASSWORD", ""),
+        auth_method=os.getenv("QUOTEX_AUTH_METHOD", "CREDENTIALS").strip().upper(),
+        ssid=os.getenv("QUOTEX_SSID", "").strip(),
+        assets=[asset.strip() for asset in _QUOTEX_ASSETS_RAW.split(",") if asset.strip()],
+        connect_timeout_seconds=int(os.getenv("QUOTEX_CONNECT_TIMEOUT", "45")),
+        request_timeout_seconds=int(os.getenv("QUOTEX_REQUEST_TIMEOUT", "20")),
+        ws_debug=os.getenv("QUOTEX_WS_DEBUG", "false").lower() == "true",
     )
     
     # Target Assets for Multi-Instrument Support

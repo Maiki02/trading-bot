@@ -19,17 +19,20 @@ Author: Trading Bot Team
 """
 
 import asyncio
-import logging
+import json
 import time
 from datetime import datetime, timedelta
+from pathlib import Path
 from typing import Optional, Dict, Callable, List
 
-from quotexpy import Quotex
+from pyquotex.stable_api import Quotex
+from pyquotex.utils.processor import process_tick
 
 from config import Config
 from src.services.connection_service import CandleData
+from src.utils.logger import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class QuotexServiceMultiAsync:
@@ -65,6 +68,12 @@ class QuotexServiceMultiAsync:
         # Mapping from config symbol to Quotex asset name
         self._asset_name_map: Dict[str, str] = {}
 
+        # Track websocket generating-candle timestamps for diagnostics
+        self._last_ws_generating_ts: Dict[str, int] = {}
+
+        # Rolling tick-to-candle buffers when pyquotex returns single tick payloads
+        self._tick_candle_buffers: Dict[str, Dict[int, dict]] = {}
+
     # ------------------------------------------------------------------
     # Lifecycle
     # ------------------------------------------------------------------
@@ -88,7 +97,7 @@ class QuotexServiceMultiAsync:
 
         # Start polling tasks
         self._should_poll = True
-        for symbol in Config.TARGET_ASSETS:
+        for symbol in Config.QUOTEX.assets:
             task = asyncio.create_task(self._poll_instrument(symbol))
             self.poll_tasks.append(task)
 
@@ -98,7 +107,7 @@ class QuotexServiceMultiAsync:
 
         logger.info(
             f"Quotex Multi-Service started | "
-            f"Monitoring {len(Config.TARGET_ASSETS)} instruments | "
+            f"Monitoring {len(Config.QUOTEX.assets)} instruments | "
             f"Poll tasks: {len(self.poll_tasks)}"
         )
 
@@ -121,7 +130,7 @@ class QuotexServiceMultiAsync:
 
         if self.client:
             try:
-                for symbol in Config.TARGET_ASSETS:
+                for symbol in Config.QUOTEX.assets:
                     self.client.stop_candles_stream(symbol)
             except Exception:
                 pass
@@ -136,6 +145,27 @@ class QuotexServiceMultiAsync:
     # Connection
     # ------------------------------------------------------------------
 
+    def _inject_session_file(self) -> None:
+        """
+        Create or overwrite pyquotex session.json with a token-based session.
+
+        pyquotex reads session data from session.json keyed by user-agent.
+        With default Quotex constructor settings, that key is "Quotex/1.0".
+        """
+        session_path = Path.cwd() / "session.json"
+        session_payload = {
+            "Quotex/1.0": {
+                "cookies": None,
+                "token": Config.QUOTEX.ssid,
+                "user_agent": "Quotex/1.0",
+            }
+        }
+        session_path.write_text(json.dumps(session_payload, indent=4), encoding="utf-8")
+        logger.info(
+            "Quotex session.json injected for SESSION auth method | "
+            f"Path: {session_path} | Token length: {len(Config.QUOTEX.ssid)}"
+        )
+
     async def _connect(self) -> bool:
         """
         Authenticate and connect to Quotex.
@@ -144,26 +174,82 @@ class QuotexServiceMultiAsync:
             True if connection succeeded, False otherwise.
         """
         try:
-            logger.info("Connecting to Quotex...")
-            self.client = Quotex(
-                email=Config.QUOTEX.email,
-                password=Config.QUOTEX.password,
-                lang="en",
+            logger.info(
+                "Connecting to Quotex | "
+                f"Method: {Config.QUOTEX.auth_method} | "
+                f"Assets: {', '.join(Config.QUOTEX.assets)} | "
+                f"Timeout: {Config.QUOTEX.connect_timeout_seconds}s | "
+                f"WS debug: {Config.QUOTEX.ws_debug}"
             )
 
-            check_connect, message = await self.client.connect()
+            if Config.QUOTEX.auth_method == "SESSION":
+                self._inject_session_file()
+                # Non-empty placeholders avoid pyquotex prompting for credentials.
+                self.client = Quotex(
+                    email="SESSION_AUTH",
+                    password="SESSION_AUTH",
+                    lang="en",
+                )
+            else:
+                self.client = Quotex(
+                    email=Config.QUOTEX.email,
+                    password=Config.QUOTEX.password,
+                    lang="en",
+                )
+
+            self.client.debug_ws_enable = Config.QUOTEX.ws_debug
+
+            logger.info("Quotex login flow started (before client.connect)")
+            connect_started_at = time.time()
+            check_connect, message = await asyncio.wait_for(
+                self.client.connect(),
+                timeout=Config.QUOTEX.connect_timeout_seconds,
+            )
+            connect_elapsed = time.time() - connect_started_at
+
+            logger.info(
+                "Quotex login flow finished (after client.connect) | "
+                f"Success: {check_connect} | Message: {message} | "
+                f"Elapsed: {connect_elapsed:.2f}s"
+            )
 
             if not check_connect:
+                if Config.QUOTEX.auth_method == "SESSION":
+                    logger.critical(
+                        "Quotex SESSION authentication failed. Token may be expired. "
+                        "No credentials fallback will be attempted."
+                    )
                 logger.error(f"Quotex connection failed: {message}")
+                return False
+
+            if (
+                Config.QUOTEX.auth_method == "SESSION"
+                and isinstance(message, str)
+                and "token rejected" in message.lower()
+            ):
+                logger.critical(
+                    "Quotex SESSION token rejected. No credentials fallback will be attempted."
+                )
                 return False
 
             logger.info("Connected to Quotex successfully")
 
             # Switch to practice account
-            await self.client.change_account("PRACTICE")
+            logger.info("Switching Quotex account mode to PRACTICE")
+            await asyncio.wait_for(
+                self.client.change_account("PRACTICE"),
+                timeout=Config.QUOTEX.request_timeout_seconds,
+            )
             logger.info("Using PRACTICE account")
 
             return True
+
+        except asyncio.TimeoutError:
+            logger.critical(
+                "Quotex connect timeout reached. "
+                f"No response in {Config.QUOTEX.connect_timeout_seconds}s"
+            )
+            return False
 
         except Exception as e:
             logger.error(f"Error connecting to Quotex: {e}", exc_info=True)
@@ -178,10 +264,12 @@ class QuotexServiceMultiAsync:
         if not self.client:
             return
 
-        for symbol in Config.TARGET_ASSETS:
+        for symbol in Config.QUOTEX.assets:
             try:
-                asset_name, asset_data = await self.client.get_available_asset(
-                    symbol, force_open=True
+                logger.info(f"Resolving Quotex asset availability for symbol: {symbol}")
+                asset_name, asset_data = await asyncio.wait_for(
+                    self.client.get_available_asset(symbol, force_open=True),
+                    timeout=Config.QUOTEX.request_timeout_seconds,
                 )
                 if not asset_data or (isinstance(asset_data, tuple) and not asset_data[2]):
                     logger.warning(f"Asset {symbol} is not available/open, skipping")
@@ -189,8 +277,16 @@ class QuotexServiceMultiAsync:
 
                 self._asset_name_map[symbol] = asset_name
                 self.client.start_candles_stream(asset_name, period=60)
-                logger.info(f"Subscribed to candle stream for {asset_name}")
+                logger.info(
+                    f"Subscribed to candle stream for {asset_name} "
+                    f"(requested symbol: {symbol})"
+                )
 
+            except asyncio.TimeoutError:
+                logger.error(
+                    f"Timeout resolving/subscribing asset {symbol} after "
+                    f"{Config.QUOTEX.request_timeout_seconds}s"
+                )
             except Exception as e:
                 logger.error(f"Error subscribing to {symbol}: {e}")
 
@@ -201,6 +297,59 @@ class QuotexServiceMultiAsync:
     def _resolve_asset_name(self, symbol: str) -> str:
         """Resolves the Quotex asset name for a given symbol."""
         return self._asset_name_map.get(symbol, symbol)
+
+    def _normalize_realtime_candles(
+        self, raw_payload: object, symbol: str
+    ) -> Dict[int, dict]:
+        """
+        Normalize realtime payload from pyquotex across versions.
+
+        pyquotex may return either:
+        - dict[timestamp] -> candle dict
+        - list of ticks in format [symbol, timestamp, price, direction]
+        """
+        buffer = self._tick_candle_buffers.setdefault(symbol, {})
+
+        if isinstance(raw_payload, dict):
+            # Merge dict payload into rolling buffer to keep candle continuity.
+            for ts, candle in raw_payload.items():
+                buffer[int(ts)] = candle
+            self._trim_tick_buffer(symbol)
+            return raw_payload
+
+        if isinstance(raw_payload, list):
+            # Single tick format: [symbol, timestamp, price, direction]
+            if len(raw_payload) >= 4 and isinstance(raw_payload[0], str):
+                process_tick(raw_payload, 60, buffer)
+                self._trim_tick_buffer(symbol)
+                return dict(buffer)
+
+            # Batch tick format: [[symbol, timestamp, price, direction], ...]
+            for tick in raw_payload:
+                if isinstance(tick, list) and len(tick) >= 4:
+                    process_tick(tick, 60, buffer)
+            if buffer:
+                self._trim_tick_buffer(symbol)
+                logger.debug(
+                    f"Realtime payload normalized from list to candles for {symbol} | "
+                    f"Count: {len(buffer)}"
+                )
+            return dict(buffer)
+
+        logger.debug(
+            f"Realtime payload type not supported for {symbol}: {type(raw_payload).__name__}"
+        )
+        return {}
+
+    def _trim_tick_buffer(self, symbol: str, keep_last: int = 300) -> None:
+        """Keep only the most recent N aggregated realtime candles per symbol."""
+        buffer = self._tick_candle_buffers.get(symbol)
+        if not buffer or len(buffer) <= keep_last:
+            return
+
+        sorted_keys = sorted(buffer.keys())
+        for key in sorted_keys[:-keep_last]:
+            buffer.pop(key, None)
 
     async def _load_all_historical_candles(self) -> None:
         """
@@ -215,8 +364,9 @@ class QuotexServiceMultiAsync:
             f"INIT: Requesting {count_to_request} historical candles per asset..."
         )
 
-        for symbol in Config.TARGET_ASSETS:
+        for symbol in Config.QUOTEX.assets:
             try:
+                logger.info(f"Historical bootstrap started for {symbol}")
                 historical_candles = await self._get_historical_candles(
                     symbol, count_to_request
                 )
@@ -252,6 +402,8 @@ class QuotexServiceMultiAsync:
                             source_key, last_closed
                         )
 
+                logger.info(f"Historical bootstrap finished for {symbol}")
+
             except Exception as e:
                 logger.error(
                     f"Critical error loading history for {symbol}: {e}",
@@ -279,12 +431,39 @@ class QuotexServiceMultiAsync:
             end_time = time.time()
             offset_seconds = count * 60
             asset_name = self._resolve_asset_name(symbol)
-            raw_candles = await self.client.get_candles(
-                asset_name, end_time, offset_seconds, 60
+            logger.debug(
+                f"Historical request payload | Symbol: {symbol} | "
+                f"Resolved asset: {asset_name} | Offset seconds: {offset_seconds}"
             )
+            raw_candles: List[dict] = []
+            try:
+                raw_candles = await asyncio.wait_for(
+                    self.client.get_candles(asset_name, end_time, offset_seconds, 60),
+                    timeout=Config.QUOTEX.request_timeout_seconds,
+                )
+            except asyncio.TimeoutError:
+                logger.warning(
+                    f"Historical request timeout for resolved asset {asset_name}. "
+                    f"Trying fallback symbol {symbol}"
+                )
+
+            if (not raw_candles) and asset_name != symbol:
+                logger.info(
+                    f"Historical fallback request | Symbol: {symbol} | "
+                    f"Resolved asset had no data: {asset_name}"
+                )
+                raw_candles = await asyncio.wait_for(
+                    self.client.get_candles(symbol, end_time, offset_seconds, 60),
+                    timeout=Config.QUOTEX.request_timeout_seconds,
+                )
 
             if not raw_candles:
+                logger.warning(
+                    f"Historical request returned empty payload for {symbol} ({asset_name})"
+                )
                 return []
+
+            logger.debug(f"Raw historical candle count for {symbol}: {len(raw_candles)}")
 
             candle_list: List[CandleData] = []
             for raw in raw_candles:
@@ -297,6 +476,12 @@ class QuotexServiceMultiAsync:
             logger.info(f"Received {len(candle_list)} candles for {symbol}")
             return candle_list
 
+        except asyncio.TimeoutError:
+            logger.error(
+                f"Timeout fetching historical candles for {symbol} after "
+                f"{Config.QUOTEX.request_timeout_seconds}s"
+            )
+            return []
         except Exception as e:
             logger.error(f"Error fetching candles for {symbol}: {e}")
             return []
@@ -377,19 +562,47 @@ class QuotexServiceMultiAsync:
                 return False
 
             asset_name = self._resolve_asset_name(symbol)
-            candles = await self.client.get_realtime_candles(asset_name)
+            candles = await asyncio.wait_for(
+                self.client.get_realtime_candles(asset_name),
+                timeout=Config.QUOTEX.request_timeout_seconds,
+            )
+            candles = self._normalize_realtime_candles(candles, symbol)
+
+            if (not candles) and asset_name != symbol:
+                logger.debug(
+                    f"Realtime fallback request for {symbol} because {asset_name} returned empty"
+                )
+                fallback_candles = await asyncio.wait_for(
+                    self.client.get_realtime_candles(symbol),
+                    timeout=Config.QUOTEX.request_timeout_seconds,
+                )
+                candles = self._normalize_realtime_candles(fallback_candles, symbol)
 
             if not candles:
+                logger.debug(f"Realtime websocket payload empty for {symbol}")
                 return False
 
             timestamps = sorted(candles.keys())
             if len(timestamps) < 2:
+                logger.debug(
+                    f"Realtime websocket payload has insufficient points for {symbol}: "
+                    f"{len(timestamps)}"
+                )
                 return False
 
             # Second-to-last is the most recent closed candle
             closed_ts = int(timestamps[-2])
             closed_candle_dict = candles[timestamps[-2]]
             new_generating_candle_dict = candles[timestamps[-1]]
+            generating_ts = int(timestamps[-1])
+
+            previous_generating_ts = self._last_ws_generating_ts.get(symbol)
+            if previous_generating_ts != generating_ts:
+                logger.debug(
+                    f"WebSocket update {symbol} | "
+                    f"Generating TS changed: {previous_generating_ts} -> {generating_ts}"
+                )
+                self._last_ws_generating_ts[symbol] = generating_ts
 
             last_stored_ts = self.last_candle_timestamps.get(symbol, 0)
 
@@ -410,12 +623,18 @@ class QuotexServiceMultiAsync:
                 )
                 await self._process_new_candle(
                     symbol, closed_candle_dict, new_generating_candle_dict,
-                    closed_ts, int(timestamps[-1])
+                    closed_ts, generating_ts
                 )
                 return True
 
             return False
 
+        except asyncio.TimeoutError:
+            logger.warning(
+                f"Timeout reading realtime candles for {symbol} after "
+                f"{Config.QUOTEX.request_timeout_seconds}s"
+            )
+            return False
         except Exception as e:
             logger.error(
                 f"Error in check_and_process_candle {symbol}: {e}"
@@ -614,15 +833,24 @@ class QuotexServiceMultiAsync:
 
             try:
                 # Attempt a lightweight operation to verify connectivity
-                candles = await self.client.get_realtime_candles(
-                    Config.TARGET_ASSETS[0]
+                first_symbol = Config.QUOTEX.assets[0]
+                first_asset = self._resolve_asset_name(first_symbol)
+                candles = await asyncio.wait_for(
+                    self.client.get_realtime_candles(first_asset),
+                    timeout=Config.QUOTEX.request_timeout_seconds,
                 )
                 if candles is not None:
+                    logger.debug("Reconnection liveness check OK")
                     # Connection is alive — reset backoff
                     if attempt > 0:
                         attempt = 0
                         current_timeout = Config.RECONNECT_INITIAL_TIMEOUT
                     continue
+            except asyncio.TimeoutError:
+                logger.warning(
+                    "Reconnection liveness check timeout after "
+                    f"{Config.QUOTEX.request_timeout_seconds}s"
+                )
             except Exception:
                 pass
 

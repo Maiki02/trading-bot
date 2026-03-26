@@ -711,7 +711,7 @@ def get_market_data_service(analysis_service, on_auth_failure_callback=None):
     elif Config.DATA_PROVIDER == "QUOTEX":
         logger.info(
             f"🔌 Using Quotex Multi-Instrument as data provider | "
-            f"Instruments: {', '.join(Config.TARGET_ASSETS)}"
+            f"Instruments: {', '.join(Config.QUOTEX.assets)}"
         )
         from src.services.quotex_service_multi import create_quotex_service_multi_async
         return create_quotex_service_multi_async(
