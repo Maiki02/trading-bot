@@ -69,7 +69,9 @@ Este segundo utilitario hace exactamente dos cosas:
 1. `login_to_quotex()`
 2. `fetch_historical_candles(symbol, candles_count)`
 
-Lee `QUOTEX_HISTORY_SYMBOL` y `QUOTEX_HISTORY_CANDLES` desde `.env` y guarda la respuesta cruda del broker en JSON.
+Lee `QUOTEX_HISTORY_SYMBOL` y `QUOTEX_HISTORY_CANDLES` desde `.env`.
+Intenta primero una via alternativa de la libreria basada en `get_candle_v2()` y, si falla, cae a `get_candles()`.
+Luego transforma la respuesta a `CandleData` y genera una imagen PNG con las velas.
 El timeout del request reutiliza `QUOTEX_REQUEST_TIMEOUT`.
 
 ### Ejecucion
@@ -80,13 +82,21 @@ c:/Users/Pc/Desktop/Proyectos/Personales/trading-bot/.venv/Scripts/python.exe sc
 
 ### Salida
 
-Genera un archivo en `data/quotex-history`:
+Genera tres archivos en `data/quotex-history`:
 
-- `historical_<symbol>_<timestamp>.json`
+- `historical_raw_<symbol>_<timestamp>.json`
+- `historical_candle_data_<symbol>_<timestamp>.json`
+- `historical_chart_<symbol>_<timestamp>.png`
 
 ### Variables esperadas en `.env`
 
 ```env
 QUOTEX_HISTORY_SYMBOL=AUDJPY
-QUOTEX_HISTORY_CANDLES=151
+QUOTEX_HISTORY_CANDLES=150
 ```
+
+### Notas tecnicas
+
+- La version abierta de `pyquotex` sigue limitada por lo que el broker devuelve por websocket. En issues publicos recientes el autor confirma el limite practico de `199` velas por request, por lo que `150` esta dentro del rango esperado.
+- Si `connect()` devuelve `success=True` pero el mensaje incluye `Token Rejected`, la sesion puede quedar degradada y cualquiera de los dos metodos de historico puede devolver vacio o timeout.
+- La otra forma de conexion soportada por la libreria es `QUOTEX_AUTH_METHOD=SESSION` usando `QUOTEX_SSID` con `set_session(...)`. Ademas, en modo `CREDENTIALS` este script intenta reutilizar la sesion persistida en `session.json` y reautenticar si pyquotex responde `Token Rejected`.
