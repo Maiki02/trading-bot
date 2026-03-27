@@ -232,6 +232,12 @@ class QuotexServiceMultiAsync:
                 )
                 return False
 
+            if isinstance(message, str) and "token rejected" in message.lower():
+                logger.warning(
+                    "Quotex reported 'Token Rejected' during connect. "
+                    "Connection may be unstable for historical candles."
+                )
+
             logger.info("Connected to Quotex successfully")
 
             # Switch to practice account
@@ -268,12 +274,18 @@ class QuotexServiceMultiAsync:
             try:
                 logger.info(f"Resolving Quotex asset availability for symbol: {symbol}")
                 asset_name, asset_data = await asyncio.wait_for(
-                    self.client.get_available_asset(symbol, force_open=True),
+                    self.client.get_available_asset(symbol, force_open=False),
                     timeout=Config.QUOTEX.request_timeout_seconds,
                 )
                 if not asset_data or (isinstance(asset_data, tuple) and not asset_data[2]):
                     logger.warning(f"Asset {symbol} is not available/open, skipping")
                     continue
+
+                if asset_name != symbol:
+                    logger.warning(
+                        f"Resolved asset differs from requested symbol | "
+                        f"Requested: {symbol} | Resolved: {asset_name}"
+                    )
 
                 self._asset_name_map[symbol] = asset_name
                 self.client.start_candles_stream(asset_name, period=60)
@@ -429,41 +441,77 @@ class QuotexServiceMultiAsync:
         try:
             logger.info(f"Requesting {count} historical candles for {symbol}...")
             end_time = time.time()
-            offset_seconds = count * 60
+            offset_seconds = max(count * 60, 60)
             asset_name = self._resolve_asset_name(symbol)
-            logger.debug(
-                f"Historical request payload | Symbol: {symbol} | "
-                f"Resolved asset: {asset_name} | Offset seconds: {offset_seconds}"
-            )
-            raw_candles: List[dict] = []
-            try:
-                raw_candles = await asyncio.wait_for(
-                    self.client.get_candles(asset_name, end_time, offset_seconds, 60),
-                    timeout=Config.QUOTEX.request_timeout_seconds,
-                )
-            except asyncio.TimeoutError:
-                logger.warning(
-                    f"Historical request timeout for resolved asset {asset_name}. "
-                    f"Trying fallback symbol {symbol}"
-                )
 
-            if (not raw_candles) and asset_name != symbol:
-                logger.info(
-                    f"Historical fallback request | Symbol: {symbol} | "
-                    f"Resolved asset had no data: {asset_name}"
+            candidate_assets: List[str] = []
+            for candidate in (asset_name, symbol):
+                if candidate and candidate not in candidate_assets:
+                    candidate_assets.append(candidate)
+
+            # Keep bootstrap bounded: at most 2 attempts before continuing startup.
+            fallback_offset = min(offset_seconds, 3600)
+            attempt_plan: List[tuple[str, int]] = []
+
+            if candidate_assets:
+                attempt_plan.append((candidate_assets[0], offset_seconds))
+
+            if len(candidate_assets) > 1:
+                attempt_plan.append((candidate_assets[1], fallback_offset))
+            elif candidate_assets:
+                attempt_plan.append((candidate_assets[0], fallback_offset))
+
+            attempt_plan = attempt_plan[:2]
+
+            history_timeout = Config.QUOTEX.request_timeout_seconds
+
+            raw_candles: List[dict] = []
+            selected_asset: Optional[str] = None
+            selected_offset: Optional[int] = None
+
+            for attempt_index, (candidate_asset, candidate_offset) in enumerate(
+                attempt_plan, start=1
+            ):
+                logger.debug(
+                    f"Historical request payload | Symbol: {symbol} | "
+                    f"Attempt: {attempt_index}/2 | Candidate asset: {candidate_asset} | "
+                    f"Offset seconds: {candidate_offset}"
                 )
-                raw_candles = await asyncio.wait_for(
-                    self.client.get_candles(symbol, end_time, offset_seconds, 60),
-                    timeout=Config.QUOTEX.request_timeout_seconds,
-                )
+                try:
+                    raw_candles = await asyncio.wait_for(
+                        self.client.get_candles(
+                            candidate_asset, end_time, candidate_offset, 60
+                        ),
+                        timeout=history_timeout,
+                    )
+                    if raw_candles:
+                        selected_asset = candidate_asset
+                        selected_offset = candidate_offset
+                        break
+                except asyncio.TimeoutError:
+                    logger.warning(
+                        f"Historical request timeout for {candidate_asset} "
+                        f"with offset={candidate_offset}s (attempt {attempt_index}/2)"
+                    )
+                except Exception as request_error:
+                    logger.warning(
+                        f"Historical request error for {candidate_asset} "
+                        f"with offset={candidate_offset}s (attempt {attempt_index}/2): "
+                        f"{request_error}"
+                    )
 
             if not raw_candles:
                 logger.warning(
-                    f"Historical request returned empty payload for {symbol} ({asset_name})"
+                    f"Historical request returned empty payload for {symbol} "
+                    f"after {len(attempt_plan)} attempts. Continuing without historical bootstrap. "
+                    f"Attempt plan={attempt_plan}"
                 )
                 return []
 
-            logger.debug(f"Raw historical candle count for {symbol}: {len(raw_candles)}")
+            logger.debug(
+                f"Raw historical candle count for {symbol}: {len(raw_candles)} | "
+                f"Selected asset: {selected_asset} | Offset: {selected_offset}s"
+            )
 
             candle_list: List[CandleData] = []
             for raw in raw_candles:

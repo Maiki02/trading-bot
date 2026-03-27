@@ -13,10 +13,13 @@ Author: TradingView Pattern Monitor Team
 """
 
 import asyncio
+import base64
+import json
 from typing import Dict, Optional, Callable, List
 from dataclasses import dataclass
 from datetime import datetime
 from collections import defaultdict
+from pathlib import Path
 
 import pandas as pd
 import numpy as np
@@ -583,6 +586,12 @@ class AnalysisService:
             # ═════════════════════════════════════════════════════════════
             self._add_new_candle(source_key, candle)
             self._update_indicators(source_key)
+
+            # Persist every closed candle and its chart locally when local storage is enabled.
+            if Config.SAVE_NOTIFICATIONS_LOCALLY:
+                asyncio.create_task(
+                    self._persist_closed_candle_artifacts(source_key, candle)
+                )
             
             # Verificar si hay suficientes datos para análisis
             if not self.is_initialized[source_key]:
@@ -1623,6 +1632,88 @@ class AnalysisService:
             
         except Exception as e:
             log_exception(logger, "Error generando gráfico en tiempo real", e)
+
+    async def _persist_closed_candle_artifacts(
+        self,
+        source_key: str,
+        candle: CandleData,
+    ) -> None:
+        """
+        Persist closed candle data and its chart image locally.
+
+        Storage layout:
+        - data/closed_candles/{symbol}/candles.jsonl
+        - data/closed_candles/{symbol}/charts/{timestamp}.png
+
+        Args:
+            source_key: Source key (e.g. "QX_EURUSD")
+            candle: Closed candle to persist
+        """
+        try:
+            df = self.dataframes.get(source_key)
+            if df is None or df.empty:
+                return
+
+            symbol_dir = Path("data") / "closed_candles" / candle.symbol
+            charts_dir = symbol_dir / "charts"
+            charts_dir.mkdir(parents=True, exist_ok=True)
+
+            candle_time = datetime.fromtimestamp(candle.timestamp)
+            timestamp_str = candle_time.strftime("%Y%m%d_%H%M%S")
+            chart_filename = f"candle_{timestamp_str}.png"
+            chart_path = charts_dir / chart_filename
+
+            # Build chart from the latest dataframe state after indicators update.
+            lookback = min(self.chart_lookback, len(df))
+            chart_base64 = await asyncio.to_thread(
+                generate_chart_base64,
+                df,
+                lookback,
+                f"{candle.source}:{candle.symbol} - Closed Candle",
+                True,
+            )
+
+            await asyncio.to_thread(
+                chart_path.write_bytes,
+                base64.b64decode(chart_base64),
+            )
+
+            candle_record = {
+                "timestamp": candle.timestamp,
+                "datetime": candle_time.isoformat(),
+                "source": candle.source,
+                "symbol": candle.symbol,
+                "open": candle.open,
+                "high": candle.high,
+                "low": candle.low,
+                "close": candle.close,
+                "volume": candle.volume,
+                "chart_path": str(chart_path).replace("\\", "/"),
+                "created_at": datetime.utcnow().isoformat() + "Z",
+            }
+
+            candles_file = symbol_dir / "candles.jsonl"
+            json_line = json.dumps(candle_record, ensure_ascii=False) + "\n"
+            await asyncio.to_thread(
+                self._append_jsonl_line,
+                candles_file,
+                json_line,
+            )
+
+            logger.debug(
+                f"💾 Closed candle persisted | {source_key} | "
+                f"TS={candle.timestamp} | Chart={chart_path}"
+            )
+
+        except Exception as e:
+            log_exception(logger, f"Error persisting closed candle artifacts for {source_key}", e)
+
+    @staticmethod
+    def _append_jsonl_line(file_path: Path, line: str) -> None:
+        """Append one JSONL line to a file, creating parent directories if needed."""
+        file_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(file_path, "a", encoding="utf-8") as file:
+            file.write(line)
 
     async def generate_initial_chart(self, source_key: str, last_candle: CandleData) -> None:
         """

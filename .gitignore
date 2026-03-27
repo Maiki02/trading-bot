@@ -212,3 +212,5 @@ data/test_notifications/images
 data/notifications/images
 test/images_patterns/
 data/charts
+
+*.png

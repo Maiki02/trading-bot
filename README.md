@@ -174,6 +174,7 @@ TELEGRAM_OUTCOME_SUBSCRIPTION=
 USE_TREND_FILTER=false         # false = notifica todos los patrones (MVP actual)
 SEND_CHARTS=true               # true = envía gráficos, false = solo texto
 CHART_LOOKBACK=30              # Cantidad de velas en gráfico (recomendado: 20-30)
+SAVE_NOTIFICATIONS_LOCALLY=true  # Guarda por cierre: CandleData JSONL + chart PNG en data/closed_candles/
 
 # ============= Indicadores Técnicos =============
 EMA_PERIOD=200                 # Periodo EMA principal
@@ -457,6 +458,24 @@ docker-compose up -d --build
 3. Revisa `APP_ENV` y los tópicos `TELEGRAM_SUBSCRIPTION_*` / `TELEGRAM_OUTCOME_SUBSCRIPTION_*`
 4. Si usas overrides legacy, confirma que `TELEGRAM_SUBSCRIPTION` y `TELEGRAM_OUTCOME_SUBSCRIPTION` no apunten a tópicos incorrectos
 
+### Quotex inicia pero no carga histórico de 1 minuto
+
+**Síntoma en logs:** timeout o payload vacío durante `Historical bootstrap`, y luego varios mensajes `Realtime websocket payload has insufficient points`.
+
+**Qué significa:** el stream realtime de Quotex puede comenzar con una sola vela en formación. Hasta que no cierra la siguiente vela, no hay dos puntos para tomar la última vela cerrada.
+
+**Comportamiento actual del bot:**
+- Hace hasta **2 intentos** de bootstrap histórico (activo principal + fallback) y luego continúa el arranque.
+- Usa estrictamente los símbolos configurados en `.env` (`QUOTEX_ASSETS`) sin autoconvertir `EURUSD` ↔ `EURUSD_otc`.
+- Respeta `QUOTEX_REQUEST_TIMEOUT` del `.env` para cada intento histórico.
+
+**Recomendación de configuración:**
+```env
+QUOTEX_REQUEST_TIMEOUT=20      # Requests normales
+QUOTEX_CONNECT_TIMEOUT=45      # Login y conexión
+SNAPSHOT_CANDLES=150-250       # Ajusta según EMA usada
+```
+
 ### El bot no detecta patrones
 
 **Posibles causas:**
@@ -486,6 +505,16 @@ Verifica que aparezca en logs:
 SEND_CHARTS=true
 CHART_LOOKBACK=30  # Probar con valor más bajo
 ```
+
+### Guardado local por cierre de vela
+
+**Comportamiento:** si `SAVE_NOTIFICATIONS_LOCALLY=true`, en cada cierre de vela se guarda:
+- Registro `CandleData` en `data/closed_candles/{SYMBOL}/candles.jsonl`
+- Imagen del gráfico en `data/closed_candles/{SYMBOL}/charts/candle_YYYYMMDD_HHMMSS.png`
+
+**Notas:**
+- Reutiliza el `CHART_LOOKBACK` definido en `.env`.
+- Funciona para cualquier proveedor (TradingView, IQ Option, Quotex) porque se ejecuta en `AnalysisService`.
 
 ### Dataset vacío / Sin estadísticas
 
