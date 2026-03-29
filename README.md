@@ -146,43 +146,80 @@ pip install -r requirements.txt
 
 **Autenticación NO requerida** para datos de Forex público. Puedes usar el valor por defecto.
 
+**Política actual para Quotex (app principal):**
+- Siempre usa `QUOTEX_EMAIL` y `QUOTEX_PASSWORD`.
+- `session.json` se reutiliza automaticamente cuando es valido.
+- Si no hay sesion valida, pyquotex hace login por credenciales.
+- Ya no se usan `QUOTEX_AUTH_METHOD` ni `QUOTEX_SSID` en la app principal.
+
 **Enrutamiento de tópicos Telegram por entorno:**
 - `APP_ENV=production` usa por defecto: `trade:alert` y `trade:send_result`
 - `APP_ENV=development` usa por defecto: `test:trade:alert` y `test:trade:send_result`
 - Overrides legacy (si no están vacíos) tienen prioridad: `TELEGRAM_SUBSCRIPTION` y `TELEGRAM_OUTCOME_SUBSCRIPTION`
 
 ```env
-# ============= TradingView (Opcional para Forex) =============
-TV_SESSION_ID=not_required_for_public_data
-
-# ============= Telegram (OBLIGATORIO) =============
-TELEGRAM_API_URL=https://api.tu-dominio.com/telegram
-TELEGRAM_API_KEY=tu_api_key_secreta
+# ============= APP / GENERAL =============
 APP_ENV=development
 
-# Tópicos por entorno
+# ============= DATA PROVIDER =============
+DATA_PROVIDER=QUOTEX
+TARGET_ASSETS=EURUSD-BIN,GBPUSD-BIN,USDJPY-BIN
+SNAPSHOT_CANDLES=250
+GENERATE_HISTORICAL_CHARTS=false
+
+# ============= TRADINGVIEW (Opcional para Forex) =============
+TV_SESSION_ID=not_required_for_public_data
+TV_WS_URL=wss://data.tradingview.com/socket.io/websocket
+TV_WS_ORIGIN=https://data.tradingview.com
+
+# ============= IQOPTION =============
+IQ_OPTION_USER=tu_usuario_iq
+IQ_OPTION_PASS=tu_password_iq
+IQ_ASSET=EURUSD-BIN
+
+# ============= QUOTEX =============
+QUOTEX_EMAIL=tu_email_quotex
+QUOTEX_PASSWORD=tu_password_quotex
+QUOTEX_ASSETS=AUDJPY
+QUOTEX_CONNECT_TIMEOUT=45
+QUOTEX_REQUEST_TIMEOUT=20
+QUOTEX_WS_DEBUG=false
+
+# ============= TELEGRAM =============
+TELEGRAM_API_URL=https://api.tu-dominio.com/telegram
+TELEGRAM_API_KEY=tu_api_key_secreta
 TELEGRAM_SUBSCRIPTION_PROD=trade:alert
 TELEGRAM_OUTCOME_SUBSCRIPTION_PROD=trade:send_result
 TELEGRAM_SUBSCRIPTION_DEV=test:trade:alert
 TELEGRAM_OUTCOME_SUBSCRIPTION_DEV=test:trade:send_result
-
-# Overrides legacy opcionales (si se definen, tienen prioridad)
 TELEGRAM_SUBSCRIPTION=
 TELEGRAM_OUTCOME_SUBSCRIPTION=
 
-# ============= Configuración de Bot =============
-USE_TREND_FILTER=false         # false = notifica todos los patrones (MVP actual)
-SEND_CHARTS=true               # true = envía gráficos, false = solo texto
-CHART_LOOKBACK=30              # Cantidad de velas en gráfico (recomendado: 20-30)
-SAVE_NOTIFICATIONS_LOCALLY=true  # Guarda por cierre: CandleData JSONL + chart PNG en data/closed_candles/
+# ============= NOTIFICATIONS =============
+ENABLE_NOTIFICATIONS=true
+SEND_CHARTS=false
+SEND_OUTCOME_CHARTS=true
+SEND_NONE_SIGNAL_NOTIFICATIONS=false
+SAVE_NOTIFICATIONS_LOCALLY=true
+UPDATE_TEST_DATA=false
 
-# ============= Indicadores Técnicos =============
-EMA_PERIOD=200                 # Periodo EMA principal
-SNAPSHOT_CANDLES=1000          # Velas históricas iniciales
-DUAL_SOURCE_WINDOW=2.0         # Ventana de confirmación dual-source (segundos)
+# ============= STRATEGY / INDICATORS =============
+EMA_PERIOD=50
+DUAL_SOURCE_WINDOW=0.0
+CHART_LOOKBACK=40
+USE_TREND_FILTER=false
+SHOW_CANDLE_RESULT=true
+RSI_PERIOD=7
+RSI_OVERBOUGHT=75
+RSI_OVERSOLD=25
 
-# ============= Logging =============
-LOG_LEVEL=INFO                 # DEBUG para desarrollo, INFO para producción
+# ============= RECONNECTION =============
+RECONNECT_INITIAL_TIMEOUT=5
+RECONNECT_MAX_TIMEOUT=300
+
+# ============= DEBUG / LOGGING =============
+LOG_LEVEL=DEBUG
+LOG_FILE=logs/trading_bot.log
 ```
 
 **Ejemplo rápido por entorno:**
@@ -468,6 +505,10 @@ docker-compose up -d --build
 - Hace hasta **2 intentos** de bootstrap histórico (activo principal + fallback) y luego continúa el arranque.
 - Usa estrictamente los símbolos configurados en `.env` (`QUOTEX_ASSETS`) sin autoconvertir `EURUSD` ↔ `EURUSD_otc`.
 - Respeta `QUOTEX_REQUEST_TIMEOUT` del `.env` para cada intento histórico.
+- Usa credenciales (`QUOTEX_EMAIL`/`QUOTEX_PASSWORD`) y permite reutilizar `session.json` automáticamente.
+- Si el stream realtime llega con **1 solo punto**, lo trata como vela en formación (generating) y espera un segundo punto para confirmar vela cerrada.
+- En recuperación de GAP, reinyecta solo **velas intermedias faltantes**; la vela cerrada más reciente se procesa una sola vez desde realtime.
+- Para análisis, Quotex procesa vela cerrada como `timestamps[-2]` y usa `timestamps[-1]` solo como referencia de vela en formación.
 
 **Recomendación de configuración:**
 ```env

@@ -19,11 +19,19 @@ Author: Trading Bot Team
 """
 
 import asyncio
-import json
+import sys
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Optional, Dict, Callable, List
+from typing import Optional, Dict, Callable, List, Set
+
+# Prioritize local pyquotex clone from sibling directory when available.
+_PROJECT_ROOT = Path(__file__).resolve().parents[2]
+_LOCAL_PYQUOTEX_PATH = _PROJECT_ROOT.parent / "pyquotex"
+if _LOCAL_PYQUOTEX_PATH.exists():
+    _local_path_str = str(_LOCAL_PYQUOTEX_PATH)
+    if _local_path_str not in sys.path:
+        sys.path.insert(0, _local_path_str)
 
 from pyquotex.stable_api import Quotex
 from pyquotex.utils.processor import process_tick
@@ -67,12 +75,89 @@ class QuotexServiceMultiAsync:
 
         # Mapping from config symbol to Quotex asset name
         self._asset_name_map: Dict[str, str] = {}
+        self._active_symbols: List[str] = []
 
         # Track websocket generating-candle timestamps for diagnostics
         self._last_ws_generating_ts: Dict[str, int] = {}
+        self._last_generating_only_log_at: Dict[str, float] = {}
+
+        # Realtime continuity and idempotency controls
+        self._realtime_sync_established: Dict[str, bool] = {}
+        self._processed_closed_timestamps: Dict[str, Set[int]] = {}
 
         # Rolling tick-to-candle buffers when pyquotex returns single tick payloads
         self._tick_candle_buffers: Dict[str, Dict[int, dict]] = {}
+
+    def _mark_closed_timestamp_processed(self, symbol: str, timestamp: int) -> None:
+        """Mark a closed timestamp as processed and keep bounded memory."""
+        processed = self._processed_closed_timestamps.setdefault(symbol, set())
+        processed.add(int(timestamp))
+
+        # Bound memory growth while preserving recent candles.
+        max_items = 1200
+        if len(processed) > max_items:
+            sorted_timestamps = sorted(processed)
+            for ts in sorted_timestamps[:-max_items]:
+                processed.discard(ts)
+
+    def _is_closed_timestamp_processed(self, symbol: str, timestamp: int) -> bool:
+        """Return whether a closed candle timestamp was already processed."""
+        return int(timestamp) in self._processed_closed_timestamps.get(symbol, set())
+
+    def _should_log_generating_only(self, symbol: str) -> bool:
+        """Throttle noisy one-point realtime payload logs to once per minute."""
+        now = time.time()
+        last_logged_at = self._last_generating_only_log_at.get(symbol, 0.0)
+        if (now - last_logged_at) < 60:
+            return False
+        self._last_generating_only_log_at[symbol] = now
+        return True
+
+    def _validate_realtime_timestamps(
+        self,
+        symbol: str,
+        closed_ts: int,
+        generating_ts: int,
+        last_stored_ts: int,
+    ) -> bool:
+        """
+        Runtime sanity check for realtime timestamp ordering.
+
+        This is a non-fatal consistency guard: malformed frames are skipped
+        without stopping production flow.
+        """
+        if generating_ts <= closed_ts:
+            logger.warning(
+                f"Realtime frame rejected for {symbol}: generating_ts={generating_ts} "
+                f"must be greater than closed_ts={closed_ts}"
+            )
+            return False
+
+        if last_stored_ts > 0 and closed_ts < last_stored_ts:
+            logger.warning(
+                f"Realtime frame out of order for {symbol}: closed_ts={closed_ts} "
+                f"< last_stored_ts={last_stored_ts}. Frame ignored."
+            )
+            return False
+
+        if ((generating_ts - closed_ts) % 60) != 0:
+            logger.debug(
+                f"Realtime frame has non-standard spacing for {symbol}: "
+                f"closed={closed_ts}, generating={generating_ts}"
+            )
+
+        return True
+
+    @staticmethod
+    def _extract_first_numeric(raw_candle: dict, keys: List[str]) -> Optional[float]:
+        """Extract first present numeric value from candidate keys."""
+        for key in keys:
+            if key in raw_candle and raw_candle[key] is not None:
+                try:
+                    return float(raw_candle[key])
+                except (TypeError, ValueError):
+                    continue
+        return None
 
     # ------------------------------------------------------------------
     # Lifecycle
@@ -89,15 +174,24 @@ class QuotexServiceMultiAsync:
                 self.on_auth_failure_callback()
             return
 
+        self._active_symbols = await self._resolve_active_symbols(
+            Config.QUOTEX.assets
+        )
+        if not self._active_symbols:
+            logger.warning(
+                "No active Quotex symbols available. Service will remain idle."
+            )
+            return
+
         # Subscribe to real-time streams
-        await self._subscribe_to_instruments()
+        await self._subscribe_to_instruments(self._active_symbols)
 
         # Load historical candles before polling
-        await self._load_all_historical_candles()
+        await self._load_all_historical_candles(self._active_symbols)
 
         # Start polling tasks
         self._should_poll = True
-        for symbol in Config.QUOTEX.assets:
+        for symbol in self._active_symbols:
             task = asyncio.create_task(self._poll_instrument(symbol))
             self.poll_tasks.append(task)
 
@@ -107,7 +201,7 @@ class QuotexServiceMultiAsync:
 
         logger.info(
             f"Quotex Multi-Service started | "
-            f"Monitoring {len(Config.QUOTEX.assets)} instruments | "
+            f"Monitoring {len(self._active_symbols)} instruments | "
             f"Poll tasks: {len(self.poll_tasks)}"
         )
 
@@ -145,27 +239,6 @@ class QuotexServiceMultiAsync:
     # Connection
     # ------------------------------------------------------------------
 
-    def _inject_session_file(self) -> None:
-        """
-        Create or overwrite pyquotex session.json with a token-based session.
-
-        pyquotex reads session data from session.json keyed by user-agent.
-        With default Quotex constructor settings, that key is "Quotex/1.0".
-        """
-        session_path = Path.cwd() / "session.json"
-        session_payload = {
-            "Quotex/1.0": {
-                "cookies": None,
-                "token": Config.QUOTEX.ssid,
-                "user_agent": "Quotex/1.0",
-            }
-        }
-        session_path.write_text(json.dumps(session_payload, indent=4), encoding="utf-8")
-        logger.info(
-            "Quotex session.json injected for SESSION auth method | "
-            f"Path: {session_path} | Token length: {len(Config.QUOTEX.ssid)}"
-        )
-
     async def _connect(self) -> bool:
         """
         Authenticate and connect to Quotex.
@@ -176,26 +249,17 @@ class QuotexServiceMultiAsync:
         try:
             logger.info(
                 "Connecting to Quotex | "
-                f"Method: {Config.QUOTEX.auth_method} | "
                 f"Assets: {', '.join(Config.QUOTEX.assets)} | "
                 f"Timeout: {Config.QUOTEX.connect_timeout_seconds}s | "
                 f"WS debug: {Config.QUOTEX.ws_debug}"
             )
 
-            if Config.QUOTEX.auth_method == "SESSION":
-                self._inject_session_file()
-                # Non-empty placeholders avoid pyquotex prompting for credentials.
-                self.client = Quotex(
-                    email="SESSION_AUTH",
-                    password="SESSION_AUTH",
-                    lang="en",
-                )
-            else:
-                self.client = Quotex(
-                    email=Config.QUOTEX.email,
-                    password=Config.QUOTEX.password,
-                    lang="en",
-                )
+            # pyquotex handles persisted session.json reuse automatically.
+            self.client = Quotex(
+                email=Config.QUOTEX.email,
+                password=Config.QUOTEX.password,
+                lang="en",
+            )
 
             self.client.debug_ws_enable = Config.QUOTEX.ws_debug
 
@@ -214,22 +278,7 @@ class QuotexServiceMultiAsync:
             )
 
             if not check_connect:
-                if Config.QUOTEX.auth_method == "SESSION":
-                    logger.critical(
-                        "Quotex SESSION authentication failed. Token may be expired. "
-                        "No credentials fallback will be attempted."
-                    )
                 logger.error(f"Quotex connection failed: {message}")
-                return False
-
-            if (
-                Config.QUOTEX.auth_method == "SESSION"
-                and isinstance(message, str)
-                and "token rejected" in message.lower()
-            ):
-                logger.critical(
-                    "Quotex SESSION token rejected. No credentials fallback will be attempted."
-                )
                 return False
 
             if isinstance(message, str) and "token rejected" in message.lower():
@@ -265,20 +314,68 @@ class QuotexServiceMultiAsync:
     # Subscriptions
     # ------------------------------------------------------------------
 
-    async def _subscribe_to_instruments(self) -> None:
-        """Subscribe to real-time candle streams for all target instruments."""
-        if not self.client:
-            return
+    def _is_asset_open(self, asset_data: object) -> bool:
+        """Best-effort check for Quotex asset open/active status."""
+        if asset_data is None:
+            return False
 
-        for symbol in Config.QUOTEX.assets:
+        if isinstance(asset_data, bool):
+            return asset_data
+
+        if isinstance(asset_data, dict):
+            for key in (
+                "open",
+                "is_open",
+                "isOpen",
+                "active",
+                "is_active",
+                "enabled",
+                "is_enabled",
+            ):
+                value = asset_data.get(key)
+                if isinstance(value, bool):
+                    return value
+            return bool(asset_data)
+
+        if isinstance(asset_data, (tuple, list)):
+            if len(asset_data) >= 3 and isinstance(asset_data[2], bool):
+                return asset_data[2]
+            if len(asset_data) >= 2 and isinstance(asset_data[1], bool):
+                return asset_data[1]
+            return bool(asset_data)
+
+        for attr in (
+            "open",
+            "is_open",
+            "active",
+            "enabled",
+            "is_enabled",
+        ):
+            value = getattr(asset_data, attr, None)
+            if isinstance(value, bool):
+                return value
+
+        return bool(asset_data)
+
+    async def _resolve_active_symbols(self, symbols: List[str]) -> List[str]:
+        """Resolve and keep only currently open symbols from Quotex."""
+        if not self.client:
+            return []
+
+        active_symbols: List[str] = []
+        self._asset_name_map.clear()
+
+        for symbol in symbols:
             try:
-                logger.info(f"Resolving Quotex asset availability for symbol: {symbol}")
                 asset_name, asset_data = await asyncio.wait_for(
                     self.client.get_available_asset(symbol, force_open=False),
                     timeout=Config.QUOTEX.request_timeout_seconds,
                 )
-                if not asset_data or (isinstance(asset_data, tuple) and not asset_data[2]):
-                    logger.warning(f"Asset {symbol} is not available/open, skipping")
+
+                if not self._is_asset_open(asset_data):
+                    logger.info(
+                        f"Skipping symbol {symbol}: Quotex asset is closed/inactive"
+                    )
                     continue
 
                 if asset_name != symbol:
@@ -288,6 +385,29 @@ class QuotexServiceMultiAsync:
                     )
 
                 self._asset_name_map[symbol] = asset_name
+                active_symbols.append(symbol)
+
+            except asyncio.TimeoutError:
+                logger.warning(
+                    f"Skipping symbol {symbol}: timeout checking Quotex asset status "
+                    f"after {Config.QUOTEX.request_timeout_seconds}s"
+                )
+            except Exception as status_error:
+                logger.warning(
+                    f"Skipping symbol {symbol}: error checking Quotex asset status: "
+                    f"{status_error}"
+                )
+
+        return active_symbols
+
+    async def _subscribe_to_instruments(self, symbols: List[str]) -> None:
+        """Subscribe to real-time candle streams for all target instruments."""
+        if not self.client:
+            return
+
+        for symbol in symbols:
+            try:
+                asset_name = self._resolve_asset_name(symbol)
                 self.client.start_candles_stream(asset_name, period=60)
                 logger.info(
                     f"Subscribed to candle stream for {asset_name} "
@@ -325,9 +445,12 @@ class QuotexServiceMultiAsync:
         if isinstance(raw_payload, dict):
             # Merge dict payload into rolling buffer to keep candle continuity.
             for ts, candle in raw_payload.items():
-                buffer[int(ts)] = candle
+                try:
+                    buffer[int(ts)] = candle
+                except (TypeError, ValueError):
+                    continue
             self._trim_tick_buffer(symbol)
-            return raw_payload
+            return dict(buffer)
 
         if isinstance(raw_payload, list):
             # Single tick format: [symbol, timestamp, price, direction]
@@ -363,7 +486,7 @@ class QuotexServiceMultiAsync:
         for key in sorted_keys[:-keep_last]:
             buffer.pop(key, None)
 
-    async def _load_all_historical_candles(self) -> None:
+    async def _load_all_historical_candles(self, symbols: List[str]) -> None:
         """
         Load historical candles to initialize indicator buffers.
         Strategy: request (EMA_PERIOD * 3) + 1 candles, discard the last
@@ -376,7 +499,7 @@ class QuotexServiceMultiAsync:
             f"INIT: Requesting {count_to_request} historical candles per asset..."
         )
 
-        for symbol in Config.QUOTEX.assets:
+        for symbol in symbols:
             try:
                 logger.info(f"Historical bootstrap started for {symbol}")
                 historical_candles = await self._get_historical_candles(
@@ -387,9 +510,26 @@ class QuotexServiceMultiAsync:
                     logger.warning(f"No historical candles received for {symbol}")
                     continue
 
-                # Discard last candle (currently forming)
-                current_generating_candle = historical_candles[-1]
-                closed_candles = historical_candles[:-1]
+                # Determine which candles are closed vs forming.
+                # pyquotex does not always include the currently-forming candle:
+                # if the program starts between :00 and :58 of a minute, the last
+                # candle returned may already be fully closed.  Unconditionally
+                # discarding [-1] would drop a real closed candle and create a
+                # spurious 120 s GAP on the first realtime tick.
+                _period = 60
+                _now = int(time.time())
+                _last = historical_candles[-1]
+
+                if _now < _last.timestamp + _period:
+                    # Last candle is still forming – standard case.
+                    generating_ts = _last.timestamp
+                    closed_candles = historical_candles[:-1]
+                else:
+                    # Broker did not include the forming candle; all returned
+                    # candles are already closed.  The next expected generating
+                    # candle starts at last_closed + period.
+                    closed_candles = historical_candles
+                    generating_ts = _last.timestamp + _period
 
                 if not closed_candles:
                     logger.warning(f"Insufficient closed candles for {symbol}")
@@ -397,9 +537,10 @@ class QuotexServiceMultiAsync:
 
                 last_closed = closed_candles[-1]
                 self.last_candle_timestamps[symbol] = last_closed.timestamp
-                self.current_candle_timestamps[symbol] = (
-                    current_generating_candle.timestamp
-                )
+                self.current_candle_timestamps[symbol] = generating_ts
+                self._last_ws_generating_ts[symbol] = generating_ts
+                self._realtime_sync_established[symbol] = False
+                self._processed_closed_timestamps[symbol] = {last_closed.timestamp}
 
                 if self.analysis_service:
                     self.analysis_service.load_historical_candles(closed_candles)
@@ -565,13 +706,9 @@ class QuotexServiceMultiAsync:
 
                 wait_seconds = (target_time - now).total_seconds()
                 if wait_seconds > 0.1:
-                    logger.debug(
-                        f"{symbol} sleeping {wait_seconds:.2f}s until burst..."
-                    )
                     await asyncio.sleep(wait_seconds)
 
                 # PHASE 2: Burst polling
-                logger.debug(f"{symbol} starting BURST polling...")
                 candle_detected = False
                 burst_start = time.time()
 
@@ -583,7 +720,8 @@ class QuotexServiceMultiAsync:
                     await asyncio.sleep(0.1)
 
                 if not candle_detected:
-                    logger.debug(f"{symbol} burst finished without new candle")
+                    # No candle closed in current burst window; continue next cycle.
+                    pass
 
             except asyncio.CancelledError:
                 logger.info(f"Polling cancelled for {symbol}")
@@ -630,7 +768,26 @@ class QuotexServiceMultiAsync:
                 logger.debug(f"Realtime websocket payload empty for {symbol}")
                 return False
 
-            timestamps = sorted(candles.keys())
+            timestamps = sorted(int(ts) for ts in candles.keys())
+            if len(timestamps) == 1:
+                # Stream warm-up: with a single point we only know the generating candle.
+                single_generating_ts = int(timestamps[-1])
+                previous_generating_ts = self._last_ws_generating_ts.get(symbol)
+                if previous_generating_ts != single_generating_ts:
+                    logger.debug(
+                        f"WebSocket update {symbol} | "
+                        f"Generating TS changed: {previous_generating_ts} -> {single_generating_ts}"
+                    )
+                    self._last_ws_generating_ts[symbol] = single_generating_ts
+
+                self.current_candle_timestamps[symbol] = single_generating_ts
+                if self._should_log_generating_only(symbol):
+                    logger.debug(
+                        f"Realtime websocket payload has only generating point for {symbol}: "
+                        f"{single_generating_ts}"
+                    )
+                return False
+
             if len(timestamps) < 2:
                 logger.debug(
                     f"Realtime websocket payload has insufficient points for {symbol}: "
@@ -640,9 +797,16 @@ class QuotexServiceMultiAsync:
 
             # Second-to-last is the most recent closed candle
             closed_ts = int(timestamps[-2])
-            closed_candle_dict = candles[timestamps[-2]]
-            new_generating_candle_dict = candles[timestamps[-1]]
+            closed_candle_dict = candles.get(closed_ts)
+            new_generating_candle_dict = candles.get(timestamps[-1])
             generating_ts = int(timestamps[-1])
+
+            if closed_candle_dict is None or new_generating_candle_dict is None:
+                logger.debug(
+                    f"Realtime payload missing candle body for {symbol}. "
+                    f"Closed TS={closed_ts}, Generating TS={generating_ts}"
+                )
+                return False
 
             previous_generating_ts = self._last_ws_generating_ts.get(symbol)
             if previous_generating_ts != generating_ts:
@@ -653,18 +817,52 @@ class QuotexServiceMultiAsync:
                 self._last_ws_generating_ts[symbol] = generating_ts
 
             last_stored_ts = self.last_candle_timestamps.get(symbol, 0)
+            bootstrap_generating_ts = self.current_candle_timestamps.get(symbol, 0)
+            if not self._validate_realtime_timestamps(
+                symbol, closed_ts, generating_ts, last_stored_ts
+            ):
+                return False
+
+            continuity_established = self._realtime_sync_established.get(symbol, False)
+            if not continuity_established:
+                if bootstrap_generating_ts > 0 and closed_ts < bootstrap_generating_ts:
+                    # Stream still behind bootstrap reference: only refresh generating TS.
+                    self.current_candle_timestamps[symbol] = generating_ts
+                    return False
+
+                self._realtime_sync_established[symbol] = True
+                logger.debug(
+                    f"Realtime continuity established for {symbol} | "
+                    f"Bootstrap generating: {bootstrap_generating_ts} | "
+                    f"Closed: {closed_ts} | Generating: {generating_ts}"
+                )
 
             # Gap detection
-            if last_stored_ts > 0 and (closed_ts - last_stored_ts) > 60:
+            should_check_gap = (
+                continuity_established
+                and last_stored_ts > 0
+                and (closed_ts - last_stored_ts) > 60
+            )
+
+            if should_check_gap:
+                missing_intermediates = max(int((closed_ts - last_stored_ts) / 60) - 1, 0)
                 logger.warning(
                     f"GAP DETECTED in {symbol}: Last {last_stored_ts} -> "
-                    f"New {closed_ts} (Diff: {closed_ts - last_stored_ts}s)"
+                    f"New {closed_ts} (Diff: {closed_ts - last_stored_ts}s, "
+                    f"Missing intermediates: {missing_intermediates})"
                 )
                 await self._fill_data_gaps(symbol, last_stored_ts, closed_ts)
                 last_stored_ts = self.last_candle_timestamps.get(symbol, 0)
 
             # New candle detection
             if closed_ts > last_stored_ts:
+                if self._is_closed_timestamp_processed(symbol, closed_ts):
+                    self.current_candle_timestamps[symbol] = generating_ts
+                    logger.debug(
+                        f"Skipping duplicate closed candle for {symbol} @ {closed_ts}"
+                    )
+                    return False
+
                 logger.info(
                     f"NEW CANDLE DETECTED {symbol} | "
                     f"TS: {closed_ts} (Previous: {last_stored_ts})"
@@ -689,6 +887,55 @@ class QuotexServiceMultiAsync:
             )
             return False
 
+    async def _fetch_authoritative_closed_candle(
+        self, symbol: str, closed_ts: int
+    ) -> Optional[CandleData]:
+        """
+        Fetch the definitive OHLC for a just-closed candle from the Quotex server.
+
+        The realtime stream reconstructs OHLC from locally received ticks, which
+        may be incomplete due to latency or burst timing.  A small historical
+        request made right after close returns the server-authoritative values.
+
+        Requests 3 candles ending at closed_ts + 1 period and picks the one
+        whose timestamp matches closed_ts exactly.
+
+        Args:
+            symbol: Instrument symbol.
+            closed_ts: Unix timestamp of the candle that just closed.
+
+        Returns:
+            CandleData with authoritative OHLC, or None if unavailable.
+        """
+        if not self.client:
+            return None
+
+        try:
+            asset_name = self._resolve_asset_name(symbol)
+            # Request a small window so the closed candle is guaranteed to be included.
+            # end_time slightly after closed_ts+60 to ensure the server has finalised it.
+            end_time = float(closed_ts + 62)
+            offset_seconds = 180  # 3 candles
+            raw_candles = await asyncio.wait_for(
+                self.client.get_candles(asset_name, end_time, offset_seconds, 60),
+                timeout=Config.QUOTEX.request_timeout_seconds,
+            )
+            if not raw_candles:
+                return None
+
+            for raw in raw_candles:
+                ts = int(raw.get("time", raw.get("timestamp", 0)))
+                if ts == closed_ts:
+                    return self._map_historical_candle(raw, symbol)
+
+            return None
+
+        except Exception as exc:
+            logger.debug(
+                f"Authoritative candle fetch failed for {symbol} @ {closed_ts}: {exc}"
+            )
+            return None
+
     async def _process_new_candle(
         self,
         symbol: str,
@@ -700,9 +947,12 @@ class QuotexServiceMultiAsync:
         """
         Process a newly closed candle: map to CandleData and send to AnalysisService.
 
+        Always tries to obtain server-authoritative OHLC via a small historical
+        re-fetch.  Falls back to the realtime stream dict only if the fetch fails.
+
         Args:
             symbol: Instrument symbol.
-            closed_candle_dict: Raw dict of the closed candle.
+            closed_candle_dict: Raw dict of the closed candle from the realtime stream.
             new_generating_candle_dict: Raw dict of the currently forming candle.
             closed_ts: Timestamp of the closed candle.
             generating_ts: Timestamp of the generating candle.
@@ -710,10 +960,21 @@ class QuotexServiceMultiAsync:
         try:
             self.last_candle_timestamps[symbol] = closed_ts
             self.current_candle_timestamps[symbol] = generating_ts
+            self._mark_closed_timestamp_processed(symbol, closed_ts)
 
-            closed_candle = self._map_realtime_candle(
-                closed_candle_dict, closed_ts, symbol
+            # Prefer authoritative server data over realtime stream reconstruction.
+            closed_candle: Optional[CandleData] = await self._fetch_authoritative_closed_candle(
+                symbol, closed_ts
             )
+
+            if closed_candle is None:
+                logger.debug(
+                    f"Authoritative fetch unavailable for {symbol} @ {closed_ts}, "
+                    "using realtime stream data as fallback."
+                )
+                closed_candle = self._map_realtime_candle(
+                    closed_candle_dict, closed_ts, symbol
+                )
 
             if closed_candle and self.analysis_service:
                 await self.analysis_service.process_realtime_candle(closed_candle)
@@ -767,17 +1028,24 @@ class QuotexServiceMultiAsync:
                 )
                 return
 
-            gap_candles = [
-                c
-                for c in historical_candles
-                if last_stored_ts < c.timestamp <= current_ts
-            ]
+            # Recover only intermediate candles. The current_ts candle will be processed
+            # from realtime payload to keep one single source of truth per timestamp.
+            by_timestamp: Dict[int, CandleData] = {}
+            for candle in historical_candles:
+                if last_stored_ts < candle.timestamp < current_ts:
+                    by_timestamp[candle.timestamp] = candle
+
+            gap_candles = [by_timestamp[ts] for ts in sorted(by_timestamp.keys())]
 
             if gap_candles:
                 logger.info(
                     f"Recovered {len(gap_candles)} gap candles for {symbol}"
                 )
                 for candle in gap_candles:
+                    if self._is_closed_timestamp_processed(symbol, candle.timestamp):
+                        continue
+
+                    self._mark_closed_timestamp_processed(symbol, candle.timestamp)
                     if self.analysis_service:
                         await self.analysis_service.process_realtime_candle(
                             candle
@@ -838,18 +1106,38 @@ class QuotexServiceMultiAsync:
             CandleData instance with source="QX", or None on error.
         """
         try:
-            high = float(raw_candle.get("high") or raw_candle.get("max", 0))
-            low = float(raw_candle.get("low") or raw_candle.get("min", 0))
-            if high == 0:
+            open_price = self._extract_first_numeric(raw_candle, ["open", "o"])
+            close_price = self._extract_first_numeric(raw_candle, ["close", "c"])
+            high = self._extract_first_numeric(raw_candle, ["high", "max", "h"])
+            low = self._extract_first_numeric(raw_candle, ["low", "min", "l"])
+
+            if (
+                open_price is None
+                or close_price is None
+                or high is None
+                or low is None
+            ):
                 return None
+
+            if high < low:
+                logger.debug(
+                    f"Realtime OHLC invalid range for {symbol} @ {timestamp}: "
+                    f"high={high}, low={low}. Candle ignored."
+                )
+                return None
+
+            raw_volume = self._extract_first_numeric(
+                raw_candle, ["ticks", "tick_volume", "volume", "v"]
+            )
+            volume = 0.0 if raw_volume is None else raw_volume
 
             return CandleData(
                 timestamp=int(timestamp),
-                open=float(raw_candle["open"]),
+                open=float(open_price),
                 high=high,
                 low=low,
-                close=float(raw_candle["close"]),
-                volume=0.0,
+                close=float(close_price),
+                volume=volume,
                 source="QX",
                 symbol=symbol,
             )
@@ -888,7 +1176,6 @@ class QuotexServiceMultiAsync:
                     timeout=Config.QUOTEX.request_timeout_seconds,
                 )
                 if candles is not None:
-                    logger.debug("Reconnection liveness check OK")
                     # Connection is alive — reset backoff
                     if attempt > 0:
                         attempt = 0
@@ -910,7 +1197,17 @@ class QuotexServiceMultiAsync:
 
             if await self._connect():
                 logger.info("Reconnection successful")
-                await self._subscribe_to_instruments()
+                symbols_to_refresh = self._active_symbols or Config.QUOTEX.assets
+                self._active_symbols = await self._resolve_active_symbols(
+                    symbols_to_refresh
+                )
+                if self._active_symbols:
+                    await self._subscribe_to_instruments(self._active_symbols)
+                else:
+                    logger.warning(
+                        "No active Quotex symbols after reconnection. "
+                        "Skipping subscriptions."
+                    )
                 attempt = 0
                 current_timeout = Config.RECONNECT_INITIAL_TIMEOUT
             else:

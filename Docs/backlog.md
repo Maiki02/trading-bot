@@ -68,6 +68,12 @@
     * Crear `test/test_quotex_candle.py`.
     * Verificar que el payload de Quotex se transforma correctamente al modelo `Candle`.
     * Edge cases: vela con volumen 0, timestamp en formato incorrecto.
+* **TASK-5.4: Hardening de realtime Quotex (timestamps/gap/dedupe/volumen).** ✅ *Completado el 29/03/2026*
+    * Separar reglas de timestamp realtime: `closed_ts` = penúltima vela del stream y `generating_ts` = última vela en formación.
+    * Ignorar payload de un solo punto para análisis/GAP (solo actualización de `generating_ts`).
+    * Activar detección de GAP solo después de establecer continuidad realtime post-bootstrap.
+    * Aplicar idempotencia estricta por `símbolo + timestamp` en flujo normal y en recuperación de GAP.
+    * Corregir mapeo OHLC/volumen realtime: sin fallback artificial a `1.0`; usar `0.0` cuando no hay volumen fiable.
 
 ---
 

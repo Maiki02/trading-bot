@@ -172,10 +172,17 @@ class TradingBot:
     
     def _handle_auth_failure(self) -> None:
         """
-        Callback invocado cuando falla la autenticación con TradingView.
+        Callback invocado cuando falla la autenticacion con el proveedor activo.
         """
         log_critical_auth_failure(logger)
-        logger.critical("🚨 Bot cannot continue. Please update TV_SESSION_ID and restart.")
+        if Config.DATA_PROVIDER == "TRADINGVIEW":
+            logger.critical("🚨 Bot cannot continue. Please check TV_SESSION_ID and restart.")
+        elif Config.DATA_PROVIDER == "QUOTEX":
+            logger.critical("🚨 Bot cannot continue. Please check QUOTEX_EMAIL/QUOTEX_PASSWORD and restart.")
+        elif Config.DATA_PROVIDER == "IQOPTION":
+            logger.critical("🚨 Bot cannot continue. Please check IQ_OPTION_USER/IQ_OPTION_PASS and restart.")
+        else:
+            logger.critical("🚨 Bot cannot continue due to provider authentication failure.")
         
         # Detener el bot
         asyncio.create_task(self.stop())
