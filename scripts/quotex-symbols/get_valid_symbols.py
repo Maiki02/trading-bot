@@ -13,12 +13,26 @@ import argparse
 import asyncio
 import json
 import os
+import sys
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 from dotenv import load_dotenv
+
+
+def _prefer_local_pyquotex_clone() -> None:
+    """Prepend sibling local pyquotex clone to sys.path when available."""
+
+    project_root = Path(__file__).resolve().parents[2]
+    local_clone_root = project_root.parent / "pyquotex"
+    stable_api_file = local_clone_root / "pyquotex" / "stable_api.py"
+    if stable_api_file.exists() and str(local_clone_root) not in sys.path:
+        sys.path.insert(0, str(local_clone_root))
+
+
+_prefer_local_pyquotex_clone()
 from pyquotex.stable_api import Quotex
 
 
@@ -31,6 +45,16 @@ class ScriptConfig:
     auth_method: str
     ssid: str
     ws_debug: bool
+
+
+def _to_number(value: Any) -> int | float | None:
+    """Return numeric scalar values, otherwise None."""
+
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        return value
+    return None
 
 
 def _parse_bool(value: str, default: bool = False) -> bool:
@@ -80,33 +104,86 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-async def fetch_symbols(
+async def fetch_assets(
     client: Quotex,
     scope: str,
-) -> list[str]:
-    """Fetch symbols from Quotex according to selected scope."""
+) -> tuple[list[str], list[dict[str, Any]]]:
+    """Fetch symbols and rich asset metadata according to selected scope."""
 
     assets_map = await client.get_all_assets()
-    all_symbols = sorted(assets_map.keys())
+    if not isinstance(assets_map, dict):
+        return [], []
 
-    if scope == "all":
-        return all_symbols
+    payment_map_raw = client.get_payment()
+    payment_map = payment_map_raw if isinstance(payment_map_raw, dict) else {}
 
-    open_symbols: list[str] = []
+    all_symbols = sorted(str(symbol) for symbol in assets_map.keys())
+    assets: list[dict[str, Any]] = []
+
     for symbol in all_symbols:
+        asset_id: str | int | None = assets_map.get(symbol)
+        asset_name: str | None = None
+        is_open: bool | None = None
+
         try:
             _, asset_data = await client.get_available_asset(symbol, force_open=False)
-            is_open = bool(asset_data and len(asset_data) > 2 and asset_data[2])
-            if is_open:
-                open_symbols.append(symbol)
+            if isinstance(asset_data, (list, tuple)):
+                if len(asset_data) > 0 and asset_data[0] not in (None, ""):
+                    asset_id = asset_data[0]
+                if len(asset_data) > 1 and asset_data[1] not in (None, ""):
+                    asset_name = str(asset_data[1])
+                if len(asset_data) > 2:
+                    is_open = bool(asset_data[2])
         except Exception:
-            # Skip noisy assets and keep processing the rest.
+            # Keep metadata best-effort and continue processing.
+            pass
+
+        payment_entry_raw = None
+        if asset_name and isinstance(payment_map.get(asset_name), dict):
+            payment_entry_raw = payment_map.get(asset_name)
+        elif isinstance(payment_map.get(symbol), dict):
+            payment_entry_raw = payment_map.get(symbol)
+
+        payment_entry = payment_entry_raw if isinstance(payment_entry_raw, dict) else {}
+        profit_map_raw = payment_entry.get("profit")
+        profit_map = profit_map_raw if isinstance(profit_map_raw, dict) else {}
+
+        profit_24h = None
+        try:
+            payout_raw = client.get_payout_by_asset(symbol, timeframe="all")
+            if isinstance(payout_raw, dict):
+                profit_24h = _to_number(payout_raw.get("24H"))
+        except Exception:
+            # Older pyquotex versions may fail for unsupported assets.
+            pass
+
+        asset_payload: dict[str, Any] = {
+            "id": asset_id,
+            "symbol": symbol,
+            "name": asset_name,
+            "open": is_open,
+            "payment": _to_number(payment_entry.get("payment")),
+            "turbo_payment": _to_number(payment_entry.get("turbo_payment")),
+            "profit_24h": profit_24h,
+            "profit_1m": _to_number(profit_map.get("1M")),
+            "profit_5m": _to_number(profit_map.get("5M")),
+        }
+
+        if scope == "open" and not bool(asset_payload.get("open")):
             continue
 
-    return sorted(open_symbols)
+        assets.append(asset_payload)
+
+    symbols = [asset["symbol"] for asset in assets]
+    return symbols, assets
 
 
-def write_outputs(output_dir: Path, scope: str, symbols: list[str]) -> tuple[Path, Path]:
+def write_outputs(
+    output_dir: Path,
+    scope: str,
+    symbols: list[str],
+    assets: list[dict[str, Any]],
+) -> tuple[Path, Path]:
     """Write JSON and TXT outputs and return file paths."""
 
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -117,6 +194,7 @@ def write_outputs(output_dir: Path, scope: str, symbols: list[str]) -> tuple[Pat
         "scope": scope,
         "count": len(symbols),
         "symbols": symbols,
+        "assets": assets,
     }
 
     json_path = output_dir / f"valid_symbols_{scope}_{timestamp}.json"
@@ -158,8 +236,8 @@ async def run(args: argparse.Namespace) -> int:
         connected = True
         await client.change_account(args.account_mode)
 
-        symbols = await fetch_symbols(client, scope=args.scope)
-        json_path, txt_path = write_outputs(Path(args.output_dir), args.scope, symbols)
+        symbols, assets = await fetch_assets(client, scope=args.scope)
+        json_path, txt_path = write_outputs(Path(args.output_dir), args.scope, symbols, assets)
 
         print(f"symbols_found: {len(symbols)}")
         print(f"json_output: {json_path}")
