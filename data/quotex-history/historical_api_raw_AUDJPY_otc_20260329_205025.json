@@ -1,0 +1,77 @@
+{
+  "generated_at_utc": "2026-03-29T20:50:25.794857+00:00",
+  "requested_symbol": "AUDJPY_otc",
+  "requested_asset_id": 69,
+  "resolved_symbol": "AUDJPY_otc",
+  "resolved_asset_id": 69,
+  "method_requested": "GET_CANDLES_API",
+  "method_used": "GET_CANDLES_API",
+  "method_attempts": [
+    {
+      "method": "GET_CANDLES_API",
+      "timed_out": true,
+      "error": "get_candles timed out after 20 seconds",
+      "error_category": "GET_CANDLES_TIMEOUT",
+      "normalized_ohlc_count": 0,
+      "request_metadata": {
+        "period": 60,
+        "end_from_time": 1774817405,
+        "offset": 600,
+        "timeout_seconds": 20
+      },
+      "diagnostics_summary": {
+        "type": "dict",
+        "keys": [
+          "asset_name",
+          "asset_is_open",
+          "balance_check"
+        ],
+        "inferred_count": null,
+        "first": null,
+        "last": null
+      },
+      "payload_summary": {
+        "type": "NoneType",
+        "value": null
+      }
+    }
+  ],
+  "connection": {
+    "auth_method": "CREDENTIALS",
+    "strategy_requested": "AUTO",
+    "effective_phase": "persisted",
+    "attempts": [
+      {
+        "phase": "persisted",
+        "attempt": 1,
+        "success": true,
+        "message": "Websocket connected successfully!!!",
+        "category": null
+      }
+    ]
+  },
+  "request": {
+    "period": 60,
+    "end_from_time": 1774817405,
+    "offset": 600
+  },
+  "request_metadata": {
+    "period": 60,
+    "end_from_time": 1774817405,
+    "offset": 600,
+    "timeout_seconds": 20
+  },
+  "timed_out": true,
+  "error": "get_candles timed out after 20 seconds",
+  "error_category": "GET_CANDLES_TIMEOUT",
+  "diagnostics": {
+    "asset_name": "AUDJPY_otc",
+    "asset_is_open": true,
+    "balance_check": true
+  },
+  "payload_summary": {
+    "type": "NoneType",
+    "value": null
+  },
+  "payload": null
+}

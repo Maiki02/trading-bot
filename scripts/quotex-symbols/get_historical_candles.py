@@ -1,7 +1,7 @@
 ﻿"""Fetch historical Quotex candles for one symbol configured in .env.
 
-This utility uses pyquotex connection/login and sends raw websocket events
-through library internals to retrieve historical data.
+This utility authenticates with the local pyquotex clone and retrieves
+historical candles through the official ``get_candles`` API.
 """
 
 from __future__ import annotations
@@ -14,9 +14,8 @@ import sys
 import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from inspect import isawaitable
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 from dotenv import load_dotenv
 import pandas as pd
@@ -24,6 +23,10 @@ import pandas as pd
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
+
+LOCAL_PYQUOTEX_ROOT = Path(__file__).resolve().parents[3] / "pyquotex"
+if str(LOCAL_PYQUOTEX_ROOT) not in sys.path:
+    sys.path.insert(0, str(LOCAL_PYQUOTEX_ROOT))
 
 from pyquotex.stable_api import Quotex
 
@@ -42,7 +45,6 @@ class ScriptConfig:
     ws_debug: bool
     account_mode: str
     symbol: str
-    asset_id: int | None
     candles_count: int
     output_dir: str
     request_timeout_seconds: int
@@ -51,7 +53,6 @@ class ScriptConfig:
     session_strategy: str
     connect_retries: int
     connect_retry_delay_seconds: float
-    ws_poll_interval_seconds: float
 
 
 @dataclass(frozen=True)
@@ -71,7 +72,6 @@ class FetchResult:
 
     method_used: str
     resolved_symbol: str
-    resolved_asset_id: int | None
     end_from_time: int
     offset: int
     period: int
@@ -98,8 +98,6 @@ def load_config() -> ScriptConfig:
 
     candles_count_raw = os.getenv("QUOTEX_HISTORY_CANDLES", "150").strip()
     candles_count = int(candles_count_raw) if candles_count_raw else 150
-    asset_id_raw = os.getenv("QUOTEX_HISTORY_ASSET_ID", "").strip()
-    asset_id = int(asset_id_raw) if asset_id_raw else None
     session_strategy = os.getenv("QUOTEX_SESSION_STRATEGY", "AUTO").strip().upper() or "AUTO"
     if session_strategy not in {"AUTO", "PERSISTED_ONLY", "FRESH_ONLY"}:
         raise ValueError(
@@ -113,7 +111,6 @@ def load_config() -> ScriptConfig:
         ws_debug=_parse_bool(os.getenv("QUOTEX_WS_DEBUG", "false"), default=False),
         account_mode=os.getenv("QUOTEX_HISTORY_ACCOUNT_MODE", "PRACTICE").strip().upper() or "PRACTICE",
         symbol=os.getenv("QUOTEX_HISTORY_SYMBOL", "").strip(),
-        asset_id=asset_id,
         candles_count=max(candles_count, 1),
         output_dir=os.getenv("QUOTEX_HISTORY_OUTPUT_DIR", "data/quotex-history").strip() or "data/quotex-history",
         request_timeout_seconds=max(int(os.getenv("QUOTEX_REQUEST_TIMEOUT", "20")), 1),
@@ -125,7 +122,6 @@ def load_config() -> ScriptConfig:
             float(os.getenv("QUOTEX_CONNECT_RETRY_DELAY_SECONDS", "2")),
             0.1,
         ),
-        ws_poll_interval_seconds=max(float(os.getenv("QUOTEX_WS_POLL_INTERVAL_SECONDS", "0.2")), 0.05),
     )
 
 
@@ -239,10 +235,6 @@ def build_credentials_client(
             "cookies": persisted_session["cookies"] or None,
             "token": persisted_session["token"],
         }
-        print("session_bootstrap: loaded persisted session from session.json")
-    elif phase == "fresh":
-        # Fresh mode intentionally avoids bootstrap to force new browser-like cookies/headers.
-        print("session_bootstrap: skipped (fresh credentials login)")
 
     client.debug_ws_enable = config.ws_debug
     client.set_account_mode(config.account_mode)
@@ -298,16 +290,13 @@ async def try_connect_phase(
                 }
             )
 
-            print(
-                f"connect_phase: {phase} attempt={attempt}/{config.connect_retries} "
-                f"success={success} message={message_text}"
-            )
-
             if success and not token_rejected:
                 await client.change_account(config.account_mode)
                 assets_map = await client.get_all_assets()
-                print(f"assets_map_loaded: {len(assets_map)}")
-                print(f"account_mode: {config.account_mode}")
+                print(
+                    f"connect_phase_ok: phase={phase} attempts={attempt} "
+                    f"account_mode={config.account_mode} assets={len(assets_map)}"
+                )
                 return client, attempts, None
 
             if client is not None:
@@ -315,7 +304,6 @@ async def try_connect_phase(
 
             if attempt < config.connect_retries:
                 delay = config.connect_retry_delay_seconds * (2 ** (attempt - 1))
-                print(f"connect_backoff: phase={phase} wait_seconds={delay:.2f}")
                 await asyncio.sleep(delay)
         except Exception as exc:
             error_message = str(exc)
@@ -328,16 +316,11 @@ async def try_connect_phase(
                     "category": classify_connection_failure(error_message),
                 }
             )
-            print(
-                f"connect_phase_exception: phase={phase} attempt={attempt}/{config.connect_retries} "
-                f"error={error_message}"
-            )
             if client is not None:
                 await client.close()
 
             if attempt < config.connect_retries:
                 delay = config.connect_retry_delay_seconds * (2 ** (attempt - 1))
-                print(f"connect_backoff: phase={phase} wait_seconds={delay:.2f}")
                 await asyncio.sleep(delay)
 
     last_message = attempts[-1]["message"] if attempts else "unknown connection failure"
@@ -405,39 +388,6 @@ async def connect_with_session_strategy(config: ScriptConfig) -> ConnectionResul
     raise RuntimeError(f"{last_category}: {last_message}")
 
 
-async def resolve_symbol(client: Quotex, requested_symbol: str, timeout_seconds: int) -> str:
-    """Resolve the exact asset name through pyquotex without auto-fallback to OTC."""
-
-    asset_name, asset_data = await asyncio.wait_for(
-        client.get_available_asset(requested_symbol, force_open=False),
-        timeout=timeout_seconds,
-    )
-    is_open = bool(asset_data and len(asset_data) > 2 and asset_data[2])
-    print(f"asset_resolution: requested={requested_symbol} resolved={asset_name} is_open={is_open}")
-    return asset_name or requested_symbol
-
-
-async def ensure_assets_map(client: Quotex, timeout_seconds: int) -> dict[str, int]:
-    """Ensure client.codes_asset is loaded and return a normalized symbol->asset_id map."""
-
-    if not client.codes_asset:
-        await asyncio.wait_for(client.get_all_assets(), timeout=timeout_seconds)
-
-    normalized: dict[str, int] = {}
-    for symbol, raw_asset_id in client.codes_asset.items():
-        try:
-            normalized[str(symbol)] = int(raw_asset_id)
-        except (TypeError, ValueError):
-            continue
-    return normalized
-
-
-def invert_assets_map(assets_map: dict[str, int]) -> dict[int, str]:
-    """Build an asset_id->symbol map from a symbol->asset_id map."""
-
-    return {asset_id: symbol for symbol, asset_id in assets_map.items()}
-
-
 def summarize_payload(payload: Any) -> dict[str, Any]:
     """Create a compact, printable summary for raw API payloads."""
 
@@ -480,258 +430,10 @@ def summarize_payload(payload: Any) -> dict[str, Any]:
     }
 
 
-def _parse_event_frame(frame: str) -> tuple[str, Any] | None:
-    """Parse socket.io event frame 42[...] into event and payload."""
+def build_payload_summary(payload: Any) -> dict[str, Any]:
+    """Build compact diagnostics summary for API payloads."""
 
-    if not frame.startswith("42"):
-        return None
-
-    try:
-        payload = json.loads(frame[2:])
-    except json.JSONDecodeError:
-        return None
-
-    if not isinstance(payload, list) or not payload:
-        return None
-
-    event_name = payload[0]
-    if not isinstance(event_name, str):
-        return None
-
-    event_payload = payload[1] if len(payload) > 1 else None
-    return event_name, event_payload
-
-
-def _extract_history_from_object(payload: Any) -> tuple[str | None, Any]:
-    """Try extracting history payload from arbitrary pyquotex state objects."""
-
-    if isinstance(payload, str):
-        event = _parse_event_frame(payload)
-        if event and event[0] in {"history/list", "history/list/v2"}:
-            return event[0], event[1]
-        return None, None
-
-    if isinstance(payload, dict):
-        for key in ("history/list", "history/list/v2"):
-            if key in payload:
-                return key, payload[key]
-
-        event_name = payload.get("name")
-        if isinstance(event_name, str) and event_name in {"history/list", "history/list/v2"}:
-            if "msg" in payload:
-                return event_name, payload["msg"]
-            if "message" in payload:
-                return event_name, payload["message"]
-            if "payload" in payload:
-                return event_name, payload["payload"]
-
-    if isinstance(payload, (list, tuple)):
-        for item in reversed(list(payload)[-50:]):
-            event_name, event_payload = _extract_history_from_object(item)
-            if event_name:
-                return event_name, event_payload
-
-    return None, None
-
-
-def _history_candidates(client: Quotex) -> list[tuple[str, Any]]:
-    """Collect likely pyquotex in-memory stores that may contain history events."""
-
-    candidates: list[tuple[str, Any]] = []
-    api = getattr(client, "api", None)
-
-    explicit_paths = [
-        ("client.history", getattr(client, "history", None)),
-        ("client.history_data", getattr(client, "history_data", None)),
-        ("client.history_list", getattr(client, "history_list", None)),
-        ("client.candles_data", getattr(client, "candles_data", None)),
-        ("client.api.history", getattr(api, "history", None) if api is not None else None),
-        ("client.api.history_data", getattr(api, "history_data", None) if api is not None else None),
-        ("client.api.history_list", getattr(api, "history_list", None) if api is not None else None),
-        ("client.api.candles_data", getattr(api, "candles_data", None) if api is not None else None),
-        (
-            "client.api.websocket_client",
-            getattr(api, "websocket_client", None) if api is not None else None,
-        ),
-    ]
-    candidates.extend((name, value) for name, value in explicit_paths if value is not None)
-
-    for root_name, root in (("client", client), ("client.api", api)):
-        if root is None:
-            continue
-
-        for attr_name in dir(root):
-            if attr_name.startswith("__"):
-                continue
-            lowered = attr_name.lower()
-            if not any(
-                token in lowered
-                for token in ("history", "candle", "event", "queue", "message", "ws")
-            ):
-                continue
-
-            try:
-                value = getattr(root, attr_name)
-            except Exception:
-                continue
-
-            if callable(value):
-                continue
-
-            candidates.append((f"{root_name}.{attr_name}", value))
-
-    return candidates
-
-
-async def _resolve_send_callable(client: Quotex) -> tuple[str, Callable[..., Any]]:
-    """Resolve pyquotex internal sender for raw websocket events."""
-
-    client_sender = getattr(client, "send_websocket_request", None)
-    if callable(client_sender):
-        return "client.send_websocket_request", client_sender
-
-    api = getattr(client, "api", None)
-    api_sender = getattr(api, "send_websocket_request", None) if api is not None else None
-    if callable(api_sender):
-        return "client.api.send_websocket_request", api_sender
-
-    raise RuntimeError("pyquotex sender not found (send_websocket_request unavailable)")
-
-
-async def _send_raw_event(
-    sender_name: str,
-    sender: Callable[..., Any],
-    event_name: str,
-    event_payload: dict[str, Any],
-) -> dict[str, Any]:
-    """Send one raw websocket event trying compatible pyquotex signatures."""
-
-    attempts: list[dict[str, Any]] = []
-    send_variants: list[tuple[str, tuple[Any, ...], dict[str, Any]]] = [
-        ("positional_name_payload", (event_name, event_payload), {}),
-        ("positional_name_payload_request_id", (event_name, event_payload, ""), {}),
-        ("keyword_name_msg", (), {"name": event_name, "msg": event_payload}),
-        ("keyword_event_payload", (), {"event": event_name, "payload": event_payload}),
-    ]
-
-    for variant_name, args, kwargs in send_variants:
-        try:
-            result = sender(*args, **kwargs)
-            if isawaitable(result):
-                result = await result
-
-            attempts.append(
-                {
-                    "variant": variant_name,
-                    "ok": True,
-                    "sender": sender_name,
-                    "event": event_name,
-                    "return_type": type(result).__name__,
-                    "returned_value": result,
-                    "error": None,
-                }
-            )
-            return {
-                "ok": True,
-                "attempts": attempts,
-            }
-        except Exception as exc:
-            attempts.append(
-                {
-                    "variant": variant_name,
-                    "ok": False,
-                    "sender": sender_name,
-                    "event": event_name,
-                    "return_type": None,
-                    "returned_value": None,
-                    "error": str(exc),
-                }
-            )
-
-    return {
-        "ok": False,
-        "attempts": attempts,
-    }
-
-
-async def _poll_history_response(
-    client: Quotex,
-    timeout_seconds: int,
-    poll_interval_seconds: float,
-) -> dict[str, Any]:
-    """Poll pyquotex memory/event stores for history/list or history/list/v2."""
-
-    started_at = time.monotonic()
-    snapshots_checked = 0
-    last_candidates: list[str] = []
-
-    while (time.monotonic() - started_at) < timeout_seconds:
-        candidates = _history_candidates(client)
-        last_candidates = [name for name, _ in candidates[:25]]
-        snapshots_checked += len(candidates)
-
-        for source_name, source_payload in candidates:
-            event_name, event_payload = _extract_history_from_object(source_payload)
-            if event_name:
-                return {
-                    "found": True,
-                    "event": event_name,
-                    "payload": event_payload,
-                    "source": source_name,
-                    "timed_out": False,
-                    "snapshots_checked": snapshots_checked,
-                    "candidates_sample": last_candidates,
-                }
-
-        await asyncio.sleep(poll_interval_seconds)
-
-    return {
-        "found": False,
-        "event": None,
-        "payload": None,
-        "source": None,
-        "timed_out": True,
-        "snapshots_checked": snapshots_checked,
-        "candidates_sample": last_candidates,
-    }
-
-
-def print_payload_diagnostics(payload: Any) -> dict[str, Any]:
-    """Print a visible diagnostics summary for raw websocket payloads."""
-
-    summary = summarize_payload(payload)
-    print("api_payload_method: ws_stream")
-    print(f"api_payload_summary: {json.dumps(summary, ensure_ascii=False, default=str)}")
-    return summary
-
-
-async def resolve_requested_asset(
-    client: Quotex,
-    requested_symbol: str,
-    requested_asset_id: int | None,
-    timeout_seconds: int,
-) -> tuple[str, int | None]:
-    """Resolve the target symbol and asset id from symbol or optional env asset id."""
-
-    assets_map = await ensure_assets_map(client, timeout_seconds)
-    id_to_symbol = invert_assets_map(assets_map)
-
-    if requested_asset_id is not None:
-        symbol_from_id = id_to_symbol.get(requested_asset_id)
-        if not symbol_from_id:
-            raise ValueError(
-                f"QUOTEX_HISTORY_ASSET_ID={requested_asset_id} was not found in assets map"
-            )
-        resolved_symbol = await resolve_symbol(client, symbol_from_id, timeout_seconds)
-        resolved_asset_id = assets_map.get(resolved_symbol, requested_asset_id)
-        return resolved_symbol, resolved_asset_id
-
-    if not requested_symbol:
-        raise ValueError("Missing QUOTEX_HISTORY_SYMBOL in .env")
-
-    resolved_symbol = await resolve_symbol(client, requested_symbol, timeout_seconds)
-    resolved_asset_id = assets_map.get(resolved_symbol)
-    return resolved_symbol, resolved_asset_id
+    return summarize_payload(payload)
 
 
 def normalize_history_payload(payload: Any) -> list[dict[str, Any]]:
@@ -801,144 +503,78 @@ def normalize_history_payload(payload: Any) -> list[dict[str, Any]]:
     return normalized
 
 
-async def fetch_raw_history_via_lib_ws(
+async def fetch_candles_via_get_candles(
     client: Quotex,
-    requested_symbol: str,
-    requested_asset_id: int | None,
-    candles_count: int,
-    request_timeout_seconds: int,
-    poll_interval_seconds: float,
+    config: ScriptConfig,
 ) -> FetchResult:
-    """Fetch historical payload sending raw events via pyquotex internals."""
+    """Fetch historical candles using client.get_candles() official API."""
 
     period = 60
     end_from_time = int(time.time())
-    offset = 100 #candles_count * period
-    resolved_symbol = requested_symbol or "UNKNOWN"
-    resolved_asset_id = requested_asset_id
-    method_used = "RAW_HISTORY_LOAD_VIA_LIB_WS"
+    offset = config.candles_count * period
+    resolved_symbol = config.symbol or "UNKNOWN"
+    method_used = "GET_CANDLES_API"
 
-    diagnostics: dict[str, Any] = {
-        "sender": None,
-        "events": {},
-        "poll": None,
+    diagnostics: dict[str, Any] = {}
+    request_metadata: dict[str, Any] = {
+        "period": period,
+        "end_from_time": end_from_time,
+        "offset": offset,
+        "timeout_seconds": config.request_timeout_seconds,
     }
-    raw_payload: Any = None
-    request_metadata: dict[str, Any] = {}
 
     try:
-        resolved_symbol, resolved_asset_id = await resolve_requested_asset(
-            client,
-            requested_symbol=requested_symbol,
-            requested_asset_id=requested_asset_id,
-            timeout_seconds=request_timeout_seconds,
+        asset_name, asset_data = await asyncio.wait_for(
+            client.get_available_asset(config.symbol, force_open=True),
+            timeout=config.request_timeout_seconds,
         )
-
-        request_payload = {
-            "asset": resolved_symbol,
-            "index": end_from_time,
-            "time": end_from_time,
-            "offset": offset,
-            "period": period,
-        }
-        request_metadata = {
-            "event": "history/load",
-            "payload": request_payload,
-            "context_events": ["instruments/update", "depth/follow"],
-            "ws_timeout_seconds": request_timeout_seconds,
-            "ws_poll_interval_seconds": poll_interval_seconds,
-        }
+        resolved_symbol = asset_name or config.symbol or "UNKNOWN"
+        is_open = bool(asset_data and len(asset_data) > 2 and asset_data[2])
+        diagnostics["asset_name"] = resolved_symbol
+        diagnostics["asset_is_open"] = is_open
 
         print(
-            f"historical_request: symbol={resolved_symbol} candles={candles_count} "
+            f"asset_resolved: requested={config.symbol} resolved={resolved_symbol} is_open={is_open}"
+        )
+
+        if not is_open:
+            print(f"asset_warning: {resolved_symbol} is currently closed, continuing anyway")
+
+        print(
+            f"historical_request: symbol={resolved_symbol} candles={config.candles_count} "
             f"period={period} offset={offset} method={method_used}"
         )
 
-        sender_name, sender = await _resolve_send_callable(client)
-        diagnostics["sender"] = sender_name
-
-        context_instruments = await _send_raw_event(
-            sender_name,
-            sender,
-            "instruments/update",
-            {"asset": resolved_symbol},
+        candles = await asyncio.wait_for(
+            client.get_candles(resolved_symbol, end_from_time, offset, period),
+            timeout=config.request_timeout_seconds,
         )
-        diagnostics["events"]["instruments/update"] = context_instruments
 
-        context_depth = await _send_raw_event(
-            sender_name,
-            sender,
-            "depth/follow",
-            {"asset": resolved_symbol},
-        )
-        diagnostics["events"]["depth/follow"] = context_depth
-
-        history_send = await _send_raw_event(
-            sender_name,
-            sender,
-            "history/load",
-            request_payload,
-        )
-        diagnostics["events"]["history/load"] = history_send
-
-        if not bool(history_send.get("ok")):
+        if not candles:
             return FetchResult(
                 method_used=method_used,
                 resolved_symbol=resolved_symbol,
-                resolved_asset_id=resolved_asset_id,
                 end_from_time=end_from_time,
                 offset=offset,
                 period=period,
                 request_metadata=request_metadata,
-                payload=raw_payload,
+                payload=candles,
                 diagnostics=diagnostics,
                 timed_out=False,
-                error_message="history/load send failed via send_websocket_request",
-                error_category="RAW_WS_SEND_ERROR",
-            )
-
-        poll_result = await _poll_history_response(
-            client=client,
-            timeout_seconds=request_timeout_seconds,
-            poll_interval_seconds=poll_interval_seconds,
-        )
-        diagnostics["poll"] = {
-            "found": poll_result["found"],
-            "event": poll_result["event"],
-            "source": poll_result["source"],
-            "timed_out": poll_result["timed_out"],
-            "snapshots_checked": poll_result["snapshots_checked"],
-            "candidates_sample": poll_result["candidates_sample"],
-        }
-        raw_payload = poll_result["payload"]
-
-        if not poll_result["found"]:
-            return FetchResult(
-                method_used=method_used,
-                resolved_symbol=resolved_symbol,
-                resolved_asset_id=resolved_asset_id,
-                end_from_time=end_from_time,
-                offset=offset,
-                period=period,
-                request_metadata=request_metadata,
-                payload=raw_payload,
-                diagnostics=diagnostics,
-                timed_out=bool(poll_result["timed_out"]),
-                error_message="history/list response not found in pyquotex internal stores",
-                error_category="RAW_WS_TIMEOUT" if poll_result["timed_out"] else "RAW_WS_NO_RESPONSE",
+                error_message="get_candles returned empty or None response",
+                error_category="GET_CANDLES_EMPTY",
             )
 
         return FetchResult(
             method_used=method_used,
             resolved_symbol=resolved_symbol,
-            resolved_asset_id=resolved_asset_id,
             end_from_time=end_from_time,
             offset=offset,
             period=period,
             request_metadata=request_metadata,
-            payload=raw_payload,
+            payload=candles,
             diagnostics=diagnostics,
-            timed_out=bool(diagnostics.get("poll", {}).get("timed_out", False)),
+            timed_out=False,
             error_message=None,
             error_category=None,
         )
@@ -946,31 +582,29 @@ async def fetch_raw_history_via_lib_ws(
         return FetchResult(
             method_used=method_used,
             resolved_symbol=resolved_symbol,
-            resolved_asset_id=resolved_asset_id,
             end_from_time=end_from_time,
             offset=offset,
             period=period,
             request_metadata=request_metadata,
-            payload=raw_payload,
+            payload=None,
             diagnostics=diagnostics,
             timed_out=True,
-            error_message=f"raw history poll timed out after {request_timeout_seconds} seconds",
-            error_category="RAW_WS_TIMEOUT",
+            error_message=f"get_candles timed out after {config.request_timeout_seconds} seconds",
+            error_category="GET_CANDLES_TIMEOUT",
         )
     except Exception as exc:
         return FetchResult(
             method_used=method_used,
             resolved_symbol=resolved_symbol,
-            resolved_asset_id=resolved_asset_id,
             end_from_time=end_from_time,
             offset=offset,
             period=period,
             request_metadata=request_metadata,
-            payload=raw_payload,
+            payload=None,
             diagnostics=diagnostics,
             timed_out=False,
-            error_message=f"raw history request failed: {str(exc)}",
-            error_category="RAW_WS_ERROR",
+            error_message=f"get_candles failed: {str(exc)}",
+            error_category="GET_CANDLES_ERROR",
         )
 
 
@@ -993,7 +627,6 @@ def write_api_raw_output(
     output_dir: Path,
     fetch_result: FetchResult,
     requested_symbol: str,
-    requested_asset_id: int | None,
     connection_result: ConnectionResult,
     method_requested: str,
     method_attempts: list[dict[str, Any]],
@@ -1005,13 +638,11 @@ def write_api_raw_output(
     safe_symbol = fetch_result.resolved_symbol.replace("/", "_")
     output_path = output_dir / f"historical_api_raw_{safe_symbol}_{timestamp}.json"
 
-    payload_summary = print_payload_diagnostics(fetch_result.payload)
+    payload_summary = build_payload_summary(fetch_result.payload)
     api_raw_payload = {
         "generated_at_utc": datetime.now(timezone.utc).isoformat(),
         "requested_symbol": requested_symbol,
-        "requested_asset_id": requested_asset_id,
         "resolved_symbol": fetch_result.resolved_symbol,
-        "resolved_asset_id": fetch_result.resolved_asset_id,
         "method_requested": method_requested,
         "method_used": fetch_result.method_used,
         "method_attempts": method_attempts,
@@ -1044,9 +675,7 @@ def write_api_raw_output(
 def write_ohlc_outputs(
     output_dir: Path,
     symbol: str,
-    asset_id: int | None,
     requested_symbol: str,
-    requested_asset_id: int | None,
     raw_candles: list[dict[str, Any]],
     normalized_candles: list[CandleData],
     chart_lookback: int,
@@ -1064,10 +693,8 @@ def write_ohlc_outputs(
     raw_payload = {
         "generated_at_utc": datetime.now(timezone.utc).isoformat(),
         "symbol": symbol,
-        "asset_id": asset_id,
         "method_used": method_used,
         "requested_symbol": requested_symbol,
-        "requested_asset_id": requested_asset_id,
         "count": len(raw_candles),
         "candles": raw_candles,
     }
@@ -1123,14 +750,7 @@ async def run() -> int:
         connection_result = await connect_with_session_strategy(config)
         client = connection_result.client
 
-        fetch_result = await fetch_raw_history_via_lib_ws(
-            client,
-            requested_symbol=config.symbol,
-            requested_asset_id=config.asset_id,
-            candles_count=config.candles_count,
-            request_timeout_seconds=config.request_timeout_seconds,
-            poll_interval_seconds=config.ws_poll_interval_seconds,
-        )
+        fetch_result = await fetch_candles_via_get_candles(client, config)
         raw_candles = normalize_history_payload(fetch_result.payload)
         method_attempts = [build_attempt_diagnostics(fetch_result, len(raw_candles))]
 
@@ -1138,16 +758,15 @@ async def run() -> int:
             Path(config.output_dir),
             fetch_result,
             config.symbol,
-            config.asset_id,
             connection_result,
-            "RAW_HISTORY_LOAD_VIA_LIB_WS",
+            "GET_CANDLES_API",
             method_attempts,
         )
         print(f"api_raw_output_file: {api_raw_output_path}")
 
         if fetch_result.error_message:
-            if fetch_result.error_category in {"RAW_WS_ERROR", "RAW_WS_SEND_ERROR"}:
-                print(f"error_raw_ws: {fetch_result.error_message}")
+            if fetch_result.error_category in {"GET_CANDLES_ERROR", "GET_CANDLES_TIMEOUT"}:
+                print(f"error_get_candles: {fetch_result.error_message}")
             else:
                 print(f"error_historical_fetch: {fetch_result.error_message}")
 
@@ -1157,8 +776,8 @@ async def run() -> int:
                 for attempt in method_attempts
             ]
             attempts_text = " | ".join(attempt_errors) if attempt_errors else "no attempts"
-            print(f"error_raw_ws_failed: {attempts_text}")
-            print("no_ohlc_response: raw ws history did not return valid OHLC data")
+            print(f"error_get_candles_failed: {attempts_text}")
+            print("no_ohlc_response: get_candles did not return valid OHLC data")
             return 1
 
         raw_candles = raw_candles[-config.candles_count :]
@@ -1170,9 +789,7 @@ async def run() -> int:
         raw_output_path, normalized_output_path, chart_output_path = write_ohlc_outputs(
             Path(config.output_dir),
             fetch_result.resolved_symbol,
-            fetch_result.resolved_asset_id,
             config.symbol,
-            config.asset_id,
             raw_candles,
             normalized_candles,
             config.chart_lookback,
@@ -1180,16 +797,11 @@ async def run() -> int:
         )
         print(f"candles_found: {len(raw_candles)}")
         print(f"requested_symbol: {config.symbol or '<empty>'}")
-        print(f"requested_asset_id: {config.asset_id}")
         print(f"resolved_symbol: {fetch_result.resolved_symbol}")
-        print(f"resolved_asset_id: {fetch_result.resolved_asset_id}")
         print(f"historical_method_used: {fetch_result.method_used}")
         print(f"raw_output_file: {raw_output_path}")
         print(f"candle_data_output_file: {normalized_output_path}")
         print(f"chart_output_file: {chart_output_path}")
-        if normalized_candles:
-            print(f"first_candle: {normalized_candles[0]}")
-            print(f"last_candle: {normalized_candles[-1]}")
         return 0
     except KeyboardInterrupt:
         print("Interrupted by user.")
@@ -1201,7 +813,7 @@ async def run() -> int:
             print(f"error_auth_session: {failure_text}")
         else:
             print(f"error_connection: {failure_text}")
-        print("no_ohlc_response: ws_stream did not return OHLC data")
+        print("no_ohlc_response: get_candles did not return OHLC data")
         return 1
     finally:
         if client is not None:
