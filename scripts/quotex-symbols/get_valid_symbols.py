@@ -13,26 +13,12 @@ import argparse
 import asyncio
 import json
 import os
-import sys
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 from dotenv import load_dotenv
-
-
-def _prefer_local_pyquotex_clone() -> None:
-    """Prepend sibling local pyquotex clone to sys.path when available."""
-
-    project_root = Path(__file__).resolve().parents[2]
-    local_clone_root = project_root.parent / "pyquotex"
-    stable_api_file = local_clone_root / "pyquotex" / "stable_api.py"
-    if stable_api_file.exists() and str(local_clone_root) not in sys.path:
-        sys.path.insert(0, str(local_clone_root))
-
-
-_prefer_local_pyquotex_clone()
 from pyquotex.stable_api import Quotex
 
 

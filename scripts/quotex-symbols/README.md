@@ -86,9 +86,14 @@ El TXT sigue exportando solo simbolos (uno por linea) para integraciones legacy.
 
 ## Script de Historico
 
-Este utilitario autentica y solicita historico de velas japonesas usando `get_candles(period=60)` como unica ruta.
-Siempre guarda la respuesta cruda en JSON diagnostico para analisis, incluso cuando la normalizacion OHLC falla o hay timeout.
-Si la respuesta incluye OHLC valida, normaliza a `CandleData` y genera salidas de `raw`, `candle_data` y `chart`.
+Este utilitario autentica y solicita historico de velas japonesas usando siempre `WS_STREAM`:
+
+1. Inicia `start_candles_stream(symbol, period=60)`.
+2. Solicita bloque historico inicial con `get_candle_v2(symbol, period=60)`.
+3. Normaliza OHLC (`time/open/high/low/close/ticks`) y detiene el stream de forma segura.
+
+Siempre guarda respuesta cruda en JSON diagnostico para analisis, con `method_requested=WS_STREAM`, `method_used=GET_CANDLE_V2` y payload capturado.
+Si hay OHLC valida, normaliza a `CandleData` y genera salidas de `raw`, `candle_data` y `chart`.
 
 La conexion aplica una estrategia configurable por `.env`:
 
@@ -118,6 +123,12 @@ Modo urgente recomendado cuando hay sospecha de sesion stale/token bloqueado:
 $env:QUOTEX_SESSION_STRATEGY="FRESH_ONLY"
 $env:QUOTEX_CONNECT_RETRIES="3"
 $env:QUOTEX_CONNECT_RETRY_DELAY_SECONDS="2"
+c:/Users/Pc/Desktop/Proyectos/Personales/trading-bot/.venv/Scripts/python.exe scripts/quotex-symbols/get_historical_candles.py
+```
+
+Configurar polling websocket:
+
+```powershell
 c:/Users/Pc/Desktop/Proyectos/Personales/trading-bot/.venv/Scripts/python.exe scripts/quotex-symbols/get_historical_candles.py
 ```
 
@@ -156,12 +167,49 @@ Si `QUOTEX_HISTORY_ASSET_ID` esta definido, se usa primero y `QUOTEX_HISTORY_SYM
 
 ### Notas tecnicas
 
-- El script prioriza importar `pyquotex` desde el clone local `../pyquotex` cuando existe. Si no existe, usa la instalacion disponible en el entorno.
+- Los scripts usan import estandar desde `pyquotex.stable_api` (libreria instalada en el entorno).
 - La version abierta de `pyquotex` sigue limitada por lo que el broker devuelve por websocket. En issues publicos recientes el autor confirma el limite practico de `199` velas por request, por lo que `150` esta dentro del rango esperado.
 - Si `connect()` devuelve `success=True` pero el mensaje incluye `Token Rejected`, la sesion puede quedar degradada y la consulta de velas puede devolver vacio o timeout.
 - La otra forma de conexion soportada por la libreria es `QUOTEX_AUTH_METHOD=SESSION` usando `QUOTEX_SSID` con `set_session(...)`. Ademas, en modo `CREDENTIALS` este script intenta reutilizar la sesion persistida en `session.json` y reautenticar si pyquotex responde `Token Rejected`.
-- El JSON `historical_api_raw_*.json` incluye metadata de conexion (`strategy_requested`, `effective_phase`, intentos y categoria de error) para diagnosticar bloqueos de token/sesion vs timeout de `get_candles`.
-- `get_candles(period=60)` es la unica ruta usada por este script para obtener OHLC (sin mecanismos alternativos de consulta).
+- El JSON `historical_api_raw_*.json` incluye metadata de conexion (`strategy_requested`, `effective_phase`, intentos y categoria de error) para diagnosticar bloqueos de token/sesion.
+- `WS_STREAM` usa `get_candle_v2(period=60)` para capturar el bloque historico inicial y normalizar OHLC para el pipeline de `CandleData`.
 - Durante la captura se imprime resumen del payload crudo (`count`, `first`, `last`) para diagnostico rapido en consola.
-- Se exporta `historical_api_raw_*.json` con la respuesta cruda de `get_candles` para depuracion, incluso si no hubo OHLC valida.
+- Se exporta `historical_api_raw_*.json` con `method_used` real y payload capturado para depuracion, incluso si no hubo OHLC valida.
 - Limitacion conocida de este entorno: no se pudo ejecutar validacion con `py_compile` por falta/rotura del interprete Python disponible.
+
+## Raw WebSocket Historical Probe
+
+Diagnostico por conexion oficial de `pyquotex` + envio manual de evento `history/load` via sender interno (`send_websocket_request`), sin usar metodos historicos `get_candles/get_candle_v2/get_history_line`.
+
+Archivo:
+
+- `scripts/quotex-symbols/get_historical_candles_raw_ws.py`
+
+Ejecutar (PowerShell):
+
+```powershell
+$env:QUOTEX_HISTORY_SYMBOL="AUDJPY_otc"
+c:/Users/Pc/Desktop/Proyectos/Personales/trading-bot/.venv/Scripts/python.exe scripts/quotex-symbols/get_historical_candles_raw_ws.py
+```
+
+Variables usadas:
+
+- `QUOTEX_AUTH_METHOD` (`CREDENTIALS` o `SESSION`)
+- `QUOTEX_EMAIL`, `QUOTEX_PASSWORD`
+- `QUOTEX_SSID` (solo cuando `QUOTEX_AUTH_METHOD=SESSION`)
+- `QUOTEX_HISTORY_ACCOUNT_MODE` (default: `PRACTICE`)
+- `QUOTEX_WS_DEBUG` (default: `false`)
+- `QUOTEX_HISTORY_SYMBOL` (default: `AUDJPY_otc`)
+- `QUOTEX_HISTORY_OFFSET` (default: `3600`)
+- `QUOTEX_HISTORY_PERIOD` (default: `60`)
+- `QUOTEX_WS_TIMEOUT` (default: `20`)
+- `QUOTEX_WS_POLL_INTERVAL_SECONDS` (default: `0.2`)
+- `QUOTEX_HISTORY_OUTPUT_DIR` (default: `data/quotex-history`)
+
+Salida diagnostica JSON:
+
+- `method_used=RAW_HISTORY_LOAD_VIA_LIB_WS`
+- `auth_status` (resultado de `connect()`/`change_account(...)`)
+- `request` (payload enviado a `history/load`)
+- `history` (respuesta `history/list` o `history/list/v2` si aparece)
+- `diagnostics` (sender usado, intentos de envio, polling y timeout)

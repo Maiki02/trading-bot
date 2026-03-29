@@ -1,0 +1,161 @@
+{
+  "generated_at_utc": "2026-03-29T19:39:33.769443+00:00",
+  "requested_symbol": "AUDJPY_otc",
+  "requested_asset_id": 69,
+  "resolved_symbol": "AUDJPY_otc",
+  "resolved_asset_id": 69,
+  "method_requested": "RAW_HISTORY_LOAD_VIA_LIB_WS",
+  "method_used": "RAW_HISTORY_LOAD_VIA_LIB_WS",
+  "method_attempts": [
+    {
+      "method": "RAW_HISTORY_LOAD_VIA_LIB_WS",
+      "timed_out": true,
+      "error": "history/list response not found in pyquotex internal stores",
+      "error_category": "RAW_WS_TIMEOUT",
+      "normalized_ohlc_count": 0,
+      "request_metadata": {
+        "event": "history/load",
+        "payload": {
+          "asset": "AUDJPY_otc",
+          "index": 1774813153,
+          "time": 1774813153,
+          "offset": 100,
+          "period": 60
+        },
+        "context_events": [
+          "instruments/update",
+          "depth/follow"
+        ],
+        "ws_timeout_seconds": 20,
+        "ws_poll_interval_seconds": 0.2
+      },
+      "diagnostics_summary": {
+        "type": "dict",
+        "keys": [
+          "sender",
+          "events",
+          "poll"
+        ],
+        "inferred_count": null,
+        "first": null,
+        "last": null
+      },
+      "payload_summary": {
+        "type": "NoneType",
+        "value": null
+      }
+    }
+  ],
+  "connection": {
+    "auth_method": "CREDENTIALS",
+    "strategy_requested": "AUTO",
+    "effective_phase": "persisted",
+    "attempts": [
+      {
+        "phase": "persisted",
+        "attempt": 1,
+        "success": true,
+        "message": "Websocket connected successfully!!!",
+        "category": null
+      }
+    ]
+  },
+  "request": {
+    "period": 60,
+    "end_from_time": 1774813153,
+    "offset": 100
+  },
+  "request_metadata": {
+    "event": "history/load",
+    "payload": {
+      "asset": "AUDJPY_otc",
+      "index": 1774813153,
+      "time": 1774813153,
+      "offset": 100,
+      "period": 60
+    },
+    "context_events": [
+      "instruments/update",
+      "depth/follow"
+    ],
+    "ws_timeout_seconds": 20,
+    "ws_poll_interval_seconds": 0.2
+  },
+  "timed_out": true,
+  "error": "history/list response not found in pyquotex internal stores",
+  "error_category": "RAW_WS_TIMEOUT",
+  "diagnostics": {
+    "sender": "client.api.send_websocket_request",
+    "events": {
+      "instruments/update": {
+        "ok": true,
+        "attempts": [
+          {
+            "variant": "positional_name_payload",
+            "ok": true,
+            "sender": "client.api.send_websocket_request",
+            "event": "instruments/update",
+            "return_type": "NoneType",
+            "returned_value": null,
+            "error": null
+          }
+        ]
+      },
+      "depth/follow": {
+        "ok": true,
+        "attempts": [
+          {
+            "variant": "positional_name_payload",
+            "ok": true,
+            "sender": "client.api.send_websocket_request",
+            "event": "depth/follow",
+            "return_type": "NoneType",
+            "returned_value": null,
+            "error": null
+          }
+        ]
+      },
+      "history/load": {
+        "ok": true,
+        "attempts": [
+          {
+            "variant": "positional_name_payload",
+            "ok": true,
+            "sender": "client.api.send_websocket_request",
+            "event": "history/load",
+            "return_type": "NoneType",
+            "returned_value": null,
+            "error": null
+          }
+        ]
+      }
+    },
+    "poll": {
+      "found": false,
+      "event": null,
+      "source": null,
+      "timed_out": true,
+      "snapshots_checked": 1235,
+      "candidates_sample": [
+        "client.api.websocket_client",
+        "client.debug_ws_enable",
+        "client.subscribe_candle",
+        "client.subscribe_candle_all_size",
+        "client.api.browser",
+        "client.api.candle_v2_data",
+        "client.api.candles",
+        "client.api.get_candle_data",
+        "client.api.historical_candles",
+        "client.api.realtime_candles",
+        "client.api.trace_ws",
+        "client.api.wss_message",
+        "client.api.wss_url"
+      ]
+    }
+  },
+  "payload_summary": {
+    "type": "NoneType",
+    "value": null
+  },
+  "payload": null
+}
