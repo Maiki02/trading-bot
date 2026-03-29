@@ -42,7 +42,7 @@ python-dotenv==1.0.0
 # Environment variable management from .env files
 
 # Quotex API
-pyquotex @ git+https://github.com/cleitonleonel/pyquotex.git
+pyquotex @ git+https://github.com/Maiki02/pyquotex.git
 # Quotex API client for real-time market data
 # Note: pip package name is "pyquotex", not "quotexpy"
 

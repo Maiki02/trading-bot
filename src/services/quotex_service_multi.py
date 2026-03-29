@@ -19,19 +19,9 @@ Author: Trading Bot Team
 """
 
 import asyncio
-import sys
 import time
 from datetime import datetime, timedelta
-from pathlib import Path
 from typing import Optional, Dict, Callable, List, Set
-
-# Prioritize local pyquotex clone from sibling directory when available.
-_PROJECT_ROOT = Path(__file__).resolve().parents[2]
-_LOCAL_PYQUOTEX_PATH = _PROJECT_ROOT.parent / "pyquotex"
-if _LOCAL_PYQUOTEX_PATH.exists():
-    _local_path_str = str(_LOCAL_PYQUOTEX_PATH)
-    if _local_path_str not in sys.path:
-        sys.path.insert(0, _local_path_str)
 
 from pyquotex.stable_api import Quotex
 from pyquotex.utils.processor import process_tick

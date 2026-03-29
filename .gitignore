@@ -214,3 +214,4 @@ test/images_patterns/
 data/charts
 
 *.png
+session.json
