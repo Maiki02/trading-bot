@@ -7,15 +7,16 @@ Integrar un monitor automatizado 24/7 que capture datos de mercado en tiempo rea
 **Nueva Funcionalidad:** Integración de Quotex como tercer proveedor de datos de mercado.
 
 **Cambios principales:**
-- ✅ **QuotexServiceMulti:** Nuevo servicio `src/services/quotex_service_multi.py` que extiende `BaseMarketDataService` usando la librería `quotexpy` (API-Quotex).
+- ✅ **QuotexServiceMulti:** Nuevo servicio `src/services/quotex_service_multi.py` que extiende `BaseMarketDataService` usando la librería `pyquotex` (API-Quotex).
 - ✅ **Config:** `QuotexConfig` dataclass en `config.py` con validación de credenciales (`QUOTEX_EMAIL`, `QUOTEX_PASSWORD`).
 - ✅ **Factory:** Caso `QUOTEX` registrado en `connection_service.py` → `get_market_data_service()`.
 - ✅ **Async-Native:** Implementación 100% asíncrona sin necesidad de thread executors.
 - ✅ **Sleep & Burst Polling:** Misma estrategia de polling que IQ Option para obtención de velas.
-- ✅ **Auto-Fallback Market/OTC:** Soporte automático de fallback entre activos de mercado y variantes OTC mediante `get_available_asset(force_open=True)`.
+- ✅ **Arquitectura multi-cliente:** Instancia independiente de `_QuotexSymbolWorker` (con su propio cliente `Quotex`) por símbolo; arranque en paralelo mediante `asyncio.gather` y lifecycle completamente aislado por activo.
+- ✅ **Verificación de disponibilidad:** Consulta `get_available_asset(force_open=False)` al arrancar; si el activo está cerrado, el worker queda inactivo sin bloquear los demás símbolos.
 
 **Proveedor Quotex — Detalles técnicos:**
-- **Librería:** `quotexpy` (instalación: `pip install git+https://github.com/cleitonleonel/pyquotex.git`). Requiere `playwright install` post-instalación.
+- **Librería:** `pyquotex` (instalación: `pip install git+https://github.com/cleitonleonel/pyquotex.git`). Requiere `playwright install` post-instalación.
 - **Activación:** `DATA_PROVIDER=QUOTEX` en `.env`.
 - **Autenticación:** Variables `QUOTEX_EMAIL` y `QUOTEX_PASSWORD` en `.env`.
 - **Tag de fuente:** `"QX"` en el campo `source` de `CandleData`.

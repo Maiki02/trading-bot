@@ -265,6 +265,10 @@ class Config:
         ws_debug=os.getenv("QUOTEX_WS_DEBUG", "false").lower() == "true",
     )
     
+    # Quotex buffer management
+    QUOTEX_TICK_BUFFER_KEEP_LAST: int = int(os.getenv("QUOTEX_TICK_BUFFER_KEEP_LAST", "300"))
+    QUOTEX_PROCESSED_TS_MAX: int = int(os.getenv("QUOTEX_PROCESSED_TS_MAX", "1200"))
+
     # Target Assets for Multi-Instrument Support
     # Lista de activos a monitorear simultáneamente
     TARGET_ASSETS: List[str] = os.getenv("TARGET_ASSETS", "EURUSD,GBPUSD,USDJPY").split(",")

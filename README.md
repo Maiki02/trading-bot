@@ -1,4 +1,4 @@
-# TradingView Pattern Monitor (v0.0.4)
+# TradingView Pattern Monitor (v0.0.6)
 
 Sistema automatizado de soporte a la decisión para trading de alta frecuencia (opciones binarias 1 minuto) que consume datos en tiempo real mediante WebSocket de TradingView. Detecta **4 patrones de velas japonesas** con validación matemática estricta, analiza tendencia con **scoring ponderado optimizado para momentum de corto plazo**, y clasifica señales mediante **Bollinger Bands Exhaustion System** con **probabilidades históricas** basadas en Machine Learning.
 
@@ -32,7 +32,7 @@ docker logs -f trading-bot
 
 ---
 
-## 🚀 Características Principales (v0.0.4)
+## 🚀 Características Principales (v0.0.6)
 
 ### 🎯 Detección de Patrones
 * **4 Patrones Implementados:** Shooting Star, Hanging Man, Inverted Hammer, Hammer
@@ -151,6 +151,8 @@ pip install -r requirements.txt
 - Siempre usa `QUOTEX_EMAIL` y `QUOTEX_PASSWORD`.
 - `session.json` se reutiliza automaticamente cuando es valido.
 - Si no hay sesion valida, pyquotex hace login por credenciales.
+- Cada simbolo en `QUOTEX_ASSETS` levanta su propia instancia independiente de pyquotex.
+- El arranque multi-simbolo usa tareas paralelas con `asyncio.gather`, una conexion dedicada por activo.
 - Ya no se usan `QUOTEX_AUTH_METHOD` ni `QUOTEX_SSID` en la app principal.
 
 **Enrutamiento de tópicos Telegram por entorno:**
@@ -266,7 +268,7 @@ Deberías ver la siguiente salida si todo está correcto:
 
 ```
 INFO     | 2025-11-24 14:30:00 | main | ╔══════════════════════════════════════════════════════════════╗
-INFO     | 2025-11-24 14:30:00 | main | ║  TradingView Pattern Monitor - v0.0.4                         ║
+INFO     | 2025-11-24 14:30:00 | main | ║  TradingView Pattern Monitor - v0.0.6                         ║
 INFO     | 2025-11-24 14:30:00 | main | ║  4-Pattern Detection + Bollinger Exhaustion System            ║
 INFO     | 2025-11-24 14:30:00 | main | ║  Historical Probability Analysis (ML Ready)                   ║
 INFO     | 2025-11-24 14:30:00 | main | ╚══════════════════════════════════════════════════════════════╝
@@ -310,11 +312,14 @@ trading-bot/
 ├── logs/                               # Logs de snapshots y debug
 ├── Docs/
 │   ├── backlog.md                   # Product Backlog
-│   ├── BOLLINGER_EXHAUSTION_SYSTEM.md  # Sistema de Bollinger Bands
+│   ├── bollinger.md                 # Sistema de Bollinger Bands
 │   ├── candle.md                    # Documentación de patrones
 │   ├── resumen.md                   # Especificación completa del proyecto
-│   ├── sistema_probabilidad_historica.md  # Sistema de estadísticas
-│   └── tendencia.md                 # Momentum Scoring System
+│   ├── rsi.md                       # RSI
+│   ├── strategy.md                  # Estrategia de trading
+│   ├── tendencia.md                 # Momentum Scoring System
+│   └── least/
+│       └── sistema_probabilidad_historica.md  # Sistema de estadísticas
 ├── test/
 │   ├── test_candles.py              # Suite de tests automatizados
 │   ├── test_data.json               # Casos de prueba guardados
@@ -381,7 +386,7 @@ python test_statistics_service.py
 
 ---
 
-## 📊 Funcionamiento del Sistema (v0.0.4)
+## 📊 Funcionamiento del Sistema (v0.0.6)
 
 ### Lógica de Detección Completa
 
@@ -503,6 +508,7 @@ docker-compose up -d --build
 **Qué significa:** el stream realtime de Quotex puede comenzar con una sola vela en formación. Hasta que no cierra la siguiente vela, no hay dos puntos para tomar la última vela cerrada.
 
 **Comportamiento actual del bot:**
+- Para evitar colisiones internas de pyquotex, cada activo configurado usa su propio cliente, buffer realtime y ciclo de reconexion.
 - Hace hasta **2 intentos** de bootstrap histórico (activo principal + fallback) y luego continúa el arranque.
 - Usa estrictamente los símbolos configurados en `.env` (`QUOTEX_ASSETS`) sin autoconvertir `EURUSD` ↔ `EURUSD_otc`.
 - Respeta `QUOTEX_REQUEST_TIMEOUT` del `.env` para cada intento histórico.
@@ -591,8 +597,8 @@ docker-compose up -d --build
 
 * **[DOCKER_GUIDE.md](./DOCKER_GUIDE.md)** - Cheatsheet completo de comandos Docker
 * **[Docs/resumen.md](./Docs/resumen.md)** - Especificación técnica completa del proyecto
-* **[Docs/BOLLINGER_EXHAUSTION_SYSTEM.md](./Docs/BOLLINGER_EXHAUSTION_SYSTEM.md)** - Sistema de clasificación por Bollinger Bands
-* **[Docs/sistema_probabilidad_historica.md](./Docs/sistema_probabilidad_historica.md)** - Sistema de estadísticas en tiempo real
+* **[Docs/bollinger.md](./Docs/bollinger.md)** - Sistema de clasificación por Bollinger Bands
+* **[Docs/least/sistema_probabilidad_historica.md](./Docs/least/sistema_probabilidad_historica.md)** - Sistema de estadísticas en tiempo real
 * **[Docs/tendencia.md](./Docs/tendencia.md)** - Momentum Scoring System (pesos optimizados para opciones binarias)
 * **[Docs/candle.md](./Docs/candle.md)** - Documentación matemática de los 4 patrones
 * **[Docs/backlog.md](./Docs/backlog.md)** - Product Backlog (próximas features)
@@ -601,7 +607,7 @@ docker-compose up -d --build
 
 ## 🎯 Estado Actual del Proyecto
 
-**Versión:** v0.0.4  
+**Versión:** v0.0.6  
 **Estado:** ✅ **PRODUCCIÓN** - Sistema completamente operativo
 
 ### Features Implementadas ✅
@@ -623,23 +629,20 @@ docker-compose up -d --build
 - ✅ Logs con rotación automática (10MB × 3 archivos)
 - ✅ Health check y graceful shutdown
 - ✅ Modo sin autenticación para Forex público
+- ✅ Proveedor Quotex mediante `pyquotex` (`DATA_PROVIDER=QUOTEX`)
+- ✅ Arquitectura multi-cliente Quotex: instancia `_QuotexSymbolWorker` aislada por símbolo, arranque en paralelo con `asyncio.gather`
+- ✅ Multi-instrumento: monitoréo simultáneo de múltiples activos vía `QUOTEX_ASSETS`
 
 ### Próximas Features (Roadmap)
 
 Ver **[Docs/backlog.md](./Docs/backlog.md)** para el Product Backlog completo. Highlights:
 
-**v0.0.5 - Dashboard & Analytics:**
+**v0.0.7 - Dashboard & Analytics:**
 - Dashboard web con Streamlit para visualización en tiempo real
 - Gráficos de distribución de win rate por patrón
-- Heatmaps de probabilidad por score
 - Curvas de PnL acumulado
 
-**v0.1.0 - Expansión de Instrumentos:**
-- Multi-instrumento: GBP/USD, USD/JPY, USD/CHF, AUD/USD
-- Configuración simultánea de múltiples pares
-- Comparación de señales entre instrumentos
-
-**v0.2.0 - Nuevos Patrones:**
+**v0.1.0 - Nuevos Patrones:**
 - Engulfing (Envolvente Alcista/Bajista)
 - Doji (múltiples variantes)
 - Estrella de la Mañana/Tarde (3 velas)
@@ -661,6 +664,6 @@ El uso de WebSockets no oficiales de TradingView puede conllevar riesgos de bloq
 
 ---
 
-**Última Actualización:** 24 de noviembre de 2025  
+**Última Actualización:** 30 de marzo de 2026  
 **Mantenido por:** TradingView Pattern Monitor Team  
 **Licencia:** MIT (ver LICENSE file)

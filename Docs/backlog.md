@@ -55,7 +55,7 @@
 
 * **TASK-5.1: Implementar `QuotexService`.** ✅ *Completado el 26/03/2026*
     * Crear `src/services/quotex_service_multi.py` que extiende `BaseMarketDataService`.
-    * Conectar a Quotex usando la librería `quotexpy` (API-Quotex).
+    * Conectar a Quotex usando la librería `pyquotex` (API-Quotex).
     * Autenticación mediante `QUOTEX_EMAIL` y `QUOTEX_PASSWORD` (desde `.env`).
     * Al iniciar: obtener historial de velas suficiente para precalcular EMAs.
     * Escuchar velas en tiempo real. Al cerrar una vela, transformar los datos al modelo interno `Candle`.
