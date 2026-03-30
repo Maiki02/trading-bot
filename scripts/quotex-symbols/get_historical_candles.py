@@ -1,6 +1,6 @@
 ﻿"""Fetch historical Quotex candles for one symbol configured in .env.
 
-This utility authenticates with the local pyquotex clone and retrieves
+This utility authenticates with the installed pyquotex library and retrieves
 historical candles through the official ``get_candles`` API.
 """
 
@@ -20,9 +20,12 @@ from typing import Any
 from dotenv import load_dotenv
 import pandas as pd
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
+DEFAULT_HISTORY_SYMBOL = "AUDJPY_otc"
+
+# Repository root (trading-bot). Used only for local imports and session.json path.
+REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
 from pyquotex.stable_api import Quotex
 
@@ -106,12 +109,12 @@ def load_config() -> ScriptConfig:
         ssid=os.getenv("QUOTEX_SSID", "").strip(),
         ws_debug=_parse_bool(os.getenv("QUOTEX_WS_DEBUG", "false"), default=False),
         account_mode=os.getenv("QUOTEX_HISTORY_ACCOUNT_MODE", "PRACTICE").strip().upper() or "PRACTICE",
-        symbol=os.getenv("QUOTEX_HISTORY_SYMBOL", "").strip(),
+        symbol=os.getenv("QUOTEX_HISTORY_SYMBOL", DEFAULT_HISTORY_SYMBOL).strip() or DEFAULT_HISTORY_SYMBOL,
         candles_count=max(candles_count, 1),
         output_dir=os.getenv("QUOTEX_HISTORY_OUTPUT_DIR", "data/quotex-history").strip() or "data/quotex-history",
         request_timeout_seconds=max(int(os.getenv("QUOTEX_REQUEST_TIMEOUT", "20")), 1),
         chart_lookback=max(int(os.getenv("CHART_LOOKBACK", "40")), 10),
-        session_file=PROJECT_ROOT / "session.json",
+        session_file=REPO_ROOT / "session.json",
         session_strategy=session_strategy,
         connect_retries=max(int(os.getenv("QUOTEX_CONNECT_RETRIES", "3")), 1),
         connect_retry_delay_seconds=max(
