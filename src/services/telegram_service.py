@@ -421,6 +421,7 @@ class TelegramService:
         result: str,        # WIN/LOSS/ATM
         entry_price: float,
         close_price: float,
+        signal_strength: str,
         chart_base64: Optional[str] = None
     ) -> None:
         """
@@ -430,9 +431,10 @@ class TelegramService:
             source: Fuente del dato
             symbol: Símbolo del activo
             action: Acción tomada ("CALL" o "PUT")
-            result: Resultado ("WIN", "LOSS", "ATM")
+            result: Resultado ("WIN", "LOSS", "ATM", "NO_ENTRY", "NOT_ACTIVATED")
             entry_price: Precio de entrada (objetivo)
             close_price: Precio de cierre real
+            signal_strength: Fuerza de la señal original
             chart_base64: Imagen del gráfico (opcional)
         """
         display_symbol = self._format_symbol_for_display(symbol)
@@ -444,6 +446,9 @@ class TelegramService:
         elif result == "LOSS":
             icon = "❌"
             status_text = "PERDIDA"
+        elif result == "NOT_ACTIVATED":
+            icon = "🚫"
+            status_text = "NO ACTIVADA"
         elif result == "NO_ENTRY":
             icon = "🚫"
             status_text = "NO ACTIVADA"
@@ -456,7 +461,17 @@ class TelegramService:
         
         title = f"{icon} RESULTADO: {status_text} | {display_symbol}"
         
-        if result == "NO_ENTRY":
+        if result == "NOT_ACTIVATED":
+            message = (
+                f"━━━━━━━━━━━━━━━━━━━━━━\n"
+                f"🔹 Operación: {action_icon} {action}\n"
+                f"🔹 Resultado: {status_text}\n"
+                f"━━━━━━━━━━━━━━━━━━━━━━\n"
+                f"ℹ️ La alerta previa fue informativa (prioridad {signal_strength}).\n"
+                f"ℹ️ No había nada importante detectado.\n"
+                f"🎯 Entrada: {entry_price:.5f}\n"
+            )
+        elif result == "NO_ENTRY":
             message = (
                 f"━━━━━━━━━━━━━━━━━━━━━━\n"
                 f"🔹 Operación: {action_icon} {action}\n"

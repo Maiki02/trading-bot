@@ -68,6 +68,7 @@ docker logs -f trading-bot
 * **Notificaciones Duales:**
   * Patrón detectado (inmediato)
   * Resultado de vela outcome (1 min después): VERDE/ROJA/DOJI
+* **Señales informativas (`NONE`):** si `SEND_NONE_SIGNAL_NOTIFICATIONS=true`, el bot puede avisar una detección sin prioridad operativa, y el mensaje de resultado posterior se marca como `NO ACTIVADA` en lugar de `GANADA/PERDIDA`
 * **Control de Costos:** Variable `SEND_CHARTS` para desactivar imágenes en producción
 
 ### 🐳 Infraestructura

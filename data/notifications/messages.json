@@ -5,5 +5,26 @@
     "title": "ℹ️ *EURUSD_otc* ℹ️\n🔴 Posible operación a la BAJA.\nSin agotamiento detectado.\nProbabilidad baja.",
     "message": "━━━━━━━━━━━━━━━━━━━━━━\n🔹 Señal: LOW\n🔹 Patrón: SHOOTING_STAR\n🔹 Fecha: 21:29\n🔹 Tendencia: STRONG_BULLISH (+10.0/10.0)\n🔹 Precio Objetivo: 1.147595\n\n\n🔍 Mensaje de info\n✅ Cumple Tendencia Alcista\n❌ Agotamiento Bollinger (NONE)\n✅ Agotamiento de Vela (rompió nivel anterior)\n✅ RSI Sobrecompra (80.7 >= 75)\n\n",
     "image_name": ""
+  },
+  {
+    "timestamp": "20260330_113500_622182",
+    "datetime": "2026-03-30T11:35:00.628271",
+    "title": "ℹ️ *USDJPY* ℹ️\n🔴 Posible operación a la BAJA.\nSin agotamiento detectado.\nProbabilidad baja.",
+    "message": "━━━━━━━━━━━━━━━━━━━━━━\n🔹 Señal: LOW\n🔹 Patrón: INVERTED_HAMMER\n🔹 Fecha: 11:34\n🔹 Tendencia: STRONG_BULLISH (+10.0/10.0)\n🔹 Precio Objetivo: 159.598000\n\n\n🔍 Mensaje de info\n✅ Cumple Tendencia Alcista\n✅ Agotamiento Bollinger (PEAK)\n❌ Agotamiento de Vela (NO)\n❌ RSI Neutro/Contra (Valor: 58.7)\n\n",
+    "image_name": ""
+  },
+  {
+    "timestamp": "20260330_113604_263631",
+    "datetime": "2026-03-30T11:36:04.340910",
+    "title": "*USDJPY*\nNada importante detectado.\n",
+    "message": "━━━━━━━━━━━━━━━━━━━━━━\n🔹 Señal: NONE\n🔹 Patrón: HAMMER\n🔹 Fecha: 11:35\n🔹 Tendencia: STRONG_BULLISH (+10.0/10.0)\n🔹 Precio Objetivo: 159.586500\n\n\n🔍 Mensaje de info\n❌ Cumple Tendencia bajista\n❌ Agotamiento Bollinger (NONE)\n✅ Agotamiento de Vela (rompió nivel anterior)\n❌ RSI Neutro/Contra (Valor: 59.2)\n\n",
+    "image_name": ""
+  },
+  {
+    "timestamp": "20260330_113800_958953",
+    "datetime": "2026-03-30T11:38:01.002261",
+    "title": "*USDJPY*\nNada importante detectado.\n",
+    "message": "━━━━━━━━━━━━━━━━━━━━━━\n🔹 Señal: NONE\n🔹 Patrón: SHOOTING_STAR\n🔹 Fecha: 11:37\n🔹 Tendencia: STRONG_BEARISH (-10.0/10.0)\n🔹 Precio Objetivo: 159.571500\n\n\n🔍 Mensaje de info\n❌ Cumple Tendencia alcista\n❌ Agotamiento Bollinger (NONE)\n❌ Agotamiento de Vela (NO)\n❌ RSI Neutro/Contra (Valor: 42.2)\n\n",
+    "image_name": ""
   }
 ]

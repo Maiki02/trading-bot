@@ -869,12 +869,13 @@ class AnalysisService:
         # 1. Recuperar precios
         entry_price = pending_signal.entry_point
         close_price = outcome_candle.close
+        is_informational_signal = pending_signal.signal_strength == "NONE"
         
         # Si por alguna razón no hay entry_point (versiones viejas), fallback a close de vela señal
         if entry_price is None:
             entry_price = pending_signal.candle.close
             
-        # 2. Calcular Resultado (WIN/LOSS/ATM/NO_ENTRY)
+        # 2. Calcular Resultado (WIN/LOSS/ATM/NO_ENTRY/NOT_ACTIVATED)
         result = "ATM"
         pnl = 0.0
         
@@ -888,7 +889,9 @@ class AnalysisService:
              if outcome_candle.low <= entry_price <= outcome_candle.high:
                  entry_filled = True
         
-        if not entry_filled:
+        if is_informational_signal:
+            result = "NOT_ACTIVATED"
+        elif not entry_filled:
             result = "NO_ENTRY"
         else:
             if action == "PUT":
@@ -1048,6 +1051,7 @@ class AnalysisService:
                     result=result,        # WIN/LOSS/ATM
                     entry_price=entry_price,
                     close_price=close_price,
+                    signal_strength=pending_signal.signal_strength,
                     chart_base64=chart_base64
                 )
                 logger.info(f"📨 Notificación de resultado enviada | {result} ({action}) | Chart: {'Sí' if chart_base64 else 'No'}")
