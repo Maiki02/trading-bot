@@ -59,6 +59,7 @@ WARMUP_CANDLES = 100
 CHUNK_MAX_RETRIES = 3
 CHUNK_RETRY_DELAY_SECONDS = 0.5
 CHUNK_MAX_CONSECUTIVE_FAILURES = 5
+CHUNK_MAX_CONSECUTIVE_EMPTY_WINDOWS = 5
 CONNECT_PHASE_RETRIES = 3
 CONNECT_BACKOFF_BASE_SECONDS = 0.6
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
@@ -116,17 +117,6 @@ class ConnectionPhaseResult:
     client: Optional[Quotex]
     reason: Optional[str]
     attempts: int
-
-
-@dataclass(frozen=True)
-class ChunkReport:
-    """Summary of one requested historical chunk window."""
-
-    index: int
-    window_start: int
-    window_end: int
-    valid_candles: int
-    added_candles: int
 
 
 def load_persisted_session(email: str) -> Optional[Dict[str, Optional[str]]]:
@@ -340,7 +330,7 @@ async def fetch_historical_data(
     asset: str,
     start_ts: int,
     end_ts: int,
-) -> tuple[List[Dict[str, float]], List[ChunkReport]]:
+) -> List[Dict[str, float]]:
     """Fetch historical candles in reverse chunks of 196 candles with retries.
 
     Flow requested by user:
@@ -348,10 +338,10 @@ async def fetch_historical_data(
     - If one chunk cannot return usable data, stop this symbol and continue with next.
     """
     all_candles: List[Dict[str, float]] = []
-    chunk_reports: List[ChunkReport] = []
     seen_timestamps: Set[int] = set()
     cursor_end = int(end_ts)
     consecutive_chunk_failures = 0
+    consecutive_empty_windows = 0
     chunk_timeout_seconds = max(Config.QUOTEX.request_timeout_seconds, 60)
     chunk_index = 0
 
@@ -403,8 +393,7 @@ async def fetch_historical_data(
         if chunk_payload is None:
             consecutive_chunk_failures += 1
             logger.warning(
-                "Failed chunk for %s at range %s -> %s after %s attempts (consecutive=%s/%s). "
-                "Stopping symbol and continuing with next.",
+                "Failed chunk for %s at range %s -> %s after %s attempts (consecutive failures=%s/%s)",
                 asset,
                 datetime.fromtimestamp(window_start).isoformat(),
                 datetime.fromtimestamp(window_end).isoformat(),
@@ -412,16 +401,17 @@ async def fetch_historical_data(
                 consecutive_chunk_failures,
                 CHUNK_MAX_CONSECUTIVE_FAILURES,
             )
-            chunk_reports.append(
-                ChunkReport(
-                    index=chunk_index,
-                    window_start=window_start,
-                    window_end=window_end,
-                    valid_candles=0,
-                    added_candles=0,
+            if consecutive_chunk_failures >= CHUNK_MAX_CONSECUTIVE_FAILURES:
+                logger.warning(
+                    "Stopping symbol %s after %s consecutive chunk failures.",
+                    asset,
+                    consecutive_chunk_failures,
                 )
-            )
-            break
+                break
+
+            # Move to previous window to avoid getting stuck on same failing range.
+            cursor_end = window_start - CANDLE_PERIOD_SECONDS
+            continue
 
         consecutive_chunk_failures = 0
 
@@ -449,15 +439,7 @@ async def fetch_historical_data(
                 if candle_ts < oldest_ts:
                     oldest_ts = candle_ts
 
-            chunk_reports.append(
-                ChunkReport(
-                    index=chunk_index,
-                    window_start=window_start,
-                    window_end=window_end,
-                    valid_candles=len(normalized_chunk),
-                    added_candles=added_count,
-                )
-            )
+            consecutive_empty_windows = 0
 
             cursor_end = oldest_ts - CANDLE_PERIOD_SECONDS
             logger.info(
@@ -471,27 +453,27 @@ async def fetch_historical_data(
             continue
 
         logger.warning(
-            "Chunk %s | %s | no valid candles in requested range %s -> %s. "
-            "Stopping symbol and continuing with next.",
+            "Chunk %s | %s | no valid candles in requested range %s -> %s",
             chunk_index,
             asset,
             datetime.fromtimestamp(window_start).isoformat(),
             datetime.fromtimestamp(window_end).isoformat(),
         )
-        chunk_reports.append(
-            ChunkReport(
-                index=chunk_index,
-                window_start=window_start,
-                window_end=window_end,
-                valid_candles=0,
-                added_candles=0,
+        consecutive_empty_windows += 1
+        if consecutive_empty_windows >= CHUNK_MAX_CONSECUTIVE_EMPTY_WINDOWS:
+            logger.warning(
+                "Stopping symbol %s after %s consecutive empty windows.",
+                asset,
+                consecutive_empty_windows,
             )
-        )
-        break
+            break
+
+        cursor_end = window_start - CANDLE_PERIOD_SECONDS
+        continue
 
     ordered = sorted(all_candles, key=lambda candle: int(candle["from"]))
     logger.info("Fetched %s unique Quotex candles for %s", len(ordered), asset)
-    return ordered, chunk_reports
+    return ordered
 
 
 def calculate_indicators(df: pd.DataFrame) -> pd.DataFrame:
@@ -652,7 +634,6 @@ def load_existing_keys(output_file: str) -> Set[Tuple[Optional[str], Optional[st
 def process_asset(
     candles: List[Dict[str, float]],
     asset: str,
-    chunk_reports: List[ChunkReport],
     existing_keys: Set[Tuple[Optional[str], Optional[str], Optional[str], Optional[int]]],
     out_file,
 ) -> int:
@@ -666,14 +647,6 @@ def process_asset(
     df = calculate_indicators(df)
 
     generated = 0
-    patterns_per_chunk: Dict[int, int] = {report.index: 0 for report in chunk_reports}
-
-    def _find_chunk_index(timestamp: int) -> Optional[int]:
-        # Later chunks should not steal timestamps from earlier chunk windows.
-        for report in chunk_reports:
-            if report.window_start <= timestamp <= report.window_end:
-                return report.index
-        return None
 
     for index in range(WARMUP_CANDLES, len(df) - 1):
         row = df.iloc[index]
@@ -712,22 +685,6 @@ def process_asset(
         existing_keys.add(dedupe_key)
         generated += 1
 
-        chunk_index = _find_chunk_index(int(row["from"]))
-        if chunk_index is not None:
-            patterns_per_chunk[chunk_index] = patterns_per_chunk.get(chunk_index, 0) + 1
-
-    for report in chunk_reports:
-        logger.info(
-            "Chunk %s | %s | range %s -> %s | candles_valid=%s added=%s | patterns_found=%s",
-            report.index,
-            asset,
-            datetime.fromtimestamp(report.window_start).isoformat(),
-            datetime.fromtimestamp(report.window_end).isoformat(),
-            report.valid_candles,
-            report.added_candles,
-            patterns_per_chunk.get(report.index, 0),
-        )
-
     return generated
 
 
@@ -761,8 +718,8 @@ async def run() -> None:
                 logger.info("Processing Quotex asset %s (resolved=%s)", asset, resolved_asset)
                 await subscribe_asset_stream(client, resolved_asset)
                 subscribed_assets.append(resolved_asset)
-                candles, chunk_reports = await fetch_historical_data(client, resolved_asset, start_ts, end_ts)
-                generated = process_asset(candles, asset, chunk_reports, existing_keys, out_file)
+                candles = await fetch_historical_data(client, resolved_asset, start_ts, end_ts)
+                generated = process_asset(candles, asset, existing_keys, out_file)
                 logger.info("Generated %s signals for %s", generated, asset)
                 total_generated += generated
     finally:
