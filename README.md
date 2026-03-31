@@ -143,6 +143,11 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
+**Dependencia local de pyquotex (nuevo):**
+- `requirements.txt` usa `-e ../pyquotex` para desarrollo local.
+- Politica de importacion: la app prioriza automaticamente la carpeta hermana `../pyquotex` cuando existe.
+- Si `../pyquotex` no existe y `DATA_PROVIDER=QUOTEX`, el error de importacion indicara como resolverlo.
+
 ### 3. Configuración .env (Simplificada)
 
 **Autenticación NO requerida** para datos de Forex público. Puedes usar el valor por defecto.
@@ -152,6 +157,11 @@ pip install -r requirements.txt
 - `session.json` se reutiliza automaticamente cuando es valido.
 - Si no hay sesion valida, pyquotex hace login por credenciales.
 - Cada simbolo en `QUOTEX_ASSETS` levanta su propia instancia independiente de pyquotex.
+- pyquotex mantiene estado mutable critico por instancia (sin comparticion de `current_asset` entre clientes).
+- En realtime/historico se prioriza el `asset`/`symbol` explicito del payload cuando esta disponible.
+- El worker de Quotex descarta payloads realtime con simbolo explicito que no coincide con su simbolo esperado y deja warning en logs.
+- En realtime multi-simbolo, cada item/candle/tick tambien se valida por simbolo explicito antes de entrar al buffer del worker.
+- Si llega un frame realtime ambiguo (sin simbolo) justo despues de un mismatch reciente, el worker lo descarta temporalmente para evitar contaminacion cruzada.
 - El arranque multi-simbolo usa tareas paralelas con `asyncio.gather`, una conexion dedicada por activo.
 - Ya no se usan `QUOTEX_AUTH_METHOD` ni `QUOTEX_SSID` en la app principal.
 

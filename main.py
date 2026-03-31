@@ -16,7 +16,25 @@ import asyncio
 import logging
 import signal
 import sys
+from pathlib import Path
 from typing import Optional
+
+
+def _bootstrap_local_pyquotex_import() -> None:
+    """Prioritize sibling ../pyquotex repository when present."""
+    repo_root = Path(__file__).resolve().parent
+    local_pyquotex_dir = repo_root.parent / "pyquotex"
+
+    if not local_pyquotex_dir.is_dir():
+        return
+
+    local_repo_root = str(local_pyquotex_dir)
+    if local_repo_root in sys.path:
+        sys.path.remove(local_repo_root)
+    sys.path.insert(0, local_repo_root)
+
+
+_bootstrap_local_pyquotex_import()
 
 from config import Config
 from src.services import TelegramService

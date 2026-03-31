@@ -2,15 +2,54 @@
 
 import asyncio
 import inspect
+import sys
 import time
 from datetime import datetime, timedelta
+from pathlib import Path
 from typing import TYPE_CHECKING, Callable, Dict, List, Optional, Set
 
 if TYPE_CHECKING:
     from src.logic.analysis_service import AnalysisService
 
-from pyquotex.stable_api import Quotex
-from pyquotex.utils.processor import process_tick
+
+def _bootstrap_local_pyquotex() -> Optional[Path]:
+    """Prioritize sibling ../pyquotex repository when present."""
+    repo_root = Path(__file__).resolve().parents[2]
+    local_pyquotex_dir = repo_root.parent / "pyquotex"
+
+    if not local_pyquotex_dir.is_dir():
+        return None
+
+    local_repo_root = str(local_pyquotex_dir)
+    if local_repo_root in sys.path:
+        sys.path.remove(local_repo_root)
+    sys.path.insert(0, local_repo_root)
+    return local_pyquotex_dir
+
+
+_LOCAL_PYQUOTEX_DIR = _bootstrap_local_pyquotex()
+
+try:
+    from pyquotex.stable_api import Quotex
+    from pyquotex.utils.processor import process_tick
+except ModuleNotFoundError as exc:
+    if exc.name and not exc.name.startswith("pyquotex"):
+        raise
+
+    if _LOCAL_PYQUOTEX_DIR is None:
+        location_message = "Sibling repository '../pyquotex' was not found."
+    else:
+        location_message = (
+            f"Local repository was found at '{_LOCAL_PYQUOTEX_DIR}', "
+            "but import still failed."
+        )
+
+    raise ModuleNotFoundError(
+        "pyquotex is required when DATA_PROVIDER=QUOTEX. "
+        f"{location_message} "
+        "Install local dependency with 'pip install -e ../pyquotex' "
+        "or provide pyquotex in the active environment."
+    ) from exc
 
 from config import Config
 from src.services.connection_service import CandleData
@@ -27,6 +66,10 @@ async def _maybe_await(result: object) -> None:
 
 class _QuotexSymbolWorker:
     """Handles the full Quotex lifecycle for a single symbol."""
+
+    _REALTIME_MISMATCH_GUARD_SECONDS = 15.0
+    _MISMATCH_LOG_THROTTLE_SECONDS = 5.0
+    _AMBIGUOUS_DROP_LOG_THROTTLE_SECONDS = 15.0
 
     def __init__(
         self,
@@ -52,6 +95,60 @@ class _QuotexSymbolWorker:
         self._realtime_sync_established = False
         self._processed_closed_timestamps: Set[int] = set()
         self._tick_candle_buffer: Dict[int, dict] = {}
+        self._last_realtime_symbol_mismatch_at = 0.0
+        self._last_realtime_mismatch_log_at = 0.0
+        self._last_ambiguous_drop_log_at = 0.0
+        self._expected_realtime_symbols = self._build_safe_expected_symbols()
+
+    @staticmethod
+    def _normalize_symbol(symbol: str) -> str:
+        """Normalizes symbol names for safe comparisons across providers."""
+        return symbol.strip().lower().replace("-", "_")
+
+    @staticmethod
+    def _strip_otc_suffix(normalized_symbol: str) -> str:
+        """Removes OTC suffix from a normalized symbol representation."""
+        if normalized_symbol.endswith("_otc"):
+            return normalized_symbol[:-4]
+        return normalized_symbol
+
+    @staticmethod
+    def _toggle_otc_suffix(normalized_symbol: str) -> str:
+        """Adds/removes OTC suffix from a normalized symbol representation."""
+        if normalized_symbol.endswith("_otc"):
+            return normalized_symbol[:-4]
+        return f"{normalized_symbol}_otc"
+
+    def _build_safe_expected_symbols(self) -> Set[str]:
+        """Builds the explicit and safe symbol aliases allowed for this worker."""
+        normalized_symbol = self._normalize_symbol(self.symbol)
+        expected = {normalized_symbol}
+
+        configured_assets = {
+            self._normalize_symbol(asset)
+            for asset in Config.QUOTEX.assets
+            if isinstance(asset, str) and asset.strip()
+        }
+
+        normalized_counterpart = self._toggle_otc_suffix(normalized_symbol)
+        base_symbol = self._strip_otc_suffix(normalized_symbol)
+        counterpart_base = self._strip_otc_suffix(normalized_counterpart)
+
+        if (
+            base_symbol == counterpart_base
+            and normalized_symbol in configured_assets
+            and normalized_counterpart in configured_assets
+        ):
+            expected.add(normalized_counterpart)
+
+        return expected
+
+    def _is_safe_binding_symbol(self, candidate_symbol: Optional[str]) -> bool:
+        """Returns whether a resolved broker symbol is explicitly safe for this worker."""
+        if not candidate_symbol or not isinstance(candidate_symbol, str):
+            return False
+
+        return self._normalize_symbol(candidate_symbol) in self._expected_realtime_symbols
 
     async def start(self) -> None:
         """Connects and maintains the dedicated symbol worker."""
@@ -244,13 +341,16 @@ class _QuotexSymbolWorker:
                 )
                 return False
 
-            if asset_name and asset_name != self.symbol:
-                logger.warning(
-                    f"Resolved Quotex asset differs from requested symbol | "
-                    f"Requested: {self.symbol} | Resolved: {asset_name}"
+            resolved_asset_name = asset_name or self.symbol
+            if not self._is_safe_binding_symbol(resolved_asset_name):
+                logger.error(
+                    f"Rejecting Quotex worker due to unsafe symbol remap | "
+                    f"Requested: {self.symbol} | Resolved: {resolved_asset_name} | "
+                    f"Allowed: {sorted(self._expected_realtime_symbols)}"
                 )
+                return False
 
-            self.asset_name = asset_name or self.symbol
+            self.asset_name = resolved_asset_name
             return True
 
         except asyncio.TimeoutError:
@@ -289,26 +389,138 @@ class _QuotexSymbolWorker:
                     continue
         return None
 
+    def _extract_explicit_payload_symbol(self, raw_payload: object) -> Optional[str]:
+        """Extracts symbol/asset when realtime payload explicitly includes one."""
+        if isinstance(raw_payload, dict):
+            for key in ("asset", "symbol", "instrument"):
+                value = raw_payload.get(key)
+                if isinstance(value, str) and value.strip():
+                    return value.strip()
+            return None
+
+        if isinstance(raw_payload, list):
+            if len(raw_payload) >= 4 and isinstance(raw_payload[0], str):
+                return raw_payload[0].strip() if raw_payload[0].strip() else None
+
+            if raw_payload and isinstance(raw_payload[0], list):
+                first_tick = raw_payload[0]
+                if first_tick and isinstance(first_tick[0], str) and first_tick[0].strip():
+                    return first_tick[0].strip()
+
+        return None
+
+    def _is_realtime_payload_symbol_mismatch(self, payload_symbol: Optional[str]) -> bool:
+        """Returns True when an explicit payload symbol conflicts with the worker symbol."""
+        if not payload_symbol:
+            return False
+
+        expected_symbols = self._expected_realtime_symbols
+        normalized_payload_symbol = self._normalize_symbol(payload_symbol)
+        if normalized_payload_symbol in expected_symbols:
+            return False
+
+        now = time.time()
+        self._last_realtime_symbol_mismatch_at = now
+        if (now - self._last_realtime_mismatch_log_at) >= self._MISMATCH_LOG_THROTTLE_SECONDS:
+            logger.warning(
+                f"Discarding realtime payload due to symbol mismatch for {self.symbol} | "
+                f"Payload symbol: {payload_symbol} | Expected: {sorted(expected_symbols)}"
+            )
+            self._last_realtime_mismatch_log_at = now
+        return True
+
+    def _has_recent_realtime_symbol_mismatch(self) -> bool:
+        """Returns whether a recent mismatch suggests possible cross-symbol contamination."""
+        if self._last_realtime_symbol_mismatch_at <= 0:
+            return False
+
+        return (
+            time.time() - self._last_realtime_symbol_mismatch_at
+        ) <= self._REALTIME_MISMATCH_GUARD_SECONDS
+
+    def _extract_explicit_item_symbol(self, raw_item: object) -> Optional[str]:
+        """Extracts symbol/asset from an individual realtime item when explicitly present."""
+        if isinstance(raw_item, dict):
+            for key in ("asset", "symbol", "instrument"):
+                value = raw_item.get(key)
+                if isinstance(value, str) and value.strip():
+                    return value.strip()
+            return None
+
+        if isinstance(raw_item, list) and len(raw_item) >= 4 and isinstance(raw_item[0], str):
+            symbol = raw_item[0].strip()
+            return symbol if symbol else None
+
+        return None
+
+    def _should_drop_ambiguous_payload(self) -> bool:
+        """Drops symbol-ambiguous realtime payloads shortly after a mismatch event."""
+        if not self._has_recent_realtime_symbol_mismatch():
+            return False
+
+        now = time.time()
+        if (now - self._last_ambiguous_drop_log_at) >= self._AMBIGUOUS_DROP_LOG_THROTTLE_SECONDS:
+            logger.warning(
+                f"Discarding ambiguous realtime payload for {self.symbol}: "
+                "no explicit symbol and recent mismatch detected"
+            )
+            self._last_ambiguous_drop_log_at = now
+        return True
+
     def _normalize_realtime_candles(self, raw_payload: object) -> Dict[int, dict]:
         """Normalizes pyquotex realtime payloads into a timestamp-keyed candle map."""
+        payload_symbol = self._extract_explicit_payload_symbol(raw_payload)
+        if not payload_symbol and self._should_drop_ambiguous_payload():
+            return {}
+
         if isinstance(raw_payload, dict):
+            mismatched_items = 0
             for ts, candle in raw_payload.items():
                 try:
-                    self._tick_candle_buffer[int(ts)] = candle
+                    timestamp = int(ts)
                 except (TypeError, ValueError):
                     continue
+
+                item_symbol = self._extract_explicit_item_symbol(candle)
+                if self._is_realtime_payload_symbol_mismatch(item_symbol):
+                    mismatched_items += 1
+                    continue
+
+                self._tick_candle_buffer[timestamp] = candle
+
+            if mismatched_items:
+                logger.debug(
+                    f"Realtime dict payload filtered for {self.symbol}: "
+                    f"discarded={mismatched_items} mismatched item(s)"
+                )
             self._trim_tick_buffer()
             return dict(self._tick_candle_buffer)
 
         if isinstance(raw_payload, list):
             if len(raw_payload) >= 4 and isinstance(raw_payload[0], str):
+                item_symbol = self._extract_explicit_item_symbol(raw_payload)
+                if self._is_realtime_payload_symbol_mismatch(item_symbol):
+                    return {}
+
                 process_tick(raw_payload, 60, self._tick_candle_buffer)
                 self._trim_tick_buffer()
                 return dict(self._tick_candle_buffer)
 
+            mismatched_items = 0
             for tick in raw_payload:
                 if isinstance(tick, list) and len(tick) >= 4:
+                    item_symbol = self._extract_explicit_item_symbol(tick)
+                    if self._is_realtime_payload_symbol_mismatch(item_symbol):
+                        mismatched_items += 1
+                        continue
+
                     process_tick(tick, 60, self._tick_candle_buffer)
+
+            if mismatched_items:
+                logger.debug(
+                    f"Realtime list payload filtered for {self.symbol}: "
+                    f"discarded={mismatched_items} mismatched tick(s)"
+                )
 
             self._trim_tick_buffer()
             return dict(self._tick_candle_buffer)
@@ -542,6 +754,10 @@ class _QuotexSymbolWorker:
                 self.client.get_realtime_candles(self.asset_name),
                 timeout=Config.QUOTEX.request_timeout_seconds,
             )
+            explicit_symbol = self._extract_explicit_payload_symbol(candles)
+            if self._is_realtime_payload_symbol_mismatch(explicit_symbol):
+                return False
+
             candles = self._normalize_realtime_candles(candles)
 
             if (not candles) and self.asset_name != self.symbol:
@@ -549,6 +765,10 @@ class _QuotexSymbolWorker:
                     self.client.get_realtime_candles(self.symbol),
                     timeout=Config.QUOTEX.request_timeout_seconds,
                 )
+                explicit_symbol = self._extract_explicit_payload_symbol(fallback_candles)
+                if self._is_realtime_payload_symbol_mismatch(explicit_symbol):
+                    return False
+
                 candles = self._normalize_realtime_candles(fallback_candles)
 
             if not candles:

@@ -18,7 +18,6 @@ websockets==12.0
 # NOTE: iqoptionapi conflicts with pyquotex (websocket-client version clash).
 # Install separately ONLY when using DATA_PROVIDER=IQOPTION:
 #   pip install git+https://github.com/iqoptionapi/iqoptionapi.git
-# git+https://github.com/iqoptionapi/iqoptionapi.git
 
 # HTTP Client (Async)
 aiohttp==3.11.16
@@ -42,9 +41,9 @@ python-dotenv==1.0.0
 # Environment variable management from .env files
 
 # Quotex API
-pyquotex @ git+https://github.com/Maiki02/pyquotex.git
+-e ../pyquotex
 # Quotex API client for real-time market data
-# Note: pip package name is "pyquotex", not "quotexpy"
+# Local sibling dependency; no remote pyquotex Git dependency is used here.
 
 # Required for QUOTEX_AUTH_METHOD=CREDENTIALS (browser login flow)
 # Install inside the venv:
