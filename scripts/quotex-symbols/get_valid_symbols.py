@@ -19,7 +19,15 @@ from pathlib import Path
 from typing import Any
 
 from dotenv import load_dotenv
-from pyquotex.stable_api import Quotex
+from pathlib import Path
+import sys
+
+# Repository root (trading-bot)
+REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from src.utils.quotex_bootstrap import Quotex
 
 
 @dataclass(frozen=True)

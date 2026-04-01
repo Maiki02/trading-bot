@@ -1,4 +1,4 @@
-"""Quotex market data service with one isolated client per symbol."""
+"""Quotex market data service with one shared client across symbols."""
 
 import asyncio
 import inspect
@@ -12,44 +12,7 @@ if TYPE_CHECKING:
     from src.logic.analysis_service import AnalysisService
 
 
-def _bootstrap_local_pyquotex() -> Optional[Path]:
-    """Prioritize sibling ../pyquotex repository when present."""
-    repo_root = Path(__file__).resolve().parents[2]
-    local_pyquotex_dir = repo_root.parent / "pyquotex"
-
-    if not local_pyquotex_dir.is_dir():
-        return None
-
-    local_repo_root = str(local_pyquotex_dir)
-    if local_repo_root in sys.path:
-        sys.path.remove(local_repo_root)
-    sys.path.insert(0, local_repo_root)
-    return local_pyquotex_dir
-
-
-_LOCAL_PYQUOTEX_DIR = _bootstrap_local_pyquotex()
-
-try:
-    from pyquotex.stable_api import Quotex
-    from pyquotex.utils.processor import process_tick
-except ModuleNotFoundError as exc:
-    if exc.name and not exc.name.startswith("pyquotex"):
-        raise
-
-    if _LOCAL_PYQUOTEX_DIR is None:
-        location_message = "Sibling repository '../pyquotex' was not found."
-    else:
-        location_message = (
-            f"Local repository was found at '{_LOCAL_PYQUOTEX_DIR}', "
-            "but import still failed."
-        )
-
-    raise ModuleNotFoundError(
-        "pyquotex is required when DATA_PROVIDER=QUOTEX. "
-        f"{location_message} "
-        "Install local dependency with 'pip install -e ../pyquotex' "
-        "or provide pyquotex in the active environment."
-    ) from exc
+from src.utils.quotex_bootstrap import Quotex, process_tick
 
 from config import Config
 from src.services.connection_service import CandleData
@@ -65,7 +28,7 @@ async def _maybe_await(result: object) -> None:
 
 
 class _QuotexSymbolWorker:
-    """Handles the full Quotex lifecycle for a single symbol."""
+    """Handles symbol-specific stream and polling using a shared Quotex client."""
 
     _REALTIME_MISMATCH_GUARD_SECONDS = 15.0
     _MISMATCH_LOG_THROTTLE_SECONDS = 5.0
@@ -73,15 +36,13 @@ class _QuotexSymbolWorker:
 
     def __init__(
         self,
+        client: Quotex,
         symbol: str,
         analysis_service: Optional["AnalysisService"],
-        on_auth_failure_callback: Optional[Callable[[], None]] = None,
     ):
+        self.client = client
         self.symbol = symbol
         self.analysis_service = analysis_service
-        self.on_auth_failure_callback = on_auth_failure_callback
-
-        self.client: Optional[Quotex] = None
         self.asset_name = symbol
         self.is_active_symbol = False
         self._history_loaded = False
@@ -151,21 +112,14 @@ class _QuotexSymbolWorker:
         return self._normalize_symbol(candidate_symbol) in self._expected_realtime_symbols
 
     async def start(self) -> None:
-        """Connects and maintains the dedicated symbol worker."""
+        """Subscribes and maintains the polling loop for a single symbol."""
         logger.info(f"Starting Quotex worker for {self.symbol}")
-
-        if not await self._connect():
-            logger.error(f"Failed to connect Quotex worker for {self.symbol}")
-            if self.on_auth_failure_callback:
-                self.on_auth_failure_callback()
-            return
 
         self.is_active_symbol = await self._resolve_symbol_availability()
         if not self.is_active_symbol:
             logger.warning(
                 f"Quotex worker for {self.symbol} will stay idle because the asset is closed"
             )
-            await self._disconnect_client()
             return
 
         await self._subscribe_to_instrument()
@@ -174,10 +128,6 @@ class _QuotexSymbolWorker:
         self._should_run = True
         self._tasks = [
             asyncio.create_task(self._poll_instrument(), name=f"quotex-poll-{self.symbol}"),
-            asyncio.create_task(
-                self._reconnect_loop(),
-                name=f"quotex-reconnect-{self.symbol}",
-            ),
         ]
 
         try:
@@ -193,7 +143,7 @@ class _QuotexSymbolWorker:
             self._tasks.clear()
 
     async def stop(self) -> None:
-        """Stops polling and closes the dedicated client."""
+        """Stops polling and unsubscribes symbol streams."""
         self._should_run = False
 
         for task in self._tasks:
@@ -201,14 +151,6 @@ class _QuotexSymbolWorker:
 
         if self._tasks:
             await asyncio.gather(*self._tasks, return_exceptions=True)
-
-        await self._disconnect_client()
-        logger.info(f"Quotex worker stopped for {self.symbol}")
-
-    async def _disconnect_client(self) -> None:
-        """Stops the stream and closes the dedicated Quotex client."""
-        if not self.client:
-            return
 
         try:
             await _maybe_await(self.client.stop_candles_stream(self.asset_name))
@@ -221,71 +163,7 @@ class _QuotexSymbolWorker:
         except Exception:
             pass
 
-        try:
-            await _maybe_await(self.client.close())
-        except Exception:
-            pass
-
-        self.client = None
-
-    async def _connect(self) -> bool:
-        """Authenticates a dedicated Quotex client for the symbol."""
-        try:
-            logger.info(
-                f"Connecting Quotex worker for {self.symbol} | "
-                f"Timeout: {Config.QUOTEX.connect_timeout_seconds}s | "
-                f"WS debug: {Config.QUOTEX.ws_debug}"
-            )
-
-            self.client = Quotex(
-                email=Config.QUOTEX.email,
-                password=Config.QUOTEX.password,
-                lang="en",
-            )
-            self.client.debug_ws_enable = Config.QUOTEX.ws_debug
-
-            started_at = time.time()
-            check_connect, message = await asyncio.wait_for(
-                self.client.connect(),
-                timeout=Config.QUOTEX.connect_timeout_seconds,
-            )
-            elapsed = time.time() - started_at
-
-            logger.info(
-                f"Quotex login finished for {self.symbol} | "
-                f"Success: {check_connect} | Message: {message} | "
-                f"Elapsed: {elapsed:.2f}s"
-            )
-
-            if not check_connect:
-                await self._disconnect_client()
-                return False
-
-            if isinstance(message, str) and "token rejected" in message.lower():
-                logger.warning(
-                    f"Quotex reported token rejection for {self.symbol}. The connection may be unstable."
-                )
-
-            await asyncio.wait_for(
-                self.client.change_account("PRACTICE"),
-                timeout=Config.QUOTEX.request_timeout_seconds,
-            )
-            return True
-
-        except asyncio.TimeoutError:
-            logger.critical(
-                f"Quotex connect timeout for {self.symbol} after "
-                f"{Config.QUOTEX.connect_timeout_seconds}s"
-            )
-            await self._disconnect_client()
-            return False
-        except Exception as exc:
-            logger.error(
-                f"Error connecting Quotex worker for {self.symbol}: {exc}",
-                exc_info=True,
-            )
-            await self._disconnect_client()
-            return False
+        logger.info(f"Quotex worker stopped for {self.symbol}")
 
     def _is_asset_open(self, asset_data: object) -> bool:
         """Best-effort check for Quotex asset open state."""
@@ -960,6 +838,23 @@ class _QuotexSymbolWorker:
                 exc_info=True,
             )
 
+    async def on_shared_client_reconnected(self) -> None:
+        """Restores symbol stream state after a shared-client reconnection."""
+        self._realtime_sync_established = False
+        self._tick_candle_buffer.clear()
+
+        self.is_active_symbol = await self._resolve_symbol_availability()
+        if not self.is_active_symbol:
+            logger.warning(
+                f"Skipping re-subscription for {self.symbol}: asset is closed"
+            )
+            return
+
+        await self._subscribe_to_instrument()
+
+        if not self._history_loaded:
+            await self._load_historical_candles()
+
     def _map_historical_candle(self, raw_candle: dict) -> CandleData:
         """Maps a Quotex historical candle payload to CandleData."""
         return CandleData(
@@ -1014,96 +909,8 @@ class _QuotexSymbolWorker:
             logger.error(f"Error mapping realtime candle for {self.symbol}: {exc}")
             return None
 
-    async def _reconnect_loop(self) -> None:
-        """Reconnects the dedicated worker with exponential backoff."""
-        attempt = 0
-        current_timeout = Config.RECONNECT_INITIAL_TIMEOUT
-
-        while self._should_run:
-            await asyncio.sleep(1)
-            if not self._should_run:
-                break
-
-            if self.client is None:
-                await self._attempt_reconnect(attempt, current_timeout)
-                if self.client is not None:
-                    attempt = 0
-                    current_timeout = Config.RECONNECT_INITIAL_TIMEOUT
-                else:
-                    attempt += 1
-                    current_timeout = min(
-                        max(current_timeout * 2, Config.RECONNECT_INITIAL_TIMEOUT),
-                        Config.RECONNECT_MAX_TIMEOUT,
-                    )
-                continue
-
-            try:
-                candles = await asyncio.wait_for(
-                    self.client.get_realtime_candles(self.asset_name),
-                    timeout=Config.QUOTEX.request_timeout_seconds,
-                )
-                if candles is not None:
-                    if attempt > 0:
-                        logger.info(f"Quotex liveness restored for {self.symbol}")
-                    attempt = 0
-                    current_timeout = Config.RECONNECT_INITIAL_TIMEOUT
-                    continue
-            except asyncio.TimeoutError:
-                logger.warning(
-                    f"Liveness check timeout for {self.symbol} after "
-                    f"{Config.QUOTEX.request_timeout_seconds}s"
-                )
-            except Exception:
-                pass
-
-            await self._attempt_reconnect(attempt, current_timeout)
-            if self.client is not None:
-                attempt = 0
-                current_timeout = Config.RECONNECT_INITIAL_TIMEOUT
-            else:
-                attempt += 1
-                current_timeout = min(
-                    max(current_timeout * 2, Config.RECONNECT_INITIAL_TIMEOUT),
-                    Config.RECONNECT_MAX_TIMEOUT,
-                )
-
-    async def _attempt_reconnect(self, attempt: int, current_timeout: int) -> None:
-        """Reconnects the dedicated client and re-subscribes the symbol stream."""
-        logger.warning(
-            f"Quotex worker reconnect scheduled for {self.symbol} in {current_timeout}s "
-            f"(attempt {attempt + 1})"
-        )
-        await asyncio.sleep(current_timeout)
-
-        if not self._should_run:
-            return
-
-        await self._disconnect_client()
-
-        if not await self._connect():
-            logger.error(f"Reconnection failed for {self.symbol}")
-            return
-
-        self.is_active_symbol = await self._resolve_symbol_availability()
-        if not self.is_active_symbol:
-            logger.warning(
-                f"Reconnected Quotex worker for {self.symbol}, but the asset is closed"
-            )
-            await self._disconnect_client()
-            return
-
-        await self._subscribe_to_instrument()
-        self._realtime_sync_established = False
-        self._tick_candle_buffer.clear()
-
-        if not self._history_loaded:
-            await self._load_historical_candles()
-
-        logger.info(f"Reconnection successful for {self.symbol}")
-
-
 class QuotexServiceMultiAsync:
-    """Coordinates one independent Quotex worker per configured symbol."""
+    """Coordinates per-symbol workers using one shared Quotex connection."""
 
     def __init__(
         self,
@@ -1112,18 +919,13 @@ class QuotexServiceMultiAsync:
     ):
         self.analysis_service = analysis_service
         self.on_auth_failure_callback = on_auth_failure_callback
+        self.client: Optional[Quotex] = None
 
         self._workers: Dict[str, _QuotexSymbolWorker] = {}
         self._worker_tasks: List[asyncio.Task] = []
+        self._watchdog_task: Optional[asyncio.Task] = None
+        self._should_run = False
         self._auth_failure_reported = False
-
-    @property
-    def client(self) -> Optional[Quotex]:
-        """Compatibility accessor returning the first live client if available."""
-        for worker in self._workers.values():
-            if worker.client is not None:
-                return worker.client
-        return None
 
     @property
     def poll_tasks(self) -> List[asyncio.Task]:
@@ -1149,35 +951,59 @@ class QuotexServiceMultiAsync:
         }
 
     async def start(self) -> None:
-        """Starts one independent Quotex worker per configured symbol in parallel."""
+        """Starts all symbol workers over one shared Quotex connection."""
         symbols = list(dict.fromkeys(Config.QUOTEX.assets))
         logger.info(
-            f"Starting QuotexServiceMultiAsync with {len(symbols)} independent workers"
+            f"Starting QuotexServiceMultiAsync with {len(symbols)} shared-client workers"
         )
 
         self._auth_failure_reported = False
+        self._should_run = True
+
+        if not await self._connect_shared_client():
+            self._notify_auth_failure_once()
+            self._should_run = False
+            return
+
         self._workers = {
             symbol: _QuotexSymbolWorker(
+                client=self.client,
                 symbol=symbol,
                 analysis_service=self.analysis_service,
-                on_auth_failure_callback=self._notify_auth_failure_once,
             )
             for symbol in symbols
+            if self.client is not None
         }
 
         self._worker_tasks = [
             asyncio.create_task(worker.start(), name=f"quotex-worker-{symbol}")
             for symbol, worker in self._workers.items()
         ]
+        self._watchdog_task = asyncio.create_task(
+            self._connection_watchdog_loop(),
+            name="quotex-shared-watchdog",
+        )
 
         try:
-            await asyncio.gather(*self._worker_tasks, return_exceptions=True)
+            await asyncio.gather(
+                *self._worker_tasks,
+                self._watchdog_task,
+                return_exceptions=True,
+            )
         finally:
+            self._should_run = False
             self._worker_tasks.clear()
+            self._watchdog_task = None
 
     async def stop(self) -> None:
-        """Stops all independent Quotex workers and their dedicated clients."""
+        """Stops all workers and closes the shared Quotex client."""
+        self._should_run = False
+
+        if self._watchdog_task:
+            self._watchdog_task.cancel()
+
         if not self._workers:
+            await self._close_shared_client()
             return
 
         await asyncio.gather(
@@ -1188,8 +1014,183 @@ class QuotexServiceMultiAsync:
         if self._worker_tasks:
             await asyncio.gather(*self._worker_tasks, return_exceptions=True)
 
+        await self._close_shared_client()
         self._worker_tasks.clear()
         logger.info("Quotex service stopped")
+
+    async def _connect_shared_client(self) -> bool:
+        """Authenticates the single Quotex client shared by all workers."""
+        try:
+            logger.info(
+                "Connecting shared Quotex client | "
+                f"Timeout: {Config.QUOTEX.connect_timeout_seconds}s | "
+                f"WS debug: {Config.QUOTEX.ws_debug}"
+            )
+
+            client = Quotex(
+                email=Config.QUOTEX.email,
+                password=Config.QUOTEX.password,
+                lang="en",
+            )
+            client.debug_ws_enable = Config.QUOTEX.ws_debug
+
+            started_at = time.time()
+            check_connect, message = await asyncio.wait_for(
+                client.connect(),
+                timeout=Config.QUOTEX.connect_timeout_seconds,
+            )
+            elapsed = time.time() - started_at
+
+            logger.info(
+                "Shared Quotex login finished | "
+                f"Success: {check_connect} | Message: {message} | "
+                f"Elapsed: {elapsed:.2f}s"
+            )
+
+            if not check_connect:
+                await _maybe_await(client.close())
+                return False
+
+            if isinstance(message, str) and "token rejected" in message.lower():
+                logger.warning(
+                    "Quotex reported token rejection during shared login. "
+                    "The connection may be unstable."
+                )
+
+            await asyncio.wait_for(
+                client.change_account("PRACTICE"),
+                timeout=Config.QUOTEX.request_timeout_seconds,
+            )
+            self.client = client
+            return True
+
+        except asyncio.TimeoutError:
+            logger.critical(
+                f"Shared Quotex connect timeout after {Config.QUOTEX.connect_timeout_seconds}s"
+            )
+            await self._close_shared_client()
+            return False
+        except Exception as exc:
+            logger.error(
+                f"Error connecting shared Quotex client: {exc}",
+                exc_info=True,
+            )
+            await self._close_shared_client()
+            return False
+
+    async def _close_shared_client(self) -> None:
+        """Closes the shared Quotex client if present."""
+        if not self.client:
+            return
+
+        try:
+            await _maybe_await(self.client.close())
+        except Exception:
+            pass
+
+        self.client = None
+
+    async def _is_shared_client_alive(self) -> bool:
+        """Performs a lightweight liveness check on the shared Quotex client."""
+        if not self.client:
+            return False
+
+        check_connect = getattr(self.client, "check_connect", None)
+        if callable(check_connect):
+            try:
+                status = check_connect()
+                if inspect.isawaitable(status):
+                    status = await status
+
+                if isinstance(status, tuple):
+                    return bool(status[0])
+                if isinstance(status, bool):
+                    return status
+                if status is not None:
+                    return bool(status)
+            except Exception:
+                return False
+
+        probe_symbol = next(iter(self._workers), None)
+        if not probe_symbol:
+            probe_symbol = next(iter(Config.QUOTEX.assets), None)
+        if not probe_symbol:
+            return True
+
+        try:
+            await asyncio.wait_for(
+                self.client.get_available_asset(probe_symbol, force_open=False),
+                timeout=Config.QUOTEX.request_timeout_seconds,
+            )
+            return True
+        except Exception:
+            return False
+
+    async def _rebind_workers_to_shared_client(self) -> None:
+        """Updates worker references after the shared client is recreated."""
+        if not self.client:
+            return
+
+        for worker in self._workers.values():
+            worker.client = self.client
+
+    async def _resubscribe_workers_after_reconnect(self) -> None:
+        """Re-subscribes all workers once the shared client reconnects."""
+        await asyncio.gather(
+            *(worker.on_shared_client_reconnected() for worker in self._workers.values()),
+            return_exceptions=True,
+        )
+
+    async def _reconnect_shared_client(self, attempt: int, current_timeout: int) -> bool:
+        """Reconnects the shared Quotex client with exponential backoff."""
+        logger.warning(
+            f"Shared Quotex reconnect scheduled in {current_timeout}s "
+            f"(attempt {attempt + 1})"
+        )
+        await asyncio.sleep(current_timeout)
+
+        if not self._should_run:
+            return False
+
+        await self._close_shared_client()
+        if not await self._connect_shared_client():
+            logger.error("Shared Quotex reconnection failed")
+            return False
+
+        await self._rebind_workers_to_shared_client()
+        await self._resubscribe_workers_after_reconnect()
+        logger.info("Shared Quotex reconnection successful")
+        return True
+
+    async def _connection_watchdog_loop(self) -> None:
+        """Monitors shared connection health and performs centralized reconnects."""
+        attempt = 0
+        current_timeout = Config.RECONNECT_INITIAL_TIMEOUT
+
+        while self._should_run:
+            await asyncio.sleep(1)
+            if not self._should_run:
+                break
+
+            is_alive = await self._is_shared_client_alive()
+            if is_alive:
+                if attempt > 0:
+                    logger.info("Shared Quotex liveness restored")
+                attempt = 0
+                current_timeout = Config.RECONNECT_INITIAL_TIMEOUT
+                continue
+
+            reconnect_ok = await self._reconnect_shared_client(attempt, current_timeout)
+            if reconnect_ok:
+                attempt = 0
+                current_timeout = Config.RECONNECT_INITIAL_TIMEOUT
+                continue
+
+            attempt += 1
+            current_timeout = min(
+                max(current_timeout * 2, Config.RECONNECT_INITIAL_TIMEOUT),
+                Config.RECONNECT_MAX_TIMEOUT,
+            )
 
     def _notify_auth_failure_once(self) -> None:
         """Reports authentication failure only once across all symbol workers."""

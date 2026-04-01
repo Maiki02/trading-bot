@@ -18,7 +18,7 @@ from typing import Dict, List, Optional, Set, Tuple
 
 import numpy as np
 import pandas as pd
-from pyquotex.stable_api import Quotex
+from src.utils.quotex_bootstrap import Quotex
 
 # Add project root to path
 sys.path.append(os.path.join(os.path.dirname(__file__), "..", ".."))

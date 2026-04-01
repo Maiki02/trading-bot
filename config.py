@@ -265,6 +265,9 @@ class Config:
         ws_debug=os.getenv("QUOTEX_WS_DEBUG", "false").lower() == "true",
     )
     
+    # Priorizar repositorio local ../pyquotex (solo en development y si la bandera es true)
+    USE_QUOTEX_LOCAL: bool = os.getenv("USE_QUOTEX_LOCAL", "false").lower() == "true"
+    
     # Quotex buffer management
     QUOTEX_TICK_BUFFER_KEEP_LAST: int = int(os.getenv("QUOTEX_TICK_BUFFER_KEEP_LAST", "300"))
     QUOTEX_PROCESSED_TS_MAX: int = int(os.getenv("QUOTEX_PROCESSED_TS_MAX", "1200"))

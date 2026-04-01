@@ -41,9 +41,9 @@ python-dotenv==1.0.0
 # Environment variable management from .env files
 
 # Quotex API
--e ../pyquotex
+git+https://github.com/Maiki02/pyquotex.git
 # Quotex API client for real-time market data
-# Local sibling dependency; no remote pyquotex Git dependency is used here.
+# If USE_QUOTEX_LOCAL=true in .env, the system will prioritize the local ../pyquotex directory.
 
 # Required for QUOTEX_AUTH_METHOD=CREDENTIALS (browser login flow)
 # Install inside the venv:

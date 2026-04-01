@@ -16,9 +16,10 @@ Integrar un monitor automatizado 24/7 que capture datos de mercado en tiempo rea
 - ✅ **Verificación de disponibilidad:** Consulta `get_available_asset(force_open=False)` al arrancar; si el activo está cerrado, el worker queda inactivo sin bloquear los demás símbolos.
 
 **Proveedor Quotex — Detalles técnicos:**
-- **Librería:** `pyquotex` (instalación: `pip install git+https://github.com/cleitonleonel/pyquotex.git`). Requiere `playwright install` post-instalación.
+- **Librería:** `pyquotex` (GitHub: `https://github.com/Maiki02/pyquotex.git`).
 - **Activación:** `DATA_PROVIDER=QUOTEX` en `.env`.
-- **Autenticación:** Variables `QUOTEX_EMAIL` y `QUOTEX_PASSWORD` en `.env`.
+- **Desarrollo Local:** Bandera `USE_QUOTEX_LOCAL=true` en `.env` para priorizar la carpeta hermano `../pyquotex`.
+- **Importación Centralizada:** Todas las importaciones deben hacerse desde `src.utils.quotex_bootstrap` para asegurar la conmutación correcta entre local/remoto.
 - **Tag de fuente:** `"QX"` en el campo `source` de `CandleData`.
 - **Naming de activos:** Quotex usa nombres como `"EURUSD"`, `"EURUSD_otc"` (variante OTC).
 - **Transformación:** Los payloads crudos de Quotex se normalizan al modelo interno `Candle` antes del análisis.

@@ -1,4 +1,4 @@
-﻿"""Fetch historical Quotex candles for one symbol configured in .env.
+"""Fetch historical Quotex candles for one symbol configured in .env.
 
 This utility authenticates with the installed pyquotex library and retrieves
 historical candles through the official ``get_candles`` API.
@@ -27,7 +27,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from pyquotex.stable_api import Quotex
+from src.utils.quotex_bootstrap import Quotex
 
 from src.services.connection_service import CandleData
 from src.utils.charting import generate_chart_base64
