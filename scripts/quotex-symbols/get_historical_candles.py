@@ -20,7 +20,7 @@ from typing import Any
 from dotenv import load_dotenv
 import pandas as pd
 
-DEFAULT_HISTORY_SYMBOL = "AUDJPY_otc"
+DEFAULT_HISTORY_SYMBOL = "USDJPY"
 
 # Repository root (trading-bot). Used only for local imports and session.json path.
 REPO_ROOT = Path(__file__).resolve().parents[2]

@@ -54,5 +54,19 @@
     "title": "*AUDNZD_otc*\nNada importante detectado.\n",
     "message": "━━━━━━━━━━━━━━━━━━━━━━\n🔹 Señal: NONE\n🔹 Patrón: INVERTED_HAMMER\n🔹 Fecha: 13:46\n🔹 Tendencia: NEUTRAL (+2.0/10.0)\n🔹 Precio Objetivo: 1.159085\n\n\n🔍 Mensaje de info\n⚠️ Tendencia NEUTRAL (penaliza score)\n❌ Agotamiento Bollinger (NONE)\n❌ Agotamiento de Vela (NO)\n❌ RSI Neutro/Contra (Valor: 57.4)\n\n",
     "image_name": ""
+  },
+  {
+    "timestamp": "20260401_134000_616202",
+    "datetime": "2026-04-01T13:40:00.618747",
+    "title": "*USDJPY*\nNada importante detectado.\n",
+    "message": "━━━━━━━━━━━━━━━━━━━━━━\n🔹 Señal: NONE\n🔹 Patrón: INVERTED_HAMMER\n🔹 Fecha: 13:39\n🔹 Tendencia: STRONG_BULLISH (+10.0/10.0)\n🔹 Precio Objetivo: 158.687000\n\n\n🔍 Mensaje de info\n✅ Cumple Tendencia Alcista\n❌ Agotamiento Bollinger (NONE)\n❌ Agotamiento de Vela (NO)\n❌ RSI Neutro/Contra (Valor: 62.3)\n\n",
+    "image_name": ""
+  },
+  {
+    "timestamp": "20260401_134104_150598",
+    "datetime": "2026-04-01T13:41:04.199524",
+    "title": "🔴🔴🔴 *USDJPY* 🔴🔴🔴\n🔴 Siguiente operación a la BAJA.\nPROBABILIDAD MUY ALTA\n",
+    "message": "━━━━━━━━━━━━━━━━━━━━━━\n🔹 Señal: VERY_HIGH\n🔹 Patrón: SHOOTING_STAR\n🔹 Fecha: 13:40\n🔹 Tendencia: WEAK_BULLISH (+4.0/10.0)\n🔹 Precio Objetivo: 158.688000\n\n\n🔍 Mensaje de info\n✅ Cumple Tendencia Alcista\n✅ Agotamiento Bollinger (PEAK)\n✅ Agotamiento de Vela (rompió nivel anterior)\n❌ RSI Neutro/Contra (Valor: 57.9)\n\n",
+    "image_name": ""
   }
 ]
