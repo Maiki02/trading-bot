@@ -1,27 +1,35 @@
-"""
-Backtesting Historical Data V8 (Quotex)
-=======================================
-Generate a typed JSONL dataset for backtesting candlestick reversal signals
-using Quotex historical candles.
+﻿"""Backtesting Historical Data V8 (Quotex).
+
+Entrypoint orchestrator:
+- Reads environment configuration.
+- Connects to Quotex once.
+- Builds historical dataframes per instrument.
+- Runs V8 signal logic.
+- Appends JSONL output.
+- Optionally generates charts from processed dataframes.
 """
 
-import argparse
+from __future__ import annotations
+
 import asyncio
-from dataclasses import dataclass
+import base64
 import json
 import logging
 import os
 import sys
-import time
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Dict, List, Optional, Set, Tuple
 
 import numpy as np
 import pandas as pd
-from src.utils.quotex_bootstrap import Quotex
+from dotenv import load_dotenv
 
-# Add project root to path
-sys.path.append(os.path.join(os.path.dirname(__file__), "..", ".."))
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+SCRIPTS_ROOT = os.path.join(PROJECT_ROOT, "scripts")
+if PROJECT_ROOT not in sys.path:
+    sys.path.append(PROJECT_ROOT)
+if SCRIPTS_ROOT not in sys.path:
+    sys.path.append(SCRIPTS_ROOT)
 
 from config import Config
 from src.logic.analysis_service import analyze_trend, detect_exhaustion
@@ -33,7 +41,10 @@ from src.logic.candle import (
     is_shooting_star,
 )
 from src.logic.signal_classifier import classify_signal
+from src.utils.charting import generate_chart_base64
 from src.utils.indicators import calculate_bollinger_bands, calculate_ema, calculate_rsi
+from backtesting_v8.candle_orchestrator import build_historical_dataframe
+from utils.quotex_auth import get_connected_client
 
 
 class NumpyEncoder(json.JSONEncoder):
@@ -49,21 +60,6 @@ class NumpyEncoder(json.JSONEncoder):
         if isinstance(obj, np.bool_):
             return bool(obj)
         return super().default(obj)
-
-
-OUTPUT_FILE = "data/trading_signals_dataset_v8_quotex.jsonl"
-CANDLE_PERIOD_SECONDS = 60
-QUOTEX_CHUNK_LIMIT = 196
-OFFSET_SECONDS = QUOTEX_CHUNK_LIMIT * CANDLE_PERIOD_SECONDS
-WARMUP_CANDLES = 100
-CHUNK_MAX_RETRIES = 3
-CHUNK_RETRY_DELAY_SECONDS = 0.5
-CHUNK_MAX_CONSECUTIVE_FAILURES = 5
-CHUNK_MAX_CONSECUTIVE_EMPTY_WINDOWS = 5
-CONNECT_PHASE_RETRIES = 3
-CONNECT_BACKOFF_BASE_SECONDS = 0.6
-PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-SESSION_FILE = os.path.join(PROJECT_ROOT, "session.json")
 
 
 def setup_logging() -> logging.Logger:
@@ -85,395 +81,46 @@ def setup_logging() -> logging.Logger:
 logger = setup_logging()
 
 
-def parse_args() -> argparse.Namespace:
-    """Parse command line arguments."""
-    parser = argparse.ArgumentParser(description="Generate V8 historical dataset from Quotex")
-    parser.add_argument(
-        "--start-date",
-        required=True,
-        type=str,
-        help="Start date in format YYYY-MM-DD",
-    )
-    parser.add_argument(
-        "--end-date",
-        type=str,
-        help="Optional end date in format YYYY-MM-DD (defaults to now)",
-    )
-    return parser.parse_args()
-
-
-def parse_date(date_text: str, end_of_day: bool = False) -> datetime:
-    """Parse date string in YYYY-MM-DD format."""
-    base_date = datetime.strptime(date_text, "%Y-%m-%d")
-    if end_of_day:
-        return base_date + timedelta(days=1) - timedelta(seconds=1)
-    return base_date
-
-
-@dataclass(frozen=True)
-class ConnectionPhaseResult:
-    """Connection result details for one strategy phase."""
-
-    client: Optional[Quotex]
-    reason: Optional[str]
-    attempts: int
-
-
-def load_persisted_session(email: str) -> Optional[Dict[str, Optional[str]]]:
-    """Load persisted Quotex session data from session.json for the given email."""
-    if not email or not os.path.exists(SESSION_FILE):
-        return None
-
-    try:
-        with open(SESSION_FILE, "r", encoding="utf-8") as session_file:
-            payload = json.load(session_file)
-    except Exception:
-        return None
-
-    if not isinstance(payload, dict):
-        return None
-
-    account_entry = payload.get(email)
-    if not isinstance(account_entry, dict):
-        return None
-
-    user_agent = str(account_entry.get("user_agent") or "").strip()
-    token = str(account_entry.get("token") or "").strip()
-    cookies_raw = account_entry.get("cookies")
-    cookies = str(cookies_raw).strip() if cookies_raw is not None else ""
-
-    if not user_agent or not token:
-        return None
-
-    return {
-        "user_agent": user_agent,
-        "token": token,
-        "cookies": cookies or None,
-    }
-
-
-def build_client_for_phase(
-    phase: str,
-    session_data: Optional[Dict[str, Optional[str]]],
-) -> Quotex:
-    """Build a Quotex client for the requested connection phase."""
-    client = Quotex(email=Config.QUOTEX.email, password=Config.QUOTEX.password, lang="en")
-    client.debug_ws_enable = Config.QUOTEX.ws_debug
-
-    if phase == "persisted":
-        if not session_data:
-            raise ValueError("Persisted session phase requested without valid session data")
-        client.session_data = {
-            "user_agent": str(session_data["user_agent"]),
-            "cookies": session_data["cookies"],
-            "token": str(session_data["token"]),
-        }
-    elif phase != "fresh":
-        raise ValueError(f"Unsupported connection phase: {phase}")
-
-    return client
-
-
-async def try_connect_phase(
-    phase: str,
-    session_data: Optional[Dict[str, Optional[str]]],
-    retries: int = CONNECT_PHASE_RETRIES,
-) -> ConnectionPhaseResult:
-    """Try one connection phase with retries and exponential backoff."""
-    last_reason: Optional[str] = None
-
-    for attempt in range(1, retries + 1):
-        client: Optional[Quotex] = None
-        try:
-            client = build_client_for_phase(phase, session_data)
-            connected, reason = await asyncio.wait_for(
-                client.connect(),
-                timeout=Config.QUOTEX.connect_timeout_seconds,
-            )
-            reason_text = str(reason)
-            token_rejected = "token rejected" in reason_text.lower()
-
-            if connected and not token_rejected:
-                await asyncio.wait_for(
-                    client.change_account("PRACTICE"),
-                    timeout=Config.QUOTEX.request_timeout_seconds,
-                )
-                logger.info(
-                    "Quotex connected using phase=%s (attempt %s/%s), account=PRACTICE",
-                    phase,
-                    attempt,
-                    retries,
-                )
-                return ConnectionPhaseResult(client=client, reason=None, attempts=attempt)
-
-            last_reason = reason_text or "Unknown connection failure"
-        except asyncio.TimeoutError:
-            last_reason = "Connection timeout"
-        except Exception as error:
-            last_reason = str(error)
-
-        if client is not None:
-            try:
-                await client.close()
-            except Exception:
-                pass
-
-        logger.warning(
-            "Quotex connect failed in phase=%s (attempt %s/%s): %s",
-            phase,
-            attempt,
-            retries,
-            last_reason,
-        )
-
-        if attempt < retries:
-            backoff = CONNECT_BACKOFF_BASE_SECONDS * (2 ** (attempt - 1))
-            await asyncio.sleep(backoff)
-
-    return ConnectionPhaseResult(client=None, reason=last_reason, attempts=retries)
-
-
-async def connect_with_session_strategy() -> Quotex:
-    """Connect to Quotex using a phased persisted-then-fresh strategy."""
-    if not Config.QUOTEX.email or not Config.QUOTEX.password:
-        raise ValueError("Quotex credentials are missing in environment variables")
-
-    persisted_session = load_persisted_session(Config.QUOTEX.email)
-    phases = ["persisted", "fresh"] if persisted_session else ["fresh"]
-    logger.info("Starting Quotex connection strategy with phases=%s", ",".join(phases))
-
-    failures: List[str] = []
-
-    for phase in phases:
-        phase_session = persisted_session if phase == "persisted" else None
-        result = await try_connect_phase(phase=phase, session_data=phase_session)
-        if result.client is not None:
-            return result.client
-
-        failure_reason = result.reason or "Unknown connection failure"
-        failures.append(f"{phase}:{failure_reason}")
-        logger.warning("Connection phase failed: %s", phase)
-
-    raise ConnectionError(
-        "Quotex connection failed after all phases. Details: " + " | ".join(failures)
-    )
-
-
-async def connect_quotex() -> Quotex:
-    """Connect to Quotex using persisted/fresh session strategy."""
-    return await connect_with_session_strategy()
+def parse_bool(value: str, default: bool = False) -> bool:
+    """Parse environment booleans."""
+    if not value:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
 
 
 def resolve_assets() -> List[str]:
-    """Resolve target assets for Quotex dataset generation."""
+    """Resolve target assets from env/config."""
+    env_assets = os.getenv("QUOTEX_BACKTEST_ASSETS", "").strip()
+    if env_assets:
+        return [asset.strip() for asset in env_assets.split(",") if asset.strip()]
+
     assets = [asset.strip() for asset in Config.QUOTEX.assets if asset.strip()]
     if assets:
         return assets
+
     return [asset.strip() for asset in Config.TARGET_ASSETS if asset.strip()]
 
 
-def normalize_quotex_candle(raw: Dict[str, object]) -> Optional[Dict[str, float]]:
-    """Normalize Quotex candle payload into the IQ-compatible candle schema."""
-    timestamp_value = (
-        raw.get("time")
-        or raw.get("timestamp")
-        or raw.get("from")
-        or raw.get("at")
-    )
-    if timestamp_value is None:
-        return None
+def load_runtime_config() -> dict:
+    """Load backtesting runtime config from environment."""
+    load_dotenv()
 
-    try:
-        candle = {
-            "from": int(timestamp_value),
-            "open": float(raw.get("open")),
-            "max": float(raw.get("high", raw.get("max"))),
-            "min": float(raw.get("low", raw.get("min"))),
-            "close": float(raw.get("close")),
-            "volume": float(raw.get("ticks", raw.get("volume", 0.0))),
-        }
-    except (TypeError, ValueError):
-        return None
-
-    return candle
-
-
-async def subscribe_asset_stream(client: Quotex, asset: str) -> None:
-    """Subscribe to candle stream before requesting historical data."""
-    client.start_candles_stream(asset, CANDLE_PERIOD_SECONDS)
-    await asyncio.sleep(0.2)
-    logger.info("Subscribed to Quotex candle stream for %s", asset)
-
-
-async def resolve_quotex_asset_name(client: Quotex, symbol: str) -> str:
-    """Resolve broker asset name for a requested symbol."""
-    try:
-        asset_name, _asset_data = await asyncio.wait_for(
-            client.get_available_asset(symbol, force_open=True),
-            timeout=Config.QUOTEX.request_timeout_seconds,
-        )
-        resolved = str(asset_name or symbol)
-        if resolved != symbol:
-            logger.info("Resolved Quotex asset %s -> %s", symbol, resolved)
-        return resolved
-    except Exception as error:
-        logger.warning(
-            "Could not resolve asset name for %s (%s). Using raw symbol.",
-            symbol,
-            error,
-        )
-        return symbol
-
-
-async def fetch_historical_data(
-    client: Quotex,
-    asset: str,
-    start_ts: int,
-    end_ts: int,
-) -> List[Dict[str, float]]:
-    """Fetch historical candles in reverse chunks of 196 candles with retries.
-
-    Flow requested by user:
-    - Start from end_ts and move backwards.
-    - If one chunk cannot return usable data, stop this symbol and continue with next.
-    """
-    all_candles: List[Dict[str, float]] = []
-    seen_timestamps: Set[int] = set()
-    cursor_end = int(end_ts)
-    consecutive_chunk_failures = 0
-    consecutive_empty_windows = 0
-    chunk_timeout_seconds = max(Config.QUOTEX.request_timeout_seconds, 60)
-    chunk_index = 0
-
-    while cursor_end >= start_ts:
-        chunk_index += 1
-        window_end = cursor_end
-        window_start = max(start_ts, window_end - OFFSET_SECONDS)
-        logger.info(
-            "Chunk %s | %s | requested reverse range %s -> %s",
-            chunk_index,
-            asset,
-            datetime.fromtimestamp(window_start).isoformat(),
-            datetime.fromtimestamp(window_end).isoformat(),
-        )
-
-        chunk_payload: Optional[List[Dict[str, object]]] = None
-
-        for attempt in range(1, CHUNK_MAX_RETRIES + 1):
-            try:
-                raw_chunk = await asyncio.wait_for(
-                    client.get_candles(asset, float(window_end), OFFSET_SECONDS, CANDLE_PERIOD_SECONDS),
-                    timeout=chunk_timeout_seconds,
-                )
-                if isinstance(raw_chunk, list):
-                    chunk_payload = raw_chunk
-                else:
-                    chunk_payload = []
-                break
-            except asyncio.TimeoutError:
-                logger.warning(
-                    "Timeout on chunk for %s at window_end=%s (attempt %s/%s)",
-                    asset,
-                    window_end,
-                    attempt,
-                    CHUNK_MAX_RETRIES,
-                )
-            except Exception as error:
-                logger.warning(
-                    "Chunk error for %s at window_end=%s (attempt %s/%s): %s",
-                    asset,
-                    window_end,
-                    attempt,
-                    CHUNK_MAX_RETRIES,
-                    error,
-                )
-
-            await asyncio.sleep(CHUNK_RETRY_DELAY_SECONDS * attempt)
-
-        if chunk_payload is None:
-            consecutive_chunk_failures += 1
-            logger.warning(
-                "Failed chunk for %s at range %s -> %s after %s attempts (consecutive failures=%s/%s)",
-                asset,
-                datetime.fromtimestamp(window_start).isoformat(),
-                datetime.fromtimestamp(window_end).isoformat(),
-                CHUNK_MAX_RETRIES,
-                consecutive_chunk_failures,
-                CHUNK_MAX_CONSECUTIVE_FAILURES,
-            )
-            if consecutive_chunk_failures >= CHUNK_MAX_CONSECUTIVE_FAILURES:
-                logger.warning(
-                    "Stopping symbol %s after %s consecutive chunk failures.",
-                    asset,
-                    consecutive_chunk_failures,
-                )
-                break
-
-            # Move to previous window to avoid getting stuck on same failing range.
-            cursor_end = window_start - CANDLE_PERIOD_SECONDS
-            continue
-
-        consecutive_chunk_failures = 0
-
-        normalized_chunk = []
-        for raw_candle in chunk_payload:
-            if not isinstance(raw_candle, dict):
-                continue
-            normalized = normalize_quotex_candle(raw_candle)
-            if normalized is None:
-                continue
-            candle_ts = int(normalized["from"])
-            if window_start <= candle_ts <= window_end:
-                normalized_chunk.append(normalized)
-
-        if normalized_chunk:
-            added_count = 0
-            oldest_ts = window_end
-            for candle in normalized_chunk:
-                candle_ts = int(candle["from"])
-                if candle_ts in seen_timestamps:
-                    continue
-                seen_timestamps.add(candle_ts)
-                all_candles.append(candle)
-                added_count += 1
-                if candle_ts < oldest_ts:
-                    oldest_ts = candle_ts
-
-            consecutive_empty_windows = 0
-
-            cursor_end = oldest_ts - CANDLE_PERIOD_SECONDS
-            logger.info(
-                "Chunk %s | %s | valid=%s added=%s next_end=%s",
-                chunk_index,
-                asset,
-                len(normalized_chunk),
-                added_count,
-                datetime.fromtimestamp(max(cursor_end, start_ts)).isoformat(),
-            )
-            continue
-
-        logger.warning(
-            "Chunk %s | %s | no valid candles in requested range %s -> %s",
-            chunk_index,
-            asset,
-            datetime.fromtimestamp(window_start).isoformat(),
-            datetime.fromtimestamp(window_end).isoformat(),
-        )
-        consecutive_empty_windows += 1
-        if consecutive_empty_windows >= CHUNK_MAX_CONSECUTIVE_EMPTY_WINDOWS:
-            logger.warning(
-                "Stopping symbol %s after %s consecutive empty windows.",
-                asset,
-                consecutive_empty_windows,
-            )
-            break
-
-        cursor_end = window_start - CANDLE_PERIOD_SECONDS
-        continue
-
-    ordered = sorted(all_candles, key=lambda candle: int(candle["from"]))
-    logger.info("Fetched %s unique Quotex candles for %s", len(ordered), asset)
-    return ordered
+    return {
+        "output_file": os.getenv(
+            "QUOTEX_BACKTEST_OUTPUT_FILE",
+            "data/trading_signals_dataset_v8_quotex.jsonl",
+        ).strip()
+        or "data/trading_signals_dataset_v8_quotex.jsonl",
+        "period": max(int(os.getenv("QUOTEX_BACKTEST_PERIOD", "60")), 1),
+        "target_candles": max(int(os.getenv("QUOTEX_BACKTEST_TARGET_CANDLES", "3000")), 100),
+        "delay_seconds": max(float(os.getenv("QUOTEX_BACKTEST_DELAY_SECONDS", "0.35")), 0.0),
+        "generate_charts": parse_bool(os.getenv("GENERATE_CHARTS", "false"), default=False),
+        "chart_lookback": max(int(os.getenv("CHART_LOOKBACK", "40")), 10),
+        "account_mode": (os.getenv("QUOTEX_HISTORY_ACCOUNT_MODE", "PRACTICE").strip().upper() or "PRACTICE"),
+        "email": os.getenv("QUOTEX_EMAIL", "").strip(),
+        "password": os.getenv("QUOTEX_PASSWORD", "").strip(),
+        "ssid": os.getenv("QUOTEX_SSID", "").strip(),
+    }
 
 
 def calculate_indicators(df: pd.DataFrame) -> pd.DataFrame:
@@ -631,24 +278,37 @@ def load_existing_keys(output_file: str) -> Set[Tuple[Optional[str], Optional[st
     return keys
 
 
-def process_asset(
-    candles: List[Dict[str, float]],
-    asset: str,
+def prepare_dataframe_for_strategy(df: pd.DataFrame, symbol: str) -> pd.DataFrame:
+    """Map orchestrator dataframe schema to V8 strategy schema."""
+    if df.empty:
+        return pd.DataFrame(columns=["from", "open", "max", "min", "close", "volume", "symbol"])
+
+    mapped = df.rename(
+        columns={
+            "time": "from",
+            "high": "max",
+            "low": "min",
+        }
+    ).copy()
+    mapped["symbol"] = symbol
+    return mapped[["from", "open", "max", "min", "close", "volume", "symbol"]]
+
+
+def process_asset_dataframe(
+    strategy_df: pd.DataFrame,
     existing_keys: Set[Tuple[Optional[str], Optional[str], Optional[str], Optional[int]]],
     out_file,
 ) -> int:
-    """Compute signals and append rows for one asset candle collection."""
-    if len(candles) < WARMUP_CANDLES + 2:
-        logger.warning("Skipping %s: not enough candles (%s)", asset, len(candles))
+    """Run V8 signal generation for one symbol dataframe and append JSONL."""
+    warmup_candles = 100
+    if len(strategy_df) < warmup_candles + 2:
+        logger.warning("Skipping %s: not enough candles (%s)", strategy_df["symbol"].iloc[0], len(strategy_df))
         return 0
 
-    df = pd.DataFrame(candles)
-    df["symbol"] = asset
-    df = calculate_indicators(df)
-
+    df = calculate_indicators(strategy_df.copy())
     generated = 0
 
-    for index in range(WARMUP_CANDLES, len(df) - 1):
+    for index in range(warmup_candles, len(df) - 1):
         row = df.iloc[index]
         prev_row = df.iloc[index - 1]
 
@@ -688,50 +348,96 @@ def process_asset(
     return generated
 
 
+def maybe_generate_chart(df: pd.DataFrame, symbol: str, chart_lookback: int) -> None:
+    """Generate optional chart from already processed dataframe."""
+    if df.empty:
+        return
+
+    charts_dir = os.path.join("logs", "backtesting_v8_charts")
+    os.makedirs(charts_dir, exist_ok=True)
+
+    chart_df = df[["time", "open", "high", "low", "close", "volume"]].rename(
+        columns={"time": "timestamp"}
+    )
+    lookback = min(max(chart_lookback, 10), len(chart_df))
+    if lookback < 10:
+        return
+
+    chart_base64 = generate_chart_base64(
+        chart_df,
+        lookback,
+        title=f"Backtesting QX:{symbol}",
+        show_emas=False,
+    )
+    output_file = os.path.join(charts_dir, f"{symbol}_{int(datetime.now().timestamp())}.png")
+    with open(output_file, "wb") as chart_file:
+        chart_file.write(base64.b64decode(chart_base64))
+
+    logger.info("Chart generated for %s: %s", symbol, output_file)
+
+
 async def run() -> None:
-    """Async dataset generation flow for Quotex."""
-    args = parse_args()
+    """Backtesting entrypoint using single connected client and injected dependencies."""
+    cfg = load_runtime_config()
 
-    start_dt = parse_date(args.start_date)
-    end_dt = parse_date(args.end_date, end_of_day=True) if args.end_date else datetime.now()
-
-    if start_dt >= end_dt:
-        raise ValueError("start-date must be earlier than end-date")
-
-    start_ts = int(start_dt.timestamp())
-    end_ts = int(end_dt.timestamp())
-
-    os.makedirs(os.path.dirname(OUTPUT_FILE), exist_ok=True)
-    existing_keys = load_existing_keys(OUTPUT_FILE)
-
-    client = await connect_quotex()
     assets = resolve_assets()
     if not assets:
-        raise ValueError("No assets configured for Quotex")
+        raise ValueError("No assets configured for Quotex backtesting")
 
-    total_generated = 0
-    subscribed_assets: List[str] = []
+    os.makedirs(os.path.dirname(cfg["output_file"]), exist_ok=True)
+    existing_keys = load_existing_keys(cfg["output_file"])
+
+    client = None
     try:
-        with open(OUTPUT_FILE, "a", encoding="utf-8") as out_file:
-            for asset in assets:
-                resolved_asset = await resolve_quotex_asset_name(client, asset)
-                logger.info("Processing Quotex asset %s (resolved=%s)", asset, resolved_asset)
-                await subscribe_asset_stream(client, resolved_asset)
-                subscribed_assets.append(resolved_asset)
-                candles = await fetch_historical_data(client, resolved_asset, start_ts, end_ts)
-                generated = process_asset(candles, asset, existing_keys, out_file)
-                logger.info("Generated %s signals for %s", generated, asset)
-                total_generated += generated
-    finally:
-        for asset in subscribed_assets:
-            try:
-                client.stop_candles_stream(asset)
-            except Exception:
-                continue
-        await client.close()
+        client = await get_connected_client(
+            email=cfg["email"],
+            password=cfg["password"],
+            ssid=cfg["ssid"],
+            account_mode=cfg["account_mode"],
+        )
 
-    logger.info("Finished Quotex dataset generation. New rows: %s", total_generated)
-    logger.info("Output file: %s", os.path.abspath(OUTPUT_FILE))
+        total_generated = 0
+        with open(cfg["output_file"], "a", encoding="utf-8") as out_file:
+            for asset in assets:
+                try:
+                    resolved_asset, _ = await client.get_available_asset(asset, force_open=True)
+                except Exception:
+                    resolved_asset = asset
+
+                resolved_asset = str(resolved_asset or asset)
+                logger.info(
+                    "Building history for asset=%s resolved=%s target_candles=%s delay=%s",
+                    asset,
+                    resolved_asset,
+                    cfg["target_candles"],
+                    cfg["delay_seconds"],
+                )
+
+                history_df = await build_historical_dataframe(
+                    client=client,
+                    asset=resolved_asset,
+                    period=cfg["period"],
+                    target_candles=cfg["target_candles"],
+                    delay_seconds=cfg["delay_seconds"],
+                )
+
+                strategy_df = prepare_dataframe_for_strategy(history_df, asset)
+                if strategy_df.empty:
+                    logger.warning("Skipping %s: empty historical dataframe", asset)
+                    continue
+
+                generated = process_asset_dataframe(strategy_df, existing_keys, out_file)
+                total_generated += generated
+                logger.info("Generated %s signals for %s", generated, asset)
+
+                if cfg["generate_charts"]:
+                    maybe_generate_chart(history_df, asset, cfg["chart_lookback"])
+
+        logger.info("Finished Quotex dataset generation. New rows: %s", total_generated)
+        logger.info("Output file: %s", os.path.abspath(cfg["output_file"]))
+    finally:
+        if client is not None:
+            await client.close()
 
 
 def main() -> None:
