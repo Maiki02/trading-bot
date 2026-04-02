@@ -160,6 +160,8 @@ pip install -r requirements.txt
 - Se crea una unica instancia de pyquotex compartida para todos los simbolos en `QUOTEX_ASSETS`.
 - El login y `change_account("PRACTICE")` se ejecutan una sola vez en el orquestador antes de iniciar workers.
 - Cada worker recibe el cliente ya autenticado por inyeccion de dependencia.
+- Si `session.json` tiene token vencido, pyquotex hace fallback automatico: re-autentica por credenciales y reintenta el WebSocket.
+- En consultas historicas (`get_candles` snapshot), pyquotex fuerza una suscripcion minima para disparar respuesta del broker y luego desuscribe para evitar fuga de red.
 - En realtime/historico se prioriza el `asset`/`symbol` explicito del payload cuando esta disponible.
 - El worker de Quotex descarta payloads realtime con simbolo explicito que no coincide con su simbolo esperado y deja warning en logs.
 - En realtime multi-simbolo, cada item/candle/tick tambien se valida por simbolo explicito antes de entrar al buffer del worker.
