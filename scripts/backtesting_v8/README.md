@@ -5,7 +5,7 @@ Esta carpeta separa la generacion de dataset historico por proveedor y deja un a
 ## Archivos
 
 - backtesting_historical_data_v8_iqoption.py: genera dataset V8 usando IQ Option.
-- backtesting_historical_data_v8_quotex.py: genera dataset V8 usando Quotex (chunks de 196 velas).
+- backtesting_historical_data_v8_quotex.py: genera dataset V8 usando Quotex por rango de fechas (chunks de ~196 velas).
 - analyze_backtest_v8.py: analiza cualquier dataset JSONL V8 con estrategia de entrada por retroceso.
 
 ## Requisitos
@@ -24,6 +24,26 @@ Esta carpeta separa la generacion de dataset historico por proveedor y deja un a
 - Al conectar, cambia la cuenta a PRACTICE automaticamente.
 - No usa QUOTEX_AUTH_METHOD ni QUOTEX_SSID en este flujo.
 
+### Variables .env para backtesting historico de Quotex
+
+- QUOTEX_BACKTEST_START_DATE=01-03-2026
+- QUOTEX_BACKTEST_END_DATE=02-04-2026
+- QUOTEX_BACKTEST_DELAY_SECONDS=0.35
+- QUOTEX_GENERATE_CHARTS=true
+
+Notas:
+- Las fechas usan formato DD-MM-YYYY y se parsean a timestamps en `config.py`.
+- `QUOTEX_GENERATE_CHARTS` es independiente de `SEND_CHARTS`.
+
+### Progreso y tolerancia a fallos
+
+- El orquestador imprime progreso por chunk descargado con el formato:
+	- `Descargando chunk X de ~Y para ASSET...`
+- Cada chunk representa aproximadamente 196 velas por solicitud.
+- Si un activo falla en descarga/procesamiento/graficado, el script registra:
+	- `Fallo crítico al procesar el activo <asset>: <error>`
+- Luego continua automaticamente con el siguiente activo sin abortar toda la ejecucion.
+
 ## Uso rapido
 
 ### 1) Generar dataset desde IQ Option
@@ -38,16 +58,10 @@ Salida:
 
 ### 2) Generar dataset desde Quotex
 
-Descarga historico desde una fecha especifica hasta ahora (o hasta fecha fin opcional), con chunks de 196 velas por request.
+Descarga historico desde `QUOTEX_BACKTEST_START_DATE` hasta `QUOTEX_BACKTEST_END_DATE`, con chunks de ~196 velas por request.
 
 ```bash
-python scripts/backtesting_v8/backtesting_historical_data_v8_quotex.py --start-date 2026-01-01
-```
-
-Con fecha de fin opcional:
-
-```bash
-python scripts/backtesting_v8/backtesting_historical_data_v8_quotex.py --start-date 2026-01-01 --end-date 2026-03-01
+python scripts/backtesting_v8/backtesting_historical_data_v8_quotex.py
 ```
 
 Salida:

@@ -9,6 +9,7 @@ Author: TradingView Pattern Monitor Team
 
 import os
 import random
+from datetime import datetime, timezone
 from typing import Dict, List, Tuple, Union
 from dataclasses import dataclass
 from dotenv import load_dotenv
@@ -196,6 +197,23 @@ def get_random_user_agent() -> str:
     return random.choice(USER_AGENTS)
 
 
+def _parse_ddmmyyyy_to_timestamp(date_str: str, end_of_day: bool = False) -> int:
+    """Parse DD-MM-YYYY to UTC timestamp (seconds)."""
+    try:
+        parsed = datetime.strptime(date_str.strip(), "%d-%m-%Y")
+    except ValueError as exc:
+        raise ValueError(
+            f"Invalid date '{date_str}'. Expected format DD-MM-YYYY"
+        ) from exc
+
+    if end_of_day:
+        parsed = parsed.replace(hour=23, minute=59, second=59)
+    else:
+        parsed = parsed.replace(hour=0, minute=0, second=0)
+
+    return int(parsed.replace(tzinfo=timezone.utc).timestamp())
+
+
 # =============================================================================
 # CONFIGURACIÓN PRINCIPAL
 # =============================================================================
@@ -278,6 +296,19 @@ class Config:
     
     # Historical Chart Generation (only on first load)
     GENERATE_HISTORICAL_CHARTS: bool = os.getenv("GENERATE_HISTORICAL_CHARTS", "false").lower() == "true"
+
+    # Quotex Backtesting (date-based range)
+    QUOTEX_BACKTEST_START_DATE: str = os.getenv("QUOTEX_BACKTEST_START_DATE", "01-03-2026")
+    QUOTEX_BACKTEST_END_DATE: str = os.getenv("QUOTEX_BACKTEST_END_DATE", "02-04-2026")
+    QUOTEX_BACKTEST_START_TIMESTAMP: int = _parse_ddmmyyyy_to_timestamp(
+        QUOTEX_BACKTEST_START_DATE,
+        end_of_day=False,
+    )
+    QUOTEX_BACKTEST_END_TIMESTAMP: int = _parse_ddmmyyyy_to_timestamp(
+        QUOTEX_BACKTEST_END_DATE,
+        end_of_day=True,
+    )
+    QUOTEX_GENERATE_CHARTS: bool = os.getenv("QUOTEX_GENERATE_CHARTS", "false").lower() == "true"
 
     # Telegram Topics by Environment
     TELEGRAM_SUBSCRIPTION_PROD: str = os.getenv("TELEGRAM_SUBSCRIPTION_PROD", "trade:alert")

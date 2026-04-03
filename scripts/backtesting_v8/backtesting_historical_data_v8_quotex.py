@@ -75,6 +75,7 @@ def setup_logging() -> logging.Logger:
         force=True,
     )
     logging.getLogger("websocket").setLevel(logging.WARNING)
+    logging.getLogger("pyquotex.ws.client").setLevel(logging.WARNING)
     return logging.getLogger("BacktestingV8Quotex")
 
 
@@ -112,9 +113,10 @@ def load_runtime_config() -> dict:
         ).strip()
         or "data/trading_signals_dataset_v8_quotex.jsonl",
         "period": max(int(os.getenv("QUOTEX_BACKTEST_PERIOD", "60")), 1),
-        "target_candles": max(int(os.getenv("QUOTEX_BACKTEST_TARGET_CANDLES", "3000")), 100),
+        "start_timestamp": Config.QUOTEX_BACKTEST_START_TIMESTAMP,
+        "end_timestamp": Config.QUOTEX_BACKTEST_END_TIMESTAMP,
         "delay_seconds": max(float(os.getenv("QUOTEX_BACKTEST_DELAY_SECONDS", "0.35")), 0.0),
-        "generate_charts": parse_bool(os.getenv("GENERATE_CHARTS", "false"), default=False),
+        "generate_charts": Config.QUOTEX_GENERATE_CHARTS,
         "chart_lookback": max(int(os.getenv("CHART_LOOKBACK", "40")), 10),
         "account_mode": (os.getenv("QUOTEX_HISTORY_ACCOUNT_MODE", "PRACTICE").strip().upper() or "PRACTICE"),
         "email": os.getenv("QUOTEX_EMAIL", "").strip(),
@@ -396,42 +398,64 @@ async def run() -> None:
             account_mode=cfg["account_mode"],
         )
 
+        logger.info(
+            "Inicio backtesting Quotex | assets=%s | rango=[%s..%s] | period=%s | charts=%s",
+            len(assets),
+            cfg["start_timestamp"],
+            cfg["end_timestamp"],
+            cfg["period"],
+            cfg["generate_charts"],
+        )
+
         total_generated = 0
         with open(cfg["output_file"], "a", encoding="utf-8") as out_file:
             for asset in assets:
                 try:
-                    resolved_asset, _ = await client.get_available_asset(asset, force_open=True)
-                except Exception:
-                    resolved_asset = asset
+                    try:
+                        resolved_asset, _ = await client.get_available_asset(asset, force_open=True)
+                    except Exception:
+                        resolved_asset = asset
 
-                resolved_asset = str(resolved_asset or asset)
-                logger.info(
-                    "Building history for asset=%s resolved=%s target_candles=%s delay=%s",
-                    asset,
-                    resolved_asset,
-                    cfg["target_candles"],
-                    cfg["delay_seconds"],
-                )
+                    resolved_asset = str(resolved_asset or asset)
+                    logger.info(
+                        "Building history for asset=%s resolved=%s start=%s end=%s delay=%s",
+                        asset,
+                        resolved_asset,
+                        cfg["start_timestamp"],
+                        cfg["end_timestamp"],
+                        cfg["delay_seconds"],
+                    )
 
-                history_df = await build_historical_dataframe(
-                    client=client,
-                    asset=resolved_asset,
-                    period=cfg["period"],
-                    target_candles=cfg["target_candles"],
-                    delay_seconds=cfg["delay_seconds"],
-                )
+                    history_df = await build_historical_dataframe(
+                        client=client,
+                        asset=resolved_asset,
+                        period=cfg["period"],
+                        start_timestamp=cfg["start_timestamp"],
+                        end_timestamp=cfg["end_timestamp"],
+                        delay_seconds=cfg["delay_seconds"],
+                    )
 
-                strategy_df = prepare_dataframe_for_strategy(history_df, asset)
-                if strategy_df.empty:
-                    logger.warning("Skipping %s: empty historical dataframe", asset)
+                    strategy_df = prepare_dataframe_for_strategy(history_df, asset)
+                    if strategy_df.empty:
+                        logger.warning("Skipping %s: empty historical dataframe", asset)
+                        continue
+
+                    generated = process_asset_dataframe(strategy_df, existing_keys, out_file)
+                    total_generated += generated
+                    logger.info(
+                        "Resumen %s | velas=%s | señales_nuevas=%s",
+                        asset,
+                        len(strategy_df),
+                        generated,
+                    )
+
+                    if cfg["generate_charts"]:
+                        maybe_generate_chart(history_df, asset, cfg["chart_lookback"])
+                    else:
+                        logger.info("Chart deshabilitado para %s (QUOTEX_GENERATE_CHARTS=false)", asset)
+                except Exception as e:
+                    logger.error(f"Fallo crítico al procesar el activo {asset}: {e}")
                     continue
-
-                generated = process_asset_dataframe(strategy_df, existing_keys, out_file)
-                total_generated += generated
-                logger.info("Generated %s signals for %s", generated, asset)
-
-                if cfg["generate_charts"]:
-                    maybe_generate_chart(history_df, asset, cfg["chart_lookback"])
 
         logger.info("Finished Quotex dataset generation. New rows: %s", total_generated)
         logger.info("Output file: %s", os.path.abspath(cfg["output_file"]))
